@@ -21,12 +21,26 @@ resource "aws_s3_bucket_versioning" "terraform_state" {
   }
 }
 
+resource "aws_kms_key" "terraform_state" {
+  description             = "Encrypts Peachtree Dispatch Terraform state"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+}
+
+resource "aws_kms_alias" "terraform_state" {
+  name          = "alias/peachtree-dispatch-terraform-state"
+  target_key_id = aws_kms_key.terraform_state.key_id
+}
+
 resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" {
   bucket = aws_s3_bucket.terraform_state.id
 
   rule {
+    bucket_key_enabled = true
+
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      kms_master_key_id = aws_kms_key.terraform_state.arn
+      sse_algorithm     = "aws:kms"
     }
   }
 }
@@ -128,6 +142,16 @@ data "aws_iam_policy_document" "terraform_state_access" {
       "s3:PutObject",
     ]
     resources = ["${aws_s3_bucket.terraform_state.arn}/*"]
+  }
+
+  statement {
+    actions = [
+      "kms:Decrypt",
+      "kms:DescribeKey",
+      "kms:Encrypt",
+      "kms:GenerateDataKey",
+    ]
+    resources = [aws_kms_key.terraform_state.arn]
   }
 }
 
