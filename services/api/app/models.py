@@ -17,6 +17,9 @@ class DeliveryStatus(StrEnum):
 class Location(BaseModel):
     city: str = Field(min_length=1, max_length=80)
     state: str = Field(min_length=2, max_length=2)
+    address: str | None = Field(default=None, min_length=1, max_length=200)
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 class CreateDelivery(BaseModel):
@@ -103,6 +106,19 @@ class OptimizedRoute(BaseModel):
     climate_delay_minutes: float
     risk_score: int
     optimization_note: str
+    stops: list["RouteStop"]
+
+
+class RouteStop(BaseModel):
+    sequence: int
+    delivery_id: str
+    address: str
+    city: str
+    state: str
+    latitude: float
+    longitude: float
+    promised_at: datetime
+    risk_score: int
 
 
 class NetworkOverview(BaseModel):

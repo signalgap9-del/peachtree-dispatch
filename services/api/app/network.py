@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
-from .models import NetworkOverview, OptimizedRoute, WeatherRisk
+from .models import DeliverySummary, Location, NetworkOverview, OptimizedRoute, RouteStop, WeatherRisk
 from .optimizer import solve_routes
 
 
@@ -19,6 +19,26 @@ CITY_COORDINATES: dict[str, tuple[float, float]] = {
     "Augusta": (-81.9748, 33.4735),
     "Columbus": (-84.9877, 32.4610),
 }
+
+CITY_STOPS: dict[str, tuple[str, float, float]] = {
+    "Atlanta": ("675 Ponce De Leon Ave NE, Atlanta, GA 30308", -84.3656, 33.7725),
+    "Marietta": ("10 N Park Square, Marietta, GA 30060", -84.5506, 33.9529),
+    "Decatur": ("101 E Court Square, Decatur, GA 30030", -84.2964, 33.7751),
+    "Roswell": ("610 Atlanta St, Roswell, GA 30075", -84.3616, 34.0187),
+    "Savannah": ("2 W Bay St, Savannah, GA 31401", -81.0918, 32.0809),
+    "Athens": ("100 N Jackson St, Athens, GA 30601", -83.3738, 33.9584),
+    "Macon": ("700 Poplar St, Macon, GA 31201", -83.6294, 32.8368),
+    "Augusta": ("601 Greene St, Augusta, GA 30901", -81.9637, 33.4707),
+    "Columbus": ("100 10th St, Columbus, GA 31901", -84.9890, 32.4657),
+}
+
+DEPOT = Location(
+    city="Atlanta",
+    state="GA",
+    address="675 Ponce De Leon Ave NE, Atlanta, GA 30308",
+    longitude=-84.3656,
+    latitude=33.7725,
+)
 
 ROUTE_COLORS = ["#29e184", "#ff9f43", "#6ea8fe", "#ec5b69"]
 
@@ -42,8 +62,8 @@ def build_network(deliveries: list) -> NetworkOverview:
     for index, vehicle_route in enumerate(optimized):
         driver_id = vehicle_route.driver_id
         ordered = vehicle_route.deliveries
-        waypoints = [CITY_COORDINATES["Atlanta"]]
-        waypoints.extend(CITY_COORDINATES[job.destination.city] for job in ordered)
+        waypoints = [location_coordinates(DEPOT)]
+        waypoints.extend(location_coordinates(job.destination) for job in ordered)
         geometry, distance, duration = fetch_route(waypoints)
         average_risk = round(
             sum(weather_by_city[job.destination.city].risk_score for job in ordered)
@@ -66,6 +86,10 @@ def build_network(deliveries: list) -> NetworkOverview:
                     if average_risk >= 35
                     else "Balanced assignment, promised time, and road distance"
                 ),
+                stops=[
+                    route_stop(sequence, delivery, weather_by_city)
+                    for sequence, delivery in enumerate(ordered, start=1)
+                ],
             )
         )
     return NetworkOverview(
@@ -77,6 +101,38 @@ def build_network(deliveries: list) -> NetworkOverview:
         avoided_risk_minutes=round(
             sum(route.climate_delay_minutes for route in routes) * 0.42, 1
         ),
+    )
+
+
+def location_coordinates(location: Location) -> tuple[float, float]:
+    if location.longitude is not None and location.latitude is not None:
+        return location.longitude, location.latitude
+    _, longitude, latitude = CITY_STOPS[location.city]
+    return longitude, latitude
+
+
+def location_address(location: Location) -> str:
+    if location.address:
+        return location.address
+    return CITY_STOPS[location.city][0]
+
+
+def route_stop(
+    sequence: int,
+    delivery: DeliverySummary,
+    weather_by_city: dict[str, WeatherRisk],
+) -> RouteStop:
+    longitude, latitude = location_coordinates(delivery.destination)
+    return RouteStop(
+        sequence=sequence,
+        delivery_id=delivery.delivery_id,
+        address=location_address(delivery.destination),
+        city=delivery.destination.city,
+        state=delivery.destination.state,
+        longitude=longitude,
+        latitude=latitude,
+        promised_at=delivery.promised_at,
+        risk_score=weather_by_city[delivery.destination.city].risk_score,
     )
 
 

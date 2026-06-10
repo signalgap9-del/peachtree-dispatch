@@ -21,7 +21,7 @@ The project is intentionally designed around Atlanta's logistics and enterprise 
 | Observability | CloudWatch logs, metrics, alarms, dashboard, X-Ray | SRE and incident response |
 | Infrastructure | Terraform | Reusable and reviewable IaC |
 | CI/CD | GitHub Actions with AWS OIDC | Secretless automated delivery |
-| Security | IAM least privilege, KMS, dependency and IaC scanning | DevSecOps |
+| Security | IAM least privilege, KMS state encryption, dependency and IaC scanning | DevSecOps |
 
 ## Runtime Flow
 

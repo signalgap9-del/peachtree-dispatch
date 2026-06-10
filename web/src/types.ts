@@ -10,6 +10,9 @@ export type DeliveryStatus =
 export interface Location {
   city: string;
   state: string;
+  address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface DeliverySummary {
@@ -70,6 +73,19 @@ export interface OptimizedRoute {
   climate_delay_minutes: number;
   risk_score: number;
   optimization_note: string;
+  stops: RouteStop[];
+}
+
+export interface RouteStop {
+  sequence: number;
+  delivery_id: string;
+  address: string;
+  city: string;
+  state: string;
+  latitude: number;
+  longitude: number;
+  promised_at: string;
+  risk_score: number;
 }
 
 export interface NetworkOverview {

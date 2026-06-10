@@ -44,3 +44,12 @@ Target: **under $10/month** at assumed portfolio traffic.
 - Set CloudWatch log retention to 14 days in `dev`.
 - Avoid high-cardinality custom metrics.
 - Prefer one regional environment until the portfolio requires more.
+
+## Accepted Security Cost Decisions
+
+- CloudFront does not use AWS WAF at portfolio traffic because the web origin is
+  private and the fixed monthly WAF charge would dominate total cost.
+- Public static web assets use S3-managed encryption. The Terraform state bucket,
+  which can contain sensitive infrastructure data, uses a customer-managed KMS key.
+- API Gateway throttling, least-privilege IAM, private S3 origin access, dependency
+  auditing, and IaC scanning remain mandatory controls.

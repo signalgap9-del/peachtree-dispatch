@@ -39,8 +39,20 @@ PK = ORG#<organizationId>#DELIVERY#<deliveryId>
   "organizationId": "acme",
   "status": "IN_TRANSIT",
   "driverId": "driver-42",
-  "origin": { "city": "Atlanta", "state": "GA" },
-  "destination": { "city": "Savannah", "state": "GA" },
+  "origin": {
+    "city": "Atlanta",
+    "state": "GA",
+    "address": "675 Ponce De Leon Ave NE, Atlanta, GA 30308",
+    "latitude": 33.7725,
+    "longitude": -84.3656
+  },
+  "destination": {
+    "city": "Savannah",
+    "state": "GA",
+    "address": "2 W Bay St, Savannah, GA 31401",
+    "latitude": 32.0809,
+    "longitude": -81.0918
+  },
   "promisedAt": "2026-06-12T18:00:00Z",
   "createdAt": "2026-06-10T12:00:00Z",
   "updatedAt": "2026-06-10T14:00:00Z",
@@ -111,6 +123,7 @@ This prevents duplicate processing and detects conflicting concurrent updates.
 - Delivery events are immutable.
 - Idempotency records expire after 30 days using TTL.
 - Operational records remain in DynamoDB; long-term event archive to S3 is a later phase.
+- Exact stop coordinates are stored with deliveries so optimization results are reproducible.
 
 ## Why Not PostgreSQL for the MVP
 

@@ -33,6 +33,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showWeather, setShowWeather] = useState(true);
+  const [query, setQuery] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,6 +61,18 @@ function App() {
     () => [...(network?.weather ?? [])].sort((a, b) => b.risk_score - a.risk_score)[0],
     [network],
   );
+  const matchingStops = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized || !network) return [];
+    return network.routes
+      .flatMap((route) => route.stops.map((stop) => ({ route, stop })))
+      .filter(({ route, stop }) =>
+        [route.route_id, route.driver_id, stop.address, stop.city, stop.delivery_id].some(
+          (value) => value.toLowerCase().includes(normalized),
+        ),
+      )
+      .slice(0, 6);
+  }, [network, query]);
 
   return (
     <div className="map-app">
@@ -67,7 +80,21 @@ function App() {
 
       <header className="topbar glass">
         <div className="wordmark"><span><Route size={20} /></span><strong>Peachtree</strong><small>CLIMATE ROUTING</small></div>
-        <label className="map-search"><Search size={17} /><input placeholder="Search a route, driver, or Atlanta destination" /><kbd>⌘ K</kbd></label>
+        <div className="search-shell">
+          <label className="map-search"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search an address, stop, route, or driver" />{query ? <button onClick={() => setQuery("")}><X size={14} /></button> : <kbd>Ctrl K</kbd>}</label>
+          {matchingStops.length > 0 && (
+            <div className="search-results glass">
+              <span className="search-caption">PLACES & ROUTES</span>
+              {matchingStops.map(({ route, stop }) => (
+                <button key={`${route.route_id}-${stop.delivery_id}`} onClick={() => { setSelectedRoute(route.route_id); setQuery(""); }}>
+                  <i style={{ background: route.color }}><MapPin size={13} /></i>
+                  <div><strong>{stop.address}</strong><span>{route.route_id} · {route.driver_id} · Stop {stop.sequence}</span></div>
+                  <ArrowRight size={14} />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="top-actions">
           <button className={`layer-toggle ${showWeather ? "active" : ""}`} onClick={() => setShowWeather(!showWeather)}><CloudRain size={16} />Climate layer</button>
           <button className="icon-button"><Settings2 size={17} /></button>
@@ -100,6 +127,21 @@ function App() {
             <RouteCard key={route.route_id} route={route} active={route.route_id === selectedRoute} onClick={() => setSelectedRoute(route.route_id)} />
           ))}
         </div>
+        {selected && (
+          <div className="itinerary">
+            <div className="section-title"><span>Turn-by-turn stops</span><small>{selected.stops.length} STOPS</small></div>
+            <div className="itinerary-stop depot-stop">
+              <i>P</i><div><strong>Peachtree Dispatch Depot</strong><span>675 Ponce De Leon Ave NE, Atlanta</span></div>
+            </div>
+            {selected.stops.map((stop) => (
+              <div className="itinerary-stop" key={stop.delivery_id}>
+                <i style={{ background: selected.color }}>{stop.sequence}</i>
+                <div><strong>{stop.address.split(",")[0]}</strong><span>{stop.address.split(",").slice(1).join(",")} · by {formatTime(stop.promised_at)}</span></div>
+                <em className={stop.risk_score >= 35 ? "risk" : ""}>{stop.risk_score}</em>
+              </div>
+            ))}
+          </div>
+        )}
       </aside>
 
       {showWeather && highestRisk && <WeatherCard weather={highestRisk} />}
@@ -114,7 +156,7 @@ function App() {
         <section className="route-dock glass">
           <div className="route-color" style={{ background: selected.color }} />
           <div className="dock-driver"><div className="driver-avatar"><Truck size={18} /></div><div><span>{selected.route_id}</span><strong>{selected.driver_id}</strong></div></div>
-          <div className="dock-route"><MapPin size={16} /><div><span>Optimized sequence</span><strong>{selected.delivery_ids.join("  →  ")}</strong></div></div>
+          <div className="dock-route"><MapPin size={16} /><div><span>{selected.stops.length} real-world stops</span><strong>{selected.stops.map((stop) => stop.address.split(",")[0]).join(" → ")}</strong></div></div>
           <DockMetric label="Drive time" value={`${Math.round(selected.duration_minutes)} min`} />
           <DockMetric label="Climate buffer" value={`+${Math.round(selected.climate_delay_minutes)} min`} alert={selected.risk_score >= 45} />
           <DockMetric label="Distance" value={`${selected.distance_miles.toFixed(1)} mi`} />
@@ -133,10 +175,14 @@ function RouteCard({ route, active, onClick }: { route: OptimizedRoute; active: 
   return (
     <button className={`route-card ${active ? "active" : ""}`} onClick={onClick}>
       <i style={{ background: route.color }} />
-      <div className="route-main"><span>{route.route_id}</span><strong>{route.driver_id}</strong><small>{route.optimization_note}</small></div>
+      <div className="route-main"><span>{route.route_id} · {route.stops.length} {route.stops.length === 1 ? "STOP" : "STOPS"}</span><strong>{route.driver_id}</strong><small>{route.stops[0]?.address ?? route.optimization_note}</small></div>
       <div className="route-score"><strong>{route.risk_score}</strong><span>RISK</span></div>
     </button>
   );
+}
+
+function formatTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(value));
 }
 
 function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {

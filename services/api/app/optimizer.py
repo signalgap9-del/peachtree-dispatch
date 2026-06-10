@@ -23,17 +23,29 @@ def solve_routes(
     if not drivers:
         drivers = ["candidate-driver"]
 
-    nodes = ["Atlanta", *[item.destination.city for item in deliveries]]
-    manager = pywrapcp.RoutingIndexManager(len(nodes), len(drivers), 0)
+    node_coordinates = [city_coordinates["Atlanta"]]
+    node_coordinates.extend(
+        (
+            item.destination.longitude,
+            item.destination.latitude,
+        )
+        if item.destination.longitude is not None and item.destination.latitude is not None
+        else city_coordinates[item.destination.city]
+        for item in deliveries
+    )
+    manager = pywrapcp.RoutingIndexManager(len(node_coordinates), len(drivers), 0)
     routing = pywrapcp.RoutingModel(manager)
 
     def arc_cost(from_index: int, to_index: int) -> int:
-        from_city = nodes[manager.IndexToNode(from_index)]
-        to_city = nodes[manager.IndexToNode(to_index)]
-        from_lon, from_lat = city_coordinates[from_city]
-        to_lon, to_lat = city_coordinates[to_city]
+        from_lon, from_lat = node_coordinates[manager.IndexToNode(from_index)]
+        to_node = manager.IndexToNode(to_index)
+        to_lon, to_lat = node_coordinates[to_node]
         distance = hypot(to_lon - from_lon, to_lat - from_lat) * 1000
-        climate_penalty = weather_by_city[to_city].risk_score * 5 if to_city != "Atlanta" else 0
+        climate_penalty = (
+            weather_by_city[deliveries[to_node - 1].destination.city].risk_score * 5
+            if to_node
+            else 0
+        )
         return round(distance + climate_penalty)
 
     transit_callback = routing.RegisterTransitCallback(arc_cost)
@@ -44,8 +56,8 @@ def solve_routes(
 
     for node_index, delivery in enumerate(deliveries, start=1):
         if delivery.driver_id:
-            routing.SetAllowedVehiclesForIndex(
-                [drivers.index(delivery.driver_id)], manager.NodeToIndex(node_index)
+            routing.VehicleVar(manager.NodeToIndex(node_index)).SetValue(
+                drivers.index(delivery.driver_id)
             )
 
     parameters = pywrapcp.DefaultRoutingSearchParameters()

@@ -20,16 +20,22 @@ def main() -> None:
     parser.add_argument("api_url")
     args = parser.parse_args()
     samples = [
-        ("Atlanta", "Savannah", "driver-42"),
-        ("Marietta", "Athens", "driver-17"),
-        ("Decatur", "Macon", None),
-        ("Atlanta", "Augusta", "driver-42"),
-        ("Roswell", "Columbus", "driver-17"),
+        ("Atlanta", "Savannah", "2 W Bay St, Savannah, GA 31401", 32.0809, -81.0918, "driver-42"),
+        ("Marietta", "Athens", "100 N Jackson St, Athens, GA 30601", 33.9584, -83.3738, "driver-17"),
+        ("Decatur", "Macon", "700 Poplar St, Macon, GA 31201", 32.8368, -83.6294, None),
+        ("Atlanta", "Augusta", "601 Greene St, Augusta, GA 30901", 33.4707, -81.9637, "driver-42"),
+        ("Roswell", "Columbus", "100 10th St, Columbus, GA 31901", 32.4657, -84.9890, "driver-17"),
     ]
-    for index, (origin, destination, driver_id) in enumerate(samples):
+    for index, (origin, destination, address, latitude, longitude, driver_id) in enumerate(samples):
         payload = {
             "origin": {"city": origin, "state": "GA"},
-            "destination": {"city": destination, "state": "GA"},
+            "destination": {
+                "city": destination,
+                "state": "GA",
+                "address": address,
+                "latitude": latitude,
+                "longitude": longitude,
+            },
             "promised_at": (
                 datetime.now(UTC) + timedelta(hours=6 + index * 2)
             ).isoformat(),
