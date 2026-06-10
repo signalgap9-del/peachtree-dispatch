@@ -21,7 +21,9 @@
 ## Phase 2: Minimum Viable Platform
 
 - Review and approve product requirements, access patterns, and ADRs.
-- Build the React operations dashboard.
+- Build the React MapLibre climate-routing experience.
+- Add live forecast risk and road geometry provider adapters.
+- Replace the initial heuristic with a benchmarked VRP solver adapter.
 - Add Cognito authentication.
 - Implement delivery create/read/update API operations.
 - Store delivery state in DynamoDB.

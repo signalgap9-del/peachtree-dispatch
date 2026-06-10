@@ -1,0 +1,140 @@
+import os
+from datetime import UTC, datetime
+from uuid import uuid4
+
+from fastapi import FastAPI, HTTPException, Query, Response, status
+from fastapi.middleware.cors import CORSMiddleware
+
+from .models import (
+    AssignDriver,
+    CreateDelivery,
+    DashboardSummary,
+    Delivery,
+    DeliveryStatus,
+    DeliverySummary,
+    NetworkOverview,
+    RecordEvent,
+)
+from .repository import DeliveryRepository, DuplicateEventError
+from .network import build_network
+
+app = FastAPI(title="Peachtree Dispatch API", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+repository = DeliveryRepository(os.getenv("DATABASE_PATH", "peachtree.db"))
+repository.seed()
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "healthy", "service": "peachtree-dispatch-api"}
+
+
+@app.get("/dashboard", response_model=DashboardSummary)
+def dashboard() -> DashboardSummary:
+    deliveries = repository.list()
+    by_status = {delivery_status: 0 for delivery_status in DeliveryStatus}
+    for delivery in deliveries:
+        by_status[delivery.status] += 1
+    now = datetime.now(UTC)
+    return DashboardSummary(
+        total=len(deliveries),
+        active=sum(
+            by_status[item]
+            for item in (
+                DeliveryStatus.CREATED,
+                DeliveryStatus.ASSIGNED,
+                DeliveryStatus.PICKED_UP,
+                DeliveryStatus.IN_TRANSIT,
+            )
+        ),
+        delivered=by_status[DeliveryStatus.DELIVERED],
+        failed=by_status[DeliveryStatus.FAILED],
+        delayed=sum(
+            1
+            for delivery in deliveries
+            if delivery.promised_at < now
+            and delivery.status not in (DeliveryStatus.DELIVERED, DeliveryStatus.CANCELLED)
+        ),
+        by_status=by_status,
+    )
+
+
+@app.get("/network", response_model=NetworkOverview)
+def network() -> NetworkOverview:
+    return build_network(repository.list())
+
+
+@app.get("/deliveries", response_model=list[DeliverySummary])
+def list_deliveries(
+    delivery_status: DeliveryStatus | None = Query(None, alias="status"),
+    driver_id: str | None = None,
+    promised_date: str | None = None,
+) -> list[DeliverySummary]:
+    return repository.list(delivery_status, driver_id, promised_date)
+
+
+@app.post("/deliveries", response_model=Delivery, status_code=status.HTTP_201_CREATED)
+def create_delivery(command: CreateDelivery) -> Delivery:
+    return repository.create(f"PD-{uuid4().hex[:8].upper()}", command)
+
+
+@app.get("/deliveries/{delivery_id}", response_model=Delivery)
+def get_delivery(delivery_id: str) -> Delivery:
+    delivery = repository.get(delivery_id)
+    if not delivery:
+        raise HTTPException(status_code=404, detail="Delivery not found")
+    return delivery
+
+
+@app.post("/deliveries/{delivery_id}/assignments", response_model=Delivery)
+def assign_driver(delivery_id: str, command: AssignDriver) -> Delivery:
+    return _transition(
+        delivery_id,
+        f"evt-{uuid4()}",
+        DeliveryStatus.ASSIGNED,
+        "operator-console",
+        driver_id=command.driver_id,
+    )
+
+
+@app.post("/deliveries/{delivery_id}/events", response_model=Delivery)
+def record_event(delivery_id: str, command: RecordEvent, response: Response) -> Delivery:
+    try:
+        return _transition(
+            delivery_id,
+            command.event_id,
+            command.to_status,
+            command.source,
+            command.occurred_at,
+        )
+    except DuplicateEventError:
+        response.status_code = status.HTTP_200_OK
+        delivery = repository.get(delivery_id)
+        if not delivery:
+            raise HTTPException(status_code=404, detail="Delivery not found")
+        return delivery
+
+
+def _transition(
+    delivery_id: str,
+    event_id: str,
+    target: DeliveryStatus,
+    source: str,
+    occurred_at: datetime | None = None,
+    driver_id: str | None = None,
+) -> Delivery:
+    try:
+        return repository.transition(
+            delivery_id, event_id, target, source, occurred_at, driver_id
+        )
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail="Delivery not found") from error
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error

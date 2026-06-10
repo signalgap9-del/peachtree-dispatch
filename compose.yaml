@@ -1,0 +1,43 @@
+services:
+  api:
+    build:
+      context: ./services/api
+    environment:
+      DATABASE_PATH: /data/peachtree.db
+    ports:
+      - "8000:8000"
+    volumes:
+      - api-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile.dev
+    environment:
+      VITE_API_URL: http://localhost:8000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - --spider
+        - -q
+        - http://127.0.0.1:5173
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  api-data:

@@ -19,6 +19,15 @@ node_modules/
 dist/
 build/
 coverage/
+*.tsbuildinfo
+web/vite.config.js
+web/vite.config.d.ts
+*.db
+*.db-shm
+*.db-wal
+.pytest_cache/
+__pycache__/
+*.pyc
 
 # Editors and operating systems
 .idea/

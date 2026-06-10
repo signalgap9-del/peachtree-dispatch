@@ -1,6 +1,10 @@
 # Peachtree Dispatch
 
-An event-driven delivery operations platform built to demonstrate production-style AWS, DevOps, and SRE practices.
+A climate-aware route optimization platform built to demonstrate production-style AWS, DevOps, and SRE practices.
+
+The local product experience is map-first: it combines live Open-Meteo forecasts,
+OSRM road geometry, and a climate-aware multi-stop assignment heuristic in a
+MapLibre interface inspired by modern mobility products.
 
 ## Portfolio Goals
 
@@ -17,6 +21,24 @@ See [docs/architecture.md](docs/architecture.md) and [docs/roadmap.md](docs/road
 - Infrastructure pull requests generate a remote Terraform plan through GitHub OIDC.
 - Development applies run manually through a protected GitHub environment.
 - Dependabot maintains GitHub Actions and Terraform dependencies.
+
+## Run Locally
+
+Requirements: Docker Desktop.
+
+```powershell
+docker compose up --build
+```
+
+Open:
+
+- Climate routing map: `http://localhost:5173`
+- API documentation: `http://localhost:8000/docs`
+- API health: `http://localhost:8000/health`
+
+The local environment uses SQLite behind the same domain boundary that will later receive a DynamoDB repository adapter.
+
+See [docs/local-development.md](docs/local-development.md) for the local-to-AWS component mapping and verification commands.
 
 ## Local AWS access
 

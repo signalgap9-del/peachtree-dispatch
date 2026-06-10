@@ -2,7 +2,7 @@
 
 ## Product
 
-Peachtree Dispatch is a delivery operations platform for creating deliveries, ingesting status events, tracking workflow progress, and surfacing failed or delayed deliveries to operators.
+Peachtree Dispatch is a climate-aware route optimization platform for assigning deliveries, visualizing live weather risk, and producing road-aware multi-stop routes for operators.
 
 The project is intentionally designed around Atlanta's logistics and enterprise technology market while demonstrating broadly useful cloud engineering skills.
 
@@ -10,13 +10,15 @@ The project is intentionally designed around Atlanta's logistics and enterprise 
 
 | Area | Choice | Portfolio Signal |
 | --- | --- | --- |
-| Frontend | React, TypeScript, Vite | Modern application delivery |
+| Frontend | React, TypeScript, Vite, MapLibre | Map-first mobility product experience |
 | Edge | CloudFront, private S3 origin | CDN, TLS, secure static hosting |
 | Authentication | Amazon Cognito | Managed identity and authorization |
 | API | API Gateway, Python Lambda, AWS Lambda Powertools | Serverless API and structured operations |
 | Workflows | EventBridge, SQS, targeted Step Functions Express | Event routing, buffering, retries, and exception handling |
 | Data | DynamoDB with point-in-time recovery | NoSQL modeling and resilience |
 | Batch | Docker, ECR, on-demand ECS Fargate task | Container delivery without always-on cost |
+| Optimization | Climate-risk heuristic, swappable VRP adapter | Explainable routing and future solver integration |
+| External data | Open-Meteo and OSRM adapters | Live forecast and road geometry integration |
 | Observability | CloudWatch logs, metrics, alarms, dashboard, X-Ray | SRE and incident response |
 | Infrastructure | Terraform | Reusable and reviewable IaC |
 | CI/CD | GitHub Actions with AWS OIDC | Secretless automated delivery |
@@ -43,7 +45,7 @@ flowchart LR
     Fargate --> Archive[(S3 report output)]
     Api --> Observability[CloudWatch and X-Ray]
     Worker --> Observability
-    Workflow --> Observability
+    Exceptions --> Observability
 ```
 
 ## Infrastructure Layout
