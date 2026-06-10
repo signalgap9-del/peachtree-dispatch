@@ -5,6 +5,7 @@ from urllib.parse import urlencode
 from urllib.request import urlopen
 
 from .models import NetworkOverview, OptimizedRoute, WeatherRisk
+from .optimizer import solve_routes
 
 
 CITY_COORDINATES: dict[str, tuple[float, float]] = {
@@ -35,29 +36,12 @@ def build_network(deliveries: list) -> NetworkOverview:
         weather = list(executor.map(fetch_weather, weather_cities))
 
     weather_by_city = {item.city: item for item in weather}
-    grouped: dict[str, list] = {}
-    unassigned: list = []
-    for delivery in active:
-        if delivery.driver_id:
-            grouped.setdefault(delivery.driver_id, []).append(delivery)
-        else:
-            unassigned.append(delivery)
-
-    if not grouped and unassigned:
-        grouped["candidate-driver"] = []
-    for delivery in unassigned:
-        driver_id = min(grouped, key=lambda candidate: len(grouped[candidate]))
-        grouped[driver_id].append(delivery)
+    optimized = solve_routes(active, weather_by_city, CITY_COORDINATES)
 
     routes: list[OptimizedRoute] = []
-    for index, (driver_id, jobs) in enumerate(grouped.items()):
-        ordered = sorted(
-            jobs,
-            key=lambda job: (
-                weather_by_city[job.destination.city].risk_score,
-                job.promised_at,
-            ),
-        )
+    for index, vehicle_route in enumerate(optimized):
+        driver_id = vehicle_route.driver_id
+        ordered = vehicle_route.deliveries
         waypoints = [CITY_COORDINATES["Atlanta"]]
         waypoints.extend(CITY_COORDINATES[job.destination.city] for job in ordered)
         geometry, distance, duration = fetch_route(waypoints)
@@ -88,7 +72,7 @@ def build_network(deliveries: list) -> NetworkOverview:
         generated_at=datetime.now(UTC),
         routes=routes,
         weather=weather,
-        algorithm="Climate-aware nearest-neighbor heuristic v0.1",
+        algorithm="OR-Tools climate-aware capacitated VRP v1",
         total_distance_miles=round(sum(route.distance_miles for route in routes), 1),
         avoided_risk_minutes=round(
             sum(route.climate_delay_minutes for route in routes) * 0.42, 1

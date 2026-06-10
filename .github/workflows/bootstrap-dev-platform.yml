@@ -1,4 +1,4 @@
-name: Terraform Apply
+name: Bootstrap Dev Platform
 
 on:
   workflow_dispatch:
@@ -7,14 +7,14 @@ permissions:
   contents: read
   id-token: write
 
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
 jobs:
-  apply:
-    name: Apply Dev
+  bootstrap:
     runs-on: ubuntu-latest
     environment: dev
-    defaults:
-      run:
-        working-directory: infra/environments/dev
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
@@ -24,10 +24,14 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_TERRAFORM_APPLY_ROLE_ARN }}
           aws-region: us-east-1
-      - run: >-
+      - name: Initialize Terraform
+        working-directory: infra/environments/dev
+        run: >-
           terraform init
           -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
           -backend-config="key=peachtree-dispatch/dev/terraform.tfstate"
           -backend-config="region=us-east-1"
           -backend-config="use_lockfile=true"
-      - run: terraform apply -auto-approve -input=false
+      - name: Create serverless platform and ECR repository
+        working-directory: infra/environments/dev
+        run: terraform apply -auto-approve -input=false

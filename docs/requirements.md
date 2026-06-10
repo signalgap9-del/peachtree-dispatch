@@ -37,6 +37,8 @@ Supported delivery status transitions and the API boundary are defined in [domai
 - Idempotent event processing
 - Failed-event DLQ and replay
 - Operational dashboard and alarms
+- Climate-aware multi-vehicle route optimization
+- Asynchronous optimization jobs with status tracking
 
 ### Later
 
@@ -48,7 +50,6 @@ Supported delivery status transitions and the API boundary are defined in [domai
 ### Non-Goals
 
 - Real-time GPS tracking
-- Route optimization
 - Payments or billing
 - Native mobile applications
 - Multi-region active-active deployment

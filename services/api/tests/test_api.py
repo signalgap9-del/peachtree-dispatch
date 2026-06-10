@@ -57,3 +57,13 @@ def test_network_returns_optimized_routes(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert response.json()["algorithm"] == "test optimizer"
+
+
+def test_submit_and_get_optimization_job() -> None:
+    submitted = client.post("/optimizations")
+    assert submitted.status_code == 202
+    job_id = submitted.json()["job_id"]
+
+    fetched = client.get(f"/optimizations/{job_id}")
+    assert fetched.status_code == 200
+    assert fetched.json()["status"] == "QUEUED"

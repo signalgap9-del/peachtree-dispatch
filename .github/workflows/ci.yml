@@ -59,6 +59,7 @@ jobs:
         directory:
           - infra/bootstrap
           - infra/environments/dev
+          - infra/environments/prod
     defaults:
       run:
         working-directory: ${{ matrix.directory }}
@@ -82,3 +83,17 @@ jobs:
           hide-progress: true
           exit-code: "1"
           severity: HIGH,CRITICAL
+
+  python-security:
+    name: Python Dependency Audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pip-audit
+      - run: pip-audit -r requirements.txt

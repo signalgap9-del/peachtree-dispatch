@@ -23,8 +23,8 @@
 - Review and approve product requirements, access patterns, and ADRs.
 - Build the React MapLibre climate-routing experience.
 - Add live forecast risk and road geometry provider adapters.
-- Replace the initial heuristic with a benchmarked VRP solver adapter.
-- Add Cognito authentication.
+- Benchmark and tune the OR-Tools VRP solver.
+- Add authentication before exposing write operations publicly.
 - Implement delivery create/read/update API operations.
 - Store delivery state in DynamoDB.
 - Deploy CloudFront, S3, API Gateway, and Lambda with Terraform.
@@ -32,12 +32,10 @@
 
 ## Phase 3: Event-Driven Operations
 
-- Publish delivery events through EventBridge.
-- Process asynchronous work through SQS and Lambda.
+- Process asynchronous optimization work through SQS and Lambda.
 - Add retries, idempotency, DLQ, and replay tooling.
 - Demonstrate a failed-delivery incident scenario.
-- Add a Step Functions exception workflow only after the required multi-step process is defined.
-- Add an on-demand ECS Fargate report task after the Lambda event path is stable.
+- Evaluate Step Functions or ECS Fargate only when a measured workload requires them.
 
 ## Phase 4: SRE and DevSecOps
 

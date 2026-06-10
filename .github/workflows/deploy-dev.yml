@@ -1,0 +1,62 @@
+name: Deploy Dev
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.13.5
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_APPLY_ROLE_ARN }}
+          aws-region: us-east-1
+      - name: Initialize Terraform
+        working-directory: infra/environments/dev
+        run: >-
+          terraform init
+          -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+          -backend-config="key=peachtree-dispatch/dev/terraform.tfstate"
+          -backend-config="region=us-east-1"
+          -backend-config="use_lockfile=true"
+      - name: Build and push immutable Lambda image
+        id: image
+        working-directory: infra/environments/dev
+        run: |
+          REPOSITORY=$(terraform output -raw api_ecr_repository_url)
+          aws ecr get-login-password | docker login --username AWS --password-stdin "${REPOSITORY%/*}"
+          docker build -f ../../../services/api/Dockerfile.lambda -t "$REPOSITORY:${GITHUB_SHA}" ../../../services/api
+          docker push "$REPOSITORY:${GITHUB_SHA}"
+          echo "uri=$REPOSITORY:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+      - name: Deploy application
+        working-directory: infra/environments/dev
+        run: terraform apply -auto-approve -input=false -var="api_image_uri=${{ steps.image.outputs.uri }}"
+      - name: Build and upload web
+        run: |
+          API_URL=$(terraform -chdir=infra/environments/dev output -raw api_url)
+          BUCKET=$(terraform -chdir=infra/environments/dev output -raw web_bucket_name)
+          DISTRIBUTION=$(terraform -chdir=infra/environments/dev output -raw cloudfront_distribution_id)
+          cd web
+          npm ci
+          VITE_API_URL="$API_URL" npm run build
+          aws s3 sync dist "s3://$BUCKET" --delete
+          aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION" --paths "/*"
+      - name: Smoke test
+        run: |
+          API_URL=$(terraform -chdir=infra/environments/dev output -raw api_url)
+          curl --fail --retry 8 --retry-delay 5 "$API_URL/health"

@@ -13,10 +13,7 @@ from .models import (
     DeliverySummary,
     Location,
 )
-
-
-class DuplicateEventError(Exception):
-    pass
+from .repository_contract import DuplicateEventError
 
 
 class DeliveryRepository:

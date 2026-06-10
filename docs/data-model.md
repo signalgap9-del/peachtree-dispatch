@@ -17,6 +17,8 @@ The MVP uses one table named `peachtree-dispatch-dev` with point-in-time recover
 | AP5 | Apply a status event exactly once | Conditional write of idempotency item |
 | AP6 | Update current delivery state and append event atomically | DynamoDB transaction |
 | AP7 | Find failed asynchronous work | SQS DLQ, not a table scan |
+| AP8 | List all deliveries newest first | Query GSI4 |
+| AP9 | Store and retrieve an optimization job | Optimization job partition |
 
 ## Key Design
 
@@ -100,6 +102,7 @@ This prevents duplicate processing and detects conflicting concurrent updates.
 | GSI1 | organization + status | updated time + delivery ID | Operational status queue |
 | GSI2 | organization + driver | promised time + delivery ID | Driver workload |
 | GSI3 | organization + promised date | promised time + delivery ID | Daily dispatch board |
+| GSI4 | organization deliveries | updated time + delivery ID | All-deliveries map feed |
 
 ## Consistency and Retention
 

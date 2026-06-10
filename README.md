@@ -2,9 +2,15 @@
 
 A climate-aware route optimization platform built to demonstrate production-style AWS, DevOps, and SRE practices.
 
-The local product experience is map-first: it combines live Open-Meteo forecasts,
-OSRM road geometry, and a climate-aware multi-stop assignment heuristic in a
-MapLibre interface inspired by modern mobility products.
+The map-first product combines live Open-Meteo forecasts, OSRM road geometry,
+and an OR-Tools capacitated vehicle-routing solver in a MapLibre interface
+inspired by modern mobility products.
+
+## Live Development Environment
+
+- Web: https://d23c97ytqgl4xu.cloudfront.net
+- API health: https://6zi4acjsz2.execute-api.us-east-1.amazonaws.com/health
+- API documentation is available locally at `http://localhost:8000/docs`.
 
 ## Portfolio Goals
 
@@ -19,7 +25,8 @@ See [docs/architecture.md](docs/architecture.md) and [docs/roadmap.md](docs/road
 
 - Pull requests validate and security-scan Terraform.
 - Infrastructure pull requests generate a remote Terraform plan through GitHub OIDC.
-- Development applies run manually through a protected GitHub environment.
+- `main` deploys the dev environment with an immutable Lambda image.
+- Production promotion and rollback are manual, approval-gated workflows.
 - Dependabot maintains GitHub Actions and Terraform dependencies.
 
 ## Run Locally
@@ -36,7 +43,9 @@ Open:
 - API documentation: `http://localhost:8000/docs`
 - API health: `http://localhost:8000/health`
 
-The local environment uses SQLite behind the same domain boundary that will later receive a DynamoDB repository adapter.
+The local environment uses SQLite behind the same repository contract used by
+the deployed DynamoDB adapter. AWS optimization requests are queued through SQS
+and solved by a dedicated Lambda worker.
 
 See [docs/local-development.md](docs/local-development.md) for the local-to-AWS component mapping and verification commands.
 

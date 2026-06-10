@@ -13,22 +13,27 @@ from .models import (
     DeliveryStatus,
     DeliverySummary,
     NetworkOverview,
+    OptimizationJob,
     RecordEvent,
 )
-from .repository import DeliveryRepository, DuplicateEventError
 from .network import build_network
+from .repository_contract import DuplicateEventError
+from .repository_factory import create_repository
+from .optimization_service import OptimizationService
 
 app = FastAPI(title="Peachtree Dispatch API", version="0.1.0")
+cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-repository = DeliveryRepository(os.getenv("DATABASE_PATH", "peachtree.db"))
+repository = create_repository()
 repository.seed()
+optimization_service = OptimizationService()
 
 
 @app.get("/health")
@@ -69,6 +74,23 @@ def dashboard() -> DashboardSummary:
 @app.get("/network", response_model=NetworkOverview)
 def network() -> NetworkOverview:
     return build_network(repository.list())
+
+
+@app.post(
+    "/optimizations",
+    response_model=OptimizationJob,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def submit_optimization() -> OptimizationJob:
+    return optimization_service.submit()
+
+
+@app.get("/optimizations/{job_id}", response_model=OptimizationJob)
+def get_optimization(job_id: str) -> OptimizationJob:
+    job = optimization_service.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Optimization job not found")
+    return job
 
 
 @app.get("/deliveries", response_model=list[DeliverySummary])

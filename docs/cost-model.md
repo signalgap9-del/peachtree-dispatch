@@ -12,13 +12,12 @@ Target: **under $10/month** at assumed portfolio traffic.
 | --- | --- | --- |
 | Lambda | Request and duration based; scales to zero | Usually within free usage or cents |
 | API Gateway HTTP API | Per request | Cents at portfolio traffic |
-| DynamoDB | Provisioned free-tier capacity initially | Usually within free usage |
-| SQS and EventBridge | Per request | Cents at portfolio traffic |
-| Step Functions Express | Per request and duration | Cents at portfolio traffic |
+| DynamoDB | On-demand requests and storage | Usually within free usage |
+| SQS | Per request | Cents at portfolio traffic |
 | S3 and CloudFront | Small static site | Cents |
-| CloudWatch | Logs, custom metrics, dashboards | Main cost to watch; use short retention |
-| KMS | Customer-managed keys | Small fixed monthly cost per key |
-| ECS Fargate batch | Only when manually invoked | Controlled experiment cost |
+| ECR | Container image storage | Cents with the 10-image lifecycle policy |
+| CloudWatch | Logs, detailed API metrics, alarms, one dashboard | Main variable cost to watch |
+| KMS | One customer-managed Terraform state key | Roughly $1/month fixed cost |
 
 ## Services Deliberately Avoided Initially
 
@@ -33,13 +32,13 @@ Target: **under $10/month** at assumed portfolio traffic.
 ## Credit Strategy
 
 - Keep the persistent development environment inexpensive.
-- Use credits for short, documented experiments such as an ECS Fargate batch run, load test, or recovery exercise.
+- Use credits for short, documented experiments such as a load test or recovery exercise.
 - Destroy experimental resources immediately after collecting evidence.
 - Record the experiment cost and architectural conclusion in an ADR or postmortem.
 
 ## Guardrails
 
-- Monthly budget currently set to $10.
+- Monthly budget target is $10.
 - Add alerts at 50%, 80%, and 100% before deploying the application.
 - Require a cost-impact section in infrastructure pull requests.
 - Set CloudWatch log retention to 14 days in `dev`.

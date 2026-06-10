@@ -12,12 +12,11 @@ The project is intentionally designed around Atlanta's logistics and enterprise 
 | --- | --- | --- |
 | Frontend | React, TypeScript, Vite, MapLibre | Map-first mobility product experience |
 | Edge | CloudFront, private S3 origin | CDN, TLS, secure static hosting |
-| Authentication | Amazon Cognito | Managed identity and authorization |
-| API | API Gateway, Python Lambda, AWS Lambda Powertools | Serverless API and structured operations |
-| Workflows | EventBridge, SQS, targeted Step Functions Express | Event routing, buffering, retries, and exception handling |
+| API | API Gateway, FastAPI, Python Lambda | Serverless API and typed HTTP boundary |
+| Workflows | SQS and Lambda partial batch failures | Buffered optimization, retries, and DLQ handling |
 | Data | DynamoDB with point-in-time recovery | NoSQL modeling and resilience |
-| Batch | Docker, ECR, on-demand ECS Fargate task | Container delivery without always-on cost |
-| Optimization | Climate-risk heuristic, swappable VRP adapter | Explainable routing and future solver integration |
+| Packaging | Docker and ECR | Immutable application artifacts |
+| Optimization | OR-Tools capacitated VRP with climate penalties | Operations research and asynchronous compute |
 | External data | Open-Meteo and OSRM adapters | Live forecast and road geometry integration |
 | Observability | CloudWatch logs, metrics, alarms, dashboard, X-Ray | SRE and incident response |
 | Infrastructure | Terraform | Reusable and reviewable IaC |
@@ -30,22 +29,15 @@ The project is intentionally designed around Atlanta's logistics and enterprise 
 flowchart LR
     User[Operator] --> CloudFront
     CloudFront --> Web[S3 React application]
-    User --> Cognito
     Web --> Api[API Gateway]
-    Api --> Commands[Command and Query Lambda]
-    Commands --> Table[(DynamoDB)]
-    Commands --> Bus[EventBridge]
-    Bus --> Queue[SQS event queue]
-    Queue --> Worker[Event Worker Lambda]
+    Api --> Commands[FastAPI Lambda]
+    Commands --> Table[(DynamoDB single table)]
+    Commands --> Queue[SQS optimization queue]
+    Queue --> Worker[OR-Tools optimizer Lambda]
     Worker --> Table
     Queue --> DLQ[SQS dead-letter queue]
-    Bus --> Exceptions[Exception Step Functions workflow]
-    User --> Report[Run report request]
-    Report --> Fargate[On-demand ECS Fargate task]
-    Fargate --> Archive[(S3 report output)]
     Api --> Observability[CloudWatch and X-Ray]
     Worker --> Observability
-    Exceptions --> Observability
 ```
 
 ## Infrastructure Layout
@@ -56,14 +48,12 @@ infra/
   modules/         # Reusable AWS modules
   environments/
     dev/           # Low-cost deployed portfolio environment
+    prod/          # Approval-gated production environment
 
 services/
-  api/             # Python command/query API
-  worker/          # Asynchronous event processor
+  api/             # FastAPI, DynamoDB repository, and OR-Tools worker
 
 web/               # React operations dashboard
-tests/
-  integration/     # Deployed-environment smoke and failure tests
 ```
 
 ## Engineering Decisions
@@ -72,15 +62,17 @@ tests/
 
 Terraform is widely requested in Atlanta cloud and DevOps roles and makes infrastructure reviewable in pull requests. The repository will use an encrypted, versioned S3 backend with S3 state locking.
 
-### Hybrid compute
+### Asynchronous optimization
 
-Lambda handles low-volume request and event workloads because it scales to zero and integrates directly with API Gateway and SQS. A later on-demand ECS Fargate task demonstrates container delivery for work that benefits from a longer-running process. No always-on container service is required.
+The API persists an optimization job and sends its ID to SQS. A dedicated
+Lambda worker runs OR-Tools, writes the result to DynamoDB, and reports partial
+batch failures so only failed jobs are retried. Repeated failures move to a DLQ.
 
-Step Functions is not placed in the normal event path. It is reserved for a later exception workflow only when the process has multiple explicit steps, waits, or compensating actions.
+### Separate dev and production state
 
-### One deployed development environment
-
-The initial portfolio uses one persistent `dev` environment. Pull requests run validation and Terraform plans without creating expensive preview environments.
+Dev is deployed and inexpensive. Production has separate Terraform state,
+deletion protection, longer log retention, and an approval-gated GitHub
+environment, but remains unapplied until a production release is justified.
 
 ### GitHub OIDC instead of AWS access keys
 
@@ -102,6 +94,8 @@ GitHub Actions will assume narrowly scoped AWS roles using OIDC. The plan role t
 - [Cost model](cost-model.md)
 - [ADR 0002: Hybrid compute](adr/0002-hybrid-compute.md)
 - [ADR 0003: DynamoDB operational store](adr/0003-dynamodb-operational-store.md)
+- [ADR 0004: Asynchronous OR-Tools optimization](adr/0004-async-ortools-optimization.md)
+- [Deployment and promotion](deployment.md)
 
 ## Definition of Production-Style
 

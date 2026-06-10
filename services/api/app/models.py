@@ -112,3 +112,19 @@ class NetworkOverview(BaseModel):
     algorithm: str
     total_distance_miles: float
     avoided_risk_minutes: float
+
+
+class OptimizationStatus(StrEnum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+
+
+class OptimizationJob(BaseModel):
+    job_id: str
+    status: OptimizationStatus
+    created_at: datetime
+    updated_at: datetime
+    result: NetworkOverview | None = None
+    error: str | None = None

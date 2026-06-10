@@ -1,10 +1,10 @@
 module "application" {
   source = "../../modules/application"
 
-  environment                = "dev"
+  environment                = "prod"
   api_image_uri              = var.api_image_uri
-  log_retention_days         = 14
-  enable_deletion_protection = false
+  log_retention_days         = 30
+  enable_deletion_protection = true
 }
 
 output "api_ecr_repository_url" {
