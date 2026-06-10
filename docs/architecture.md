@@ -14,8 +14,9 @@ The project is intentionally designed around Atlanta's logistics and enterprise 
 | Edge | CloudFront, private S3 origin | CDN, TLS, secure static hosting |
 | Authentication | Amazon Cognito | Managed identity and authorization |
 | API | API Gateway, Python Lambda, AWS Lambda Powertools | Serverless API and structured operations |
-| Workflows | EventBridge, SQS, Step Functions | Event-driven design, retries, failure handling |
+| Workflows | EventBridge, SQS, targeted Step Functions Express | Event routing, buffering, retries, and exception handling |
 | Data | DynamoDB with point-in-time recovery | NoSQL modeling and resilience |
+| Batch | Docker, ECR, on-demand ECS Fargate task | Container delivery without always-on cost |
 | Observability | CloudWatch logs, metrics, alarms, dashboard, X-Ray | SRE and incident response |
 | Infrastructure | Terraform | Reusable and reviewable IaC |
 | CI/CD | GitHub Actions with AWS OIDC | Secretless automated delivery |
@@ -29,14 +30,17 @@ flowchart LR
     CloudFront --> Web[S3 React application]
     User --> Cognito
     Web --> Api[API Gateway]
-    Api --> Commands[Command Lambda]
+    Api --> Commands[Command and Query Lambda]
     Commands --> Table[(DynamoDB)]
     Commands --> Bus[EventBridge]
-    Bus --> Workflow[Step Functions]
-    Workflow --> Queue[SQS work queue]
-    Queue --> Worker[Worker Lambda]
+    Bus --> Queue[SQS event queue]
+    Queue --> Worker[Event Worker Lambda]
     Worker --> Table
     Queue --> DLQ[SQS dead-letter queue]
+    Bus --> Exceptions[Exception Step Functions workflow]
+    User --> Report[Run report request]
+    Report --> Fargate[On-demand ECS Fargate task]
+    Fargate --> Archive[(S3 report output)]
     Api --> Observability[CloudWatch and X-Ray]
     Worker --> Observability
     Workflow --> Observability
@@ -66,9 +70,11 @@ tests/
 
 Terraform is widely requested in Atlanta cloud and DevOps roles and makes infrastructure reviewable in pull requests. The repository will use an encrypted, versioned S3 backend with S3 state locking.
 
-### Serverless first
+### Hybrid compute
 
-Serverless services keep the public development environment inexpensive while still demonstrating distributed systems and operational practices. ECS or Kubernetes can be added later as a deliberately scoped worker migration.
+Lambda handles low-volume request and event workloads because it scales to zero and integrates directly with API Gateway and SQS. A later on-demand ECS Fargate task demonstrates container delivery for work that benefits from a longer-running process. No always-on container service is required.
+
+Step Functions is not placed in the normal event path. It is reserved for a later exception workflow only when the process has multiple explicit steps, waits, or compensating actions.
 
 ### One deployed development environment
 
@@ -85,6 +91,15 @@ GitHub Actions will assume narrowly scoped AWS roles using OIDC. The plan role t
 - Configure short CloudWatch log retention.
 - Tag every resource with project, environment, owner, and IaC metadata.
 - Document expected monthly cost in each infrastructure pull request.
+
+## Detailed Design Documents
+
+- [Product requirements](requirements.md)
+- [Domain model and API boundary](domain-model.md)
+- [DynamoDB data model](data-model.md)
+- [Cost model](cost-model.md)
+- [ADR 0002: Hybrid compute](adr/0002-hybrid-compute.md)
+- [ADR 0003: DynamoDB operational store](adr/0003-dynamodb-operational-store.md)
 
 ## Definition of Production-Style
 

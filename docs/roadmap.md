@@ -20,6 +20,7 @@
 
 ## Phase 2: Minimum Viable Platform
 
+- Review and approve product requirements, access patterns, and ADRs.
 - Build the React operations dashboard.
 - Add Cognito authentication.
 - Implement delivery create/read/update API operations.
@@ -30,10 +31,11 @@
 ## Phase 3: Event-Driven Operations
 
 - Publish delivery events through EventBridge.
-- Implement a Step Functions workflow.
 - Process asynchronous work through SQS and Lambda.
 - Add retries, idempotency, DLQ, and replay tooling.
 - Demonstrate a failed-delivery incident scenario.
+- Add a Step Functions exception workflow only after the required multi-step process is defined.
+- Add an on-demand ECS Fargate report task after the Lambda event path is stable.
 
 ## Phase 4: SRE and DevSecOps
 
@@ -49,7 +51,7 @@
 - Add screenshots of CI plans, dashboards, alarms, and incident recovery.
 - Publish cost breakdown and security decisions.
 - Write resume bullets with measured outcomes.
-- Optionally migrate one worker to ECS Fargate or Kubernetes as a documented comparison.
+- Document the Lambda versus Fargate workload comparison using measured cost and runtime data.
 
 ## GitHub Evidence Checklist
 
