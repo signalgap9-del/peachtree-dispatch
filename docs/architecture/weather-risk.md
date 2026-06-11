@@ -2,7 +2,7 @@
 
 ## Product Model
 
-Peachtree Routes separates weather risk into three horizons:
+AtmosPath separates weather risk into three horizons:
 
 1. **Active hazards:** current NWS watches, warnings, and advisories.
 2. **Near-term driving conditions:** hourly NOAA/NWS forecasts for a curated

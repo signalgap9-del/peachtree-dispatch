@@ -1,6 +1,6 @@
 # Frontend Design Workflow
 
-This directory is the durable source of truth for Peachtree Dispatch visual design.
+This directory is the durable source of truth for AtmosPath visual design.
 Major UI work must pass through the following stages before it is considered ready.
 
 ## 1. Write The Brief

@@ -1,27 +1,27 @@
-# ADR 0003: Use DynamoDB as the Operational Store
+# ADR 0003: Legacy Dispatch DynamoDB Model
 
 ## Status
 
-Accepted
+Superseded by [ADR 0006](0006-hybrid-dynamodb-postgis.md).
 
 ## Context
 
-The MVP primarily reads deliveries by identifier, status, driver, and promised date, while appending immutable status events. Traffic is low and bursty, and the persistent environment should remain inexpensive.
-
-## Options Considered
-
-- **PostgreSQL on RDS or Aurora:** familiar relational model and flexible reporting, but adds idle cost, networking, connection management, and maintenance.
-- **DynamoDB:** request-oriented modeling, scale-to-zero behavior, conditional writes, transactions, streams, and low operational overhead.
+The repository began as a delivery-dispatch prototype. Its DynamoDB table and
+four GSIs were designed for deliveries, drivers, promised dates, and event
+timelines. AtmosPath is now a nationwide weather-risk navigation product, so
+those access patterns no longer define the product architecture.
 
 ## Decision
 
-Use a DynamoDB single-table design for current delivery state, event timelines, and idempotency records. Derive keys and indexes from documented access patterns.
+Retain the deployed table temporarily to avoid a destructive migration.
+Do not add new product features to its legacy delivery access patterns.
 
-Use S3 plus Athena later for analytical reporting instead of adding arbitrary scans to the operational table.
+New DynamoDB usage is limited to weather/risk operational jobs, idempotency,
+TTL caches, notification deduplication, and current snapshot metadata. Durable
+user and spatial data belongs in PostgreSQL/PostGIS.
 
 ## Consequences
 
-- Access patterns must be decided before implementation.
-- Duplicate and concurrent events can be handled with conditional transactional writes.
-- New query patterns may require a new index or projection pipeline.
-- Developers must understand eventual consistency on global secondary indexes.
+- Legacy GSIs remain until a separately reviewed migration removes them.
+- New access patterns are documented in [the current data model](../data-model.md).
+- Delivery/dispatch behavior is not exposed by the Spring public API or web client.

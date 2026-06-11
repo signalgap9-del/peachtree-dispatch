@@ -25,16 +25,26 @@ Stop the environment:
 | React, Vite, and MapLibre map client | S3 private origin and CloudFront |
 | FastAPI container | API Gateway and Lambda adapter |
 | SQLite repository | DynamoDB repository adapter |
-| Climate-aware assignment heuristic | Versioned optimization Lambda or on-demand Fargate task |
+| Optional PostGIS Compose profile | Aurora PostgreSQL Serverless v2 + RDS Data API |
+| Climate-aware route ranking | Versioned risk/optimization Lambda or on-demand Fargate task |
 | Open-Meteo forecast integration | Cached forecast ingestion through EventBridge schedule |
 | OSRM public route geometry | Swappable routing provider adapter |
-| In-process state transition | SQS-triggered event worker for external events |
+| In-process provider refresh | SQS-triggered weather/risk worker |
 | Docker Compose | GitHub Actions deployment workflows |
 
-The domain state machine, API request models, idempotency behavior, live weather
-risk layer, multi-stop assignment, road geometry, and map-first user experience
+The route and risk contracts, API request models, idempotency behavior, live
+weather risk layer, route ranking, road geometry, and map-first user experience
 are implemented locally. AWS adapters remain separate work and should be
 introduced through reviewed Terraform plans.
+
+Start only the local PostGIS database and apply the versioned schema:
+
+```powershell
+docker compose --profile relational up -d postgres
+```
+
+This profile is optional and does not change the default local application
+runtime. It exists to inspect and exercise the relational/spatial schema.
 
 ## Verification
 

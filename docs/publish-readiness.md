@@ -31,3 +31,7 @@ Before production promotion:
 - Saved-route writes use browser local storage in the public preview.
 - High-resolution HRRR/MRMS processing is not scheduled until a measured
   one-shot run proves it remains within the monthly budget.
+- Aurora PostgreSQL/PostGIS is code-ready but disabled by default. Enabling it
+  requires an explicit Terraform variable and cost review.
+- User-owned relational write APIs remain closed until Cognito JWT
+  authorization supplies the immutable owner subject.

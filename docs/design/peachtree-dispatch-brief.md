@@ -1,8 +1,8 @@
-# Peachtree Dispatch Visual Brief
+# AtmosPath Visual Brief
 
 ## Product Direction
 
-Peachtree Routes is a map-first, climate-aware route-planning product for drivers
+AtmosPath is a map-first, climate-aware route-planning product for drivers
 across the United States and operations teams. It supports cars, vans, and trucks and should feel
 closer to a focused mapping or mobility product than a traditional CRM dashboard.
 
@@ -19,11 +19,11 @@ closer to a focused mapping or mobility product than a traditional CRM dashboard
 
 Study the information hierarchy and interaction quality of products such as Google
 Maps, Uber, and Airbnb. Use them as references only. Create an original visual
-system and original production assets for Peachtree Dispatch.
+system and original production assets for AtmosPath.
 
 The Apache-2.0 `Subhampreet/Google-Map-Clone` repository is a reference for the
 familiar search, directions, geolocation, and transport-mode interaction model.
-Its Mapbox token and implementation are not copied into this project; Peachtree
+Its Mapbox token and implementation are not copied into this project; AtmosPath
 Routes continues to use MapLibre and open map data.
 
 ## Next Design Pass

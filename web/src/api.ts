@@ -1,14 +1,9 @@
 import type {
-  DashboardSummary,
-  Delivery,
-  DeliveryStatus,
-  DeliverySummary,
   DirectionsPlan,
   LocationRisk,
   NationalRiskOverview,
   NationalWeatherSnapshot,
   WeatherRasterManifest,
-  NetworkOverview,
   Place,
   VehicleType,
 } from "./types";
@@ -28,9 +23,6 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  dashboard: () => request<DashboardSummary>("/dashboard"),
-  network: (vehicleType?: VehicleType) =>
-    request<NetworkOverview>(`/network${vehicleType ? `?vehicle_type=${vehicleType}` : ""}`),
   searchPlaces: (query: string) => request<Place[]>(`/places/search?q=${encodeURIComponent(query)}`),
   directions: (origin: Place, destination: Place, vehicleType: VehicleType) =>
     request<DirectionsPlan>("/directions", {
@@ -42,16 +34,4 @@ export const api = {
   weatherRaster: () => request<WeatherRasterManifest>("/risk/weather-raster"),
   locationRisk: (place: Place) =>
     request<LocationRisk>("/risk/location", { method: "POST", body: JSON.stringify(place) }),
-  deliveries: (status?: DeliveryStatus) =>
-    request<DeliverySummary[]>(`/deliveries${status ? `?status=${status}` : ""}`),
-  delivery: (id: string) => request<Delivery>(`/deliveries/${id}`),
-  transition: (id: string, toStatus: DeliveryStatus) =>
-    request<Delivery>(`/deliveries/${id}/events`, {
-      method: "POST",
-      body: JSON.stringify({
-        event_id: `console-${crypto.randomUUID()}`,
-        to_status: toStatus,
-        source: "operator-console",
-      }),
-    }),
 };

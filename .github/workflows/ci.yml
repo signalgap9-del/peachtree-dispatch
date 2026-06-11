@@ -61,6 +61,39 @@ jobs:
           cache: maven
       - run: mvn --batch-mode verify
 
+  relational-schema:
+    name: PostgreSQL/PostGIS Schema
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_DB: atmospath
+          POSTGRES_USER: atmospath
+          POSTGRES_PASSWORD: atmospath
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atmospath -d atmospath"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Apply PostGIS schema
+        env:
+          PGPASSWORD: atmospath
+        run: psql -h 127.0.0.1 -U atmospath -d atmospath -v ON_ERROR_STOP=1 -f services/platform-api/src/main/resources/db/migration/V001__identity_saved_items_postgis.sql
+      - name: Verify spatial indexes and query
+        env:
+          PGPASSWORD: atmospath
+        run: |
+          psql -h 127.0.0.1 -U atmospath -d atmospath -v ON_ERROR_STOP=1 -c "SELECT PostGIS_Version();"
+          psql -h 127.0.0.1 -U atmospath -d atmospath -v ON_ERROR_STOP=1 -c "SELECT ST_DWithin(ST_Point(-84.388, 33.749)::geography, ST_Point(-84.4, 33.75)::geography, 5000);"
+          psql -h 127.0.0.1 -U atmospath -d atmospath -v ON_ERROR_STOP=1 -c "SELECT to_regclass('public.risk_exposure');"
+          psql -h 127.0.0.1 -U atmospath -d atmospath -v ON_ERROR_STOP=1 -c "SELECT COUNT(*) FROM pg_indexes WHERE tablename = 'risk_exposure' AND indexdef LIKE '%USING gist%';"
+
   containers:
     name: Container Builds
     runs-on: ubuntu-latest

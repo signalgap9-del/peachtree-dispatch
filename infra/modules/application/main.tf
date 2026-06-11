@@ -108,6 +108,39 @@ resource "aws_dynamodb_table" "operational" {
   stream_view_type = "NEW_AND_OLD_IMAGES"
 }
 
+resource "aws_rds_cluster" "relational" {
+  count = var.enable_relational_store ? 1 : 0
+
+  cluster_identifier          = "${local.name}-relational"
+  engine                      = "aurora-postgresql"
+  database_name               = "atmospath"
+  master_username             = "atmospath_admin"
+  manage_master_user_password = true
+  enable_http_endpoint        = true
+  storage_encrypted           = true
+  deletion_protection         = var.enable_deletion_protection
+  backup_retention_period     = var.environment == "prod" ? 7 : 1
+  skip_final_snapshot         = var.environment != "prod"
+  final_snapshot_identifier   = var.environment == "prod" ? "${local.name}-relational-final" : null
+
+  serverlessv2_scaling_configuration {
+    min_capacity             = var.relational_min_capacity
+    max_capacity             = var.relational_max_capacity
+    seconds_until_auto_pause = 900
+  }
+}
+
+resource "aws_rds_cluster_instance" "relational" {
+  count = var.enable_relational_store ? 1 : 0
+
+  identifier          = "${local.name}-relational-1"
+  cluster_identifier  = aws_rds_cluster.relational[0].id
+  instance_class      = "db.serverless"
+  engine              = aws_rds_cluster.relational[0].engine
+  engine_version      = aws_rds_cluster.relational[0].engine_version
+  publicly_accessible = false
+}
+
 resource "aws_sqs_queue" "optimization_dlq" {
   name                      = "${local.name}-optimization-dlq"
   message_retention_seconds = 1209600
@@ -387,6 +420,28 @@ data "aws_iam_policy_document" "api" {
       resources = [aws_lambda_function.risk_engine[0].arn]
     }
   }
+
+  dynamic "statement" {
+    for_each = var.enable_relational_store ? [1] : []
+    content {
+      actions = [
+        "rds-data:BatchExecuteStatement",
+        "rds-data:BeginTransaction",
+        "rds-data:CommitTransaction",
+        "rds-data:ExecuteStatement",
+        "rds-data:RollbackTransaction",
+      ]
+      resources = [aws_rds_cluster.relational[0].arn]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = var.enable_relational_store ? [1] : []
+    content {
+      actions   = ["secretsmanager:GetSecretValue"]
+      resources = [aws_rds_cluster.relational[0].master_user_secret[0].secret_arn]
+    }
+  }
 }
 
 data "aws_iam_policy_document" "worker" {
@@ -448,13 +503,18 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      DYNAMODB_TABLE            = aws_dynamodb_table.operational.name
-      OPTIMIZATION_QUEUE_URL    = aws_sqs_queue.optimization.url
-      ENVIRONMENT               = var.environment
-      CORS_ORIGINS              = "https://invalid.local"
-      API_ORIGIN_VERIFY_SECRET  = random_password.api_origin_verify.result
-      RISK_ENGINE_MODE          = "lambda"
-      RISK_ENGINE_FUNCTION_NAME = aws_lambda_function.risk_engine[0].function_name
+      DYNAMODB_TABLE               = aws_dynamodb_table.operational.name
+      OPTIMIZATION_QUEUE_URL       = aws_sqs_queue.optimization.url
+      ENVIRONMENT                  = var.environment
+      CORS_ORIGINS                 = "https://invalid.local"
+      API_ORIGIN_VERIFY_SECRET     = random_password.api_origin_verify.result
+      RISK_ENGINE_MODE             = "lambda"
+      RISK_ENGINE_FUNCTION_NAME    = aws_lambda_function.risk_engine[0].function_name
+      RELATIONAL_STORE_ENABLED     = tostring(var.enable_relational_store)
+      RELATIONAL_INITIALIZE_SCHEMA = "false"
+      RELATIONAL_DATABASE          = "atmospath"
+      RELATIONAL_RESOURCE_ARN      = var.enable_relational_store ? aws_rds_cluster.relational[0].arn : ""
+      RELATIONAL_SECRET_ARN        = var.enable_relational_store ? aws_rds_cluster.relational[0].master_user_secret[0].secret_arn : ""
     }
   }
 }
@@ -716,6 +776,16 @@ resource "aws_cloudwatch_dashboard" "operations" {
             ["AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", aws_dynamodb_table.operational.name],
             [".", "ConsumedWriteCapacityUnits", ".", "."],
           ]
+        }
+      },
+      {
+        type = "metric", x = 0, y = 6, width = 12, height = 6,
+        properties = {
+          title = "Optional relational store capacity", region = "us-east-1",
+          metrics = var.enable_relational_store ? [
+            ["AWS/RDS", "ServerlessDatabaseCapacity", "DBClusterIdentifier", aws_rds_cluster.relational[0].cluster_identifier],
+            [".", "DatabaseConnections", ".", "."],
+          ] : []
         }
       }
     ]

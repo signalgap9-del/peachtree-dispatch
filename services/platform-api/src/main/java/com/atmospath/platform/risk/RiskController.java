@@ -53,8 +53,4 @@ public class RiskController {
         return riskEngine.post("/risk/location", request);
     }
 
-    @GetMapping("/network")
-    JsonNode network(@RequestParam(value = "vehicle_type", required = false) String vehicleType) {
-        return riskEngine.get(vehicleType == null ? "/network" : "/network?vehicle_type=" + vehicleType);
-    }
 }

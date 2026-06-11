@@ -4,7 +4,7 @@
 
 The approved visual baseline is
 `mockups/nationwide-route-compare-desktop.png`. Every desktop screen keeps the
-same Peachtree Routes header, typography, spacing, surface treatment, risk
+same AtmosPath header, typography, spacing, surface treatment, risk
 colors, and navigation state. The Map screen remains the deepest interactive
 workspace; other screens help users decide what to inspect there.
 
@@ -134,4 +134,3 @@ Connections:
 
 This loop makes the screens one service rather than a set of unrelated
 dashboards.
-

@@ -56,3 +56,21 @@ variable "lambda_reserved_concurrency" {
   type        = number
   default     = 2
 }
+
+variable "enable_relational_store" {
+  description = "Provision the optional Aurora PostgreSQL Serverless v2 + PostGIS relational store."
+  type        = bool
+  default     = false
+}
+
+variable "relational_min_capacity" {
+  description = "Minimum Aurora Serverless v2 ACUs. Zero enables auto-pause on supported engine versions."
+  type        = number
+  default     = 0
+}
+
+variable "relational_max_capacity" {
+  description = "Hard Aurora Serverless v2 compute ceiling."
+  type        = number
+  default     = 1
+}

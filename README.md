@@ -2,9 +2,9 @@
 
 A climate-aware route optimization platform built to demonstrate production-style AWS, DevOps, and SRE practices.
 
-The map-first weather-aware navigation product combines live Open-Meteo forecasts, OSRM road geometry,
-and an OR-Tools capacitated vehicle-routing solver in a MapLibre interface
-inspired by modern mobility products.
+The map-first weather-aware navigation product combines road-route alternatives,
+live weather and hazard signals, explainable risk scoring, and a MapLibre
+interface inspired by modern mobility products.
 
 ## Live Development Environment
 
@@ -43,9 +43,14 @@ Open:
 - API documentation: `http://localhost:8000/docs`
 - API health: `http://localhost:8000/health`
 
-The local environment uses SQLite behind the same repository contract used by
-the deployed DynamoDB adapter. AWS optimization requests are queued through SQS
-and solved by a dedicated Lambda worker.
+The current Python service retains a local SQLite adapter for legacy operational
+prototype code. New AtmosPath operational state uses DynamoDB only for bounded
+jobs, caches, idempotency, deduplication, and snapshot pointers.
+
+An optional PostGIS Compose profile and Aurora Serverless v2/Data API path
+demonstrate durable user and spatial persistence. Aurora remains disabled by
+default and must not be enabled before Cognito ownership and migration/runtime
+credential separation are implemented.
 
 See [docs/local-development.md](docs/local-development.md) for the local-to-AWS component mapping and verification commands.
 

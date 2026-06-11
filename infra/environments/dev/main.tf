@@ -7,6 +7,7 @@ module "application" {
   risk_engine_image_uri      = var.risk_engine_image_uri
   log_retention_days         = 14
   enable_deletion_protection = false
+  enable_relational_store    = var.enable_relational_store
 }
 
 output "api_ecr_repository_url" {
@@ -39,4 +40,8 @@ output "dynamodb_table_name" {
 
 output "weather_snapshot_bucket_name" {
   value = module.application.weather_snapshot_bucket_name
+}
+
+output "relational_cluster_arn" {
+  value = module.application.relational_cluster_arn
 }

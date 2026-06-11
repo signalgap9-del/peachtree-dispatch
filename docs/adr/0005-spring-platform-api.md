@@ -7,7 +7,8 @@ Accepted
 ## Context
 
 The original FastAPI service combined public HTTP endpoints, operational
-delivery commands, provider adapters, risk scoring, and OR-Tools optimization.
+authenticated product workflows, provider adapters, risk scoring, and bounded
+multi-stop optimization.
 That made a useful prototype but blurred ownership boundaries and did not
 demonstrate the enterprise Java stack targeted by the portfolio.
 
@@ -40,4 +41,3 @@ Python owns:
   capabilities migrate incrementally.
 - Public production traffic must never call the internal Python service
   directly.
-

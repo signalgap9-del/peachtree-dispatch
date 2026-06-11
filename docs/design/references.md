@@ -22,7 +22,7 @@
 - Study: the familiar search, geolocation, directions, and travel-mode interaction
   model.
 - Applied here: interaction concepts only. The repository's Mapbox token and code
-  are not copied; Peachtree Routes uses MapLibre, CARTO, OpenStreetMap, and OSRM.
+  are not copied; AtmosPath uses MapLibre, CARTO, OpenStreetMap, and OSRM.
 
 ## MapLibre GL JS
 

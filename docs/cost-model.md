@@ -13,6 +13,7 @@ Target: **under $5/month** at assumed portfolio traffic.
 | Lambda | Request and duration based; scales to zero | Usually within free usage or cents |
 | API Gateway HTTP API | Per request | Cents at portfolio traffic |
 | DynamoDB | On-demand requests and storage | Usually within free usage |
+| Aurora PostgreSQL Serverless v2 | Optional, 0-1 ACU with auto-pause | Near-zero idle compute; storage, Data API, and secret remain billable |
 | SQS | Per request | Cents at portfolio traffic |
 | S3 and CloudFront | Small static site and one current weather snapshot | Cents |
 | ECR | Container image storage | Cents with the 10-image lifecycle policy |
@@ -33,6 +34,21 @@ well below the recurring Lambda free-usage allowance when available.
 | Always-on ECS Fargate service | Pays while idle and normally requires additional networking/load-balancing resources |
 | Application Load Balancer | Hourly cost is excessive for portfolio traffic |
 | Always-on RDS/Aurora | Idle compute cost and operational complexity |
+
+## Optional Relational Store
+
+Aurora PostgreSQL/PostGIS is intentionally disabled by default. When a
+relational demo is needed, enable it for a bounded period with:
+
+- minimum capacity `0` ACUs;
+- maximum capacity `1` ACU;
+- automatic pause after 15 idle minutes;
+- RDS Data API access from Spring Boot, avoiding NAT Gateway and RDS Proxy;
+- one writer instance only; and
+- deletion protection only in production.
+
+Even while compute is paused, Aurora storage, backup storage beyond allowance,
+Data API requests, and the managed master secret can incur small charges.
 
 ## Credit Strategy
 

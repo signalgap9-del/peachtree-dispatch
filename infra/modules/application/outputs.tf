@@ -29,3 +29,12 @@ output "dynamodb_table_name" {
 output "weather_snapshot_bucket_name" {
   value = aws_s3_bucket.weather.id
 }
+
+output "relational_cluster_arn" {
+  value = try(aws_rds_cluster.relational[0].arn, null)
+}
+
+output "relational_secret_arn" {
+  value     = try(aws_rds_cluster.relational[0].master_user_secret[0].secret_arn, null)
+  sensitive = true
+}

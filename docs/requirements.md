@@ -2,58 +2,53 @@
 
 ## Problem
 
-Drivers across the United States and small delivery operations teams need one place to plan climate-aware routes, see active deliveries, understand their event history, and recover failed status updates without inspecting cloud infrastructure directly.
-
-Peachtree Dispatch demonstrates the engineering behind that operational workflow. It is not intended to compete with a full transportation management system.
+Drivers and travelers across the United States need to understand how current
+and forecast weather hazards affect a trip, not just whether a road is fast.
+AtmosPath compares road-route alternatives, explains their hazard exposure, and
+lets users monitor places, corridors, and routes they care about.
 
 ## Users
 
-- **Dispatcher:** creates deliveries, assigns drivers, and monitors active work.
-- **Operations analyst:** filters delayed or failed deliveries and reviews timelines.
-- **Platform operator:** investigates failed events, replays them, and monitors service health.
-- **External integration:** submits delivery status events using an idempotency key.
+- **Driver or traveler:** compares safer route alternatives before a trip.
+- **Preparedness-focused user:** monitors a city, place, highway, or corridor.
+- **Platform operator:** verifies data freshness, risk calculations, and alerts.
 
 ## Core User Stories
 
-1. A dispatcher creates a delivery with origin, destination, promised delivery time, and optional driver assignment.
-2. An external integration submits a status event such as `PICKED_UP`, `IN_TRANSIT`, `DELIVERED`, or `FAILED`.
-3. An operator lists deliveries by status, driver, or promised date.
-4. An operator opens one delivery and sees its ordered event timeline.
-5. A duplicate external event is accepted without changing state twice.
-6. A failed asynchronous event enters a dead-letter queue and can be replayed safely.
-7. An operator can see API health, workflow latency, error count, and DLQ depth.
-
-Supported delivery status transitions and the API boundary are defined in [domain-model.md](domain-model.md).
+1. Search for a U.S. place and request routes to another place.
+2. Compare multiple alternatives by time, distance, risk, confidence, and hazard exposure.
+3. Inspect nationwide weather and severe-hazard layers on a map.
+4. Save a place, route, or corridor and organize it into a collection.
+5. Subscribe to alerts when a saved item crosses a risk threshold.
+6. Review recent route plans and understand why a risk score changed.
+7. Continue to receive an honest low-confidence result when a provider is unavailable.
 
 ## Scope
 
 ### MVP
 
-- Single organization with organization-aware keys for future tenancy
-- Delivery create/read/list operations
-- Driver assignment
-- Status event ingestion
-- Ordered event timeline
-- Idempotent event processing
-- Failed-event DLQ and replay
-- Operational dashboard and alarms
-- Climate-aware multi-vehicle route optimization
-- Car, van, and truck route profiles that affect optimization costs and duration estimates
 - Nationwide U.S. place search and point-to-point directions
-- Asynchronous optimization jobs with status tracking
+- Multiple road-route alternatives for short and long trips
+- Weather and severe-hazard map layers
+- Explainable route and location risk scores
+- Saved places, routes, corridors, and collections
+- Alert subscriptions after authentication is implemented
+- Responsive PWA-style web experience
+- Event-driven weather ingestion and risk processing
 
 ### Later
 
-- Multi-organization onboarding
-- CSV report generation using an on-demand ECS Fargate task
-- Event archive in S3 and Athena operational analytics
-- Synthetic load and failure injection
+- Authenticated user writes through Cognito
+- Push and email notifications
+- Historical trend analysis over S3/Athena
+- Multi-stop personal road-trip optimization
+- Native mobile packaging only if product usage justifies it
 
 ### Non-Goals
 
-- Real-time GPS tracking
+- Delivery dispatch, fleet management, or driver assignment
+- Real-time turn-by-turn navigation
 - Payments or billing
-- Native mobile applications
 - Multi-region active-active deployment
 - Always-on Kubernetes
 
@@ -62,20 +57,17 @@ Supported delivery status transitions and the API boundary are defined in [domai
 | Area | Target |
 | --- | --- |
 | API availability | 99.9% monthly |
-| API latency | p95 under 500 ms for reads and writes |
-| Event processing | 99% of accepted events reflected within 60 seconds |
-| Data durability | DynamoDB point-in-time recovery enabled |
-| Recovery | RPO under 5 minutes, RTO under 60 minutes for documented recovery exercise |
-| Security | No long-lived AWS credentials in GitHub; least-privilege runtime roles |
-| Cost | Target under $10/month at portfolio traffic; hard review above $20/month |
-| Operations | Structured logs, metrics, traces, alarms, DLQ replay runbook |
+| Cached API latency | p95 under 500 ms |
+| Data freshness | Provider and model timestamps visible; stale data clearly labeled |
+| Risk integrity | Scores include model version, source status, coverage, and confidence |
+| Security | No long-lived AWS credentials; authenticated ownership for user writes |
+| Cost | Target under $10/month at portfolio traffic; explicit review before recurring-cost resources |
+| Operations | Structured logs, metrics, traces, alarms, DLQ, and replay runbooks |
 
 ## Assumed Portfolio Traffic
 
-- 100 deliveries created per day
-- 1,000 status events per day
-- 5,000 API reads per day
+- Fewer than 100 daily users
+- Fewer than 1,000 route calculations per day
+- Weather raster refreshes on a bounded schedule
 - Bursty traffic with long idle periods
-- Less than 1 GB of operational data in the first year
-
-These assumptions intentionally favor scale-to-zero compute and request-based storage pricing.
+- Most public reads served from CloudFront or short-lived caches

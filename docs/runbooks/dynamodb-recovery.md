@@ -7,7 +7,7 @@ Production and development tables have point-in-time recovery enabled.
 1. Select a recovery timestamp before the simulated data-loss event.
 2. Restore the table to a new recovery table.
 3. Run repository contract and smoke tests against the restored table.
-4. Compare item counts and representative delivery timelines.
+4. Compare item counts and representative snapshot, job, cache, and idempotency records.
 5. Switch application configuration only after validation.
 6. Preserve the original table until the incident is closed.
 
