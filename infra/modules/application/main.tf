@@ -1,10 +1,20 @@
 locals {
-  name       = "${var.project_name}-${var.environment}"
-  deploy_app = var.api_image_uri != ""
+  name              = "${var.project_name}-${var.environment}"
+  risk_engine_image = var.risk_engine_image_uri != "" ? var.risk_engine_image_uri : var.api_image_uri
+  deploy_app        = var.platform_api_image_uri != "" && local.risk_engine_image != ""
 }
 
 resource "aws_ecr_repository" "api" {
   name                 = "${local.name}-api"
+  image_tag_mutability = "IMMUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
+resource "aws_ecr_repository" "platform_api" {
+  name                 = "${local.name}-platform-api"
   image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
@@ -18,6 +28,22 @@ resource "aws_ecr_lifecycle_policy" "api" {
     rules = [{
       rulePriority = 1
       description  = "Retain the latest 10 application images"
+      selection = {
+        tagStatus   = "any"
+        countType   = "imageCountMoreThan"
+        countNumber = 10
+      }
+      action = { type = "expire" }
+    }]
+  })
+}
+
+resource "aws_ecr_lifecycle_policy" "platform_api" {
+  repository = aws_ecr_repository.platform_api.name
+  policy = jsonencode({
+    rules = [{
+      rulePriority = 1
+      description  = "Retain the latest 10 platform API images"
       selection = {
         tagStatus   = "any"
         countType   = "imageCountMoreThan"
@@ -221,6 +247,14 @@ data "aws_iam_policy_document" "api" {
     actions   = ["sqs:SendMessage"]
     resources = [aws_sqs_queue.optimization.arn]
   }
+
+  dynamic "statement" {
+    for_each = local.deploy_app ? [1] : []
+    content {
+      actions   = ["lambda:InvokeFunction"]
+      resources = [aws_lambda_function.risk_engine[0].arn]
+    }
+  }
 }
 
 data "aws_iam_policy_document" "worker" {
@@ -270,20 +304,38 @@ resource "aws_lambda_function" "api" {
   function_name = "${local.name}-api"
   role          = aws_iam_role.api.arn
   package_type  = "Image"
-  image_uri     = var.api_image_uri
+  image_uri     = var.platform_api_image_uri
   timeout       = 30
   memory_size   = 1024
 
+  environment {
+    variables = {
+      DYNAMODB_TABLE            = aws_dynamodb_table.operational.name
+      OPTIMIZATION_QUEUE_URL    = aws_sqs_queue.optimization.url
+      ENVIRONMENT               = var.environment
+      CORS_ORIGINS              = "https://${aws_cloudfront_distribution.web.domain_name}"
+      RISK_ENGINE_MODE          = "lambda"
+      RISK_ENGINE_FUNCTION_NAME = aws_lambda_function.risk_engine[0].function_name
+    }
+  }
+}
+
+resource "aws_lambda_function" "risk_engine" {
+  count         = local.deploy_app ? 1 : 0
+  function_name = "${local.name}-risk-engine"
+  role          = aws_iam_role.worker.arn
+  package_type  = "Image"
+  image_uri     = local.risk_engine_image
+  timeout       = 60
+  memory_size   = 1536
+
   image_config {
-    command = ["app.lambda_handler.handler"]
+    command = ["app.internal_handler.handler"]
   }
 
   environment {
     variables = {
-      DYNAMODB_TABLE         = aws_dynamodb_table.operational.name
-      OPTIMIZATION_QUEUE_URL = aws_sqs_queue.optimization.url
-      ENVIRONMENT            = var.environment
-      CORS_ORIGINS           = "https://${aws_cloudfront_distribution.web.domain_name}"
+      ENVIRONMENT = var.environment
     }
   }
 }
@@ -293,7 +345,7 @@ resource "aws_lambda_function" "worker" {
   function_name = "${local.name}-optimizer"
   role          = aws_iam_role.worker.arn
   package_type  = "Image"
-  image_uri     = var.api_image_uri
+  image_uri     = local.risk_engine_image
   timeout       = 120
   memory_size   = 2048
 
@@ -395,6 +447,12 @@ resource "aws_cloudwatch_log_group" "api_gateway" {
 resource "aws_cloudwatch_log_group" "worker" {
   count             = local.deploy_app ? 1 : 0
   name              = "/aws/lambda/${aws_lambda_function.worker[0].function_name}"
+  retention_in_days = var.log_retention_days
+}
+
+resource "aws_cloudwatch_log_group" "risk_engine" {
+  count             = local.deploy_app ? 1 : 0
+  name              = "/aws/lambda/${aws_lambda_function.risk_engine[0].function_name}"
   retention_in_days = var.log_retention_days
 }
 

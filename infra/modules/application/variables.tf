@@ -8,7 +8,19 @@ variable "environment" {
 }
 
 variable "api_image_uri" {
-  description = "Immutable ECR image URI including digest or tag. Empty creates the platform without Lambda."
+  description = "Deprecated compatibility input for the Python risk engine image."
+  type        = string
+  default     = ""
+}
+
+variable "platform_api_image_uri" {
+  description = "Immutable Spring Boot platform API image URI."
+  type        = string
+  default     = ""
+}
+
+variable "risk_engine_image_uri" {
+  description = "Immutable Python risk engine and optimizer image URI."
   type        = string
   default     = ""
 }

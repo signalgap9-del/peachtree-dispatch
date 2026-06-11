@@ -2,6 +2,10 @@ output "api_ecr_repository_url" {
   value = aws_ecr_repository.api.repository_url
 }
 
+output "platform_api_ecr_repository_url" {
+  value = aws_ecr_repository.platform_api.repository_url
+}
+
 output "api_url" {
   value = try(aws_apigatewayv2_api.api[0].api_endpoint, null)
 }

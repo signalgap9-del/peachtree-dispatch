@@ -14,6 +14,12 @@ class DeliveryStatus(StrEnum):
     CANCELLED = "CANCELLED"
 
 
+class VehicleType(StrEnum):
+    CAR = "CAR"
+    VAN = "VAN"
+    TRUCK = "TRUCK"
+
+
 class Location(BaseModel):
     city: str = Field(min_length=1, max_length=80)
     state: str = Field(min_length=2, max_length=2)
@@ -93,11 +99,109 @@ class WeatherRisk(BaseModel):
     wind_speed_mph: float
     risk_score: int
     risk_level: str
+    data_status: str = "LIVE"
+    source: str = "Open-Meteo"
+
+
+class HazardExposure(BaseModel):
+    category: str
+    score: int
+    samples_affected: int
+    summary: str
+
+
+class RouteAlternative(BaseModel):
+    alternative_id: str
+    label: str
+    coordinates: list[list[float]]
+    distance_miles: float
+    duration_minutes: float
+    climate_delay_minutes: float
+    risk_score: int
+    weather: list[WeatherRisk]
+    hazards: list[HazardExposure] = Field(default_factory=list)
+    model_version: str = "route-risk-v0.2"
+    data_coverage: float = 0
+    confidence: str = "UNAVAILABLE"
+    source_status: dict[str, str] = Field(default_factory=dict)
+
+
+class Place(BaseModel):
+    place_id: str
+    display_name: str
+    city: str
+    state: str
+    latitude: float
+    longitude: float
+
+
+class DirectionsRequest(BaseModel):
+    origin: Place
+    destination: Place
+    vehicle_type: VehicleType = VehicleType.CAR
+
+
+class DirectionsPlan(BaseModel):
+    generated_at: datetime
+    origin: Place
+    destination: Place
+    vehicle_type: VehicleType
+    coordinates: list[list[float]]
+    distance_miles: float
+    duration_minutes: float
+    climate_delay_minutes: float
+    risk_score: int
+    weather: list[WeatherRisk]
+    summary: str
+    alternatives: list[RouteAlternative] = Field(default_factory=list)
+    model_version: str = "route-risk-v0.2"
+
+
+class RiskAlert(BaseModel):
+    alert_id: str
+    event: str
+    severity: str
+    urgency: str
+    certainty: str
+    headline: str
+    area: str
+    instruction: str | None = None
+    score: int
+    longitude: float | None = None
+    latitude: float | None = None
+    geometry: dict | None = None
+    category: str = "OTHER"
+
+
+class NationalRiskOverview(BaseModel):
+    generated_at: datetime
+    score: int
+    level: str
+    active_alerts: int
+    severe_alerts: int
+    alerts_with_geometry: int
+    alerts: list[RiskAlert]
+    by_event: dict[str, int]
+    source_status: dict[str, str] = Field(default_factory=dict)
+
+
+class LocationRisk(BaseModel):
+    generated_at: datetime
+    place: Place
+    score: int
+    level: str
+    summary: str
+    factors: dict[str, int]
+    alerts: list[RiskAlert]
+    weather: WeatherRisk
+    model_version: str = "location-risk-v0.2"
+    source_status: dict[str, str] = Field(default_factory=dict)
 
 
 class OptimizedRoute(BaseModel):
     route_id: str
     driver_id: str
+    vehicle_type: VehicleType
     color: str
     delivery_ids: list[str]
     coordinates: list[list[float]]

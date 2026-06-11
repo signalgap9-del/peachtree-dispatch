@@ -3,8 +3,12 @@ name: Promote Production
 on:
   workflow_dispatch:
     inputs:
-      api_image_uri:
-        description: Immutable dev ECR image URI that passed smoke tests
+      risk_engine_image_uri:
+        description: Immutable Python risk-engine image URI that passed dev smoke tests
+        required: true
+        type: string
+      platform_api_image_uri:
+        description: Immutable Spring platform API image URI that passed dev smoke tests
         required: true
         type: string
 
@@ -37,9 +41,12 @@ jobs:
           -backend-config="key=peachtree-dispatch/prod/terraform.tfstate"
           -backend-config="region=us-east-1"
           -backend-config="use_lockfile=true"
-      - name: Promote immutable API image
+      - name: Promote immutable service images
         working-directory: infra/environments/prod
-        run: terraform apply -auto-approve -input=false -var="api_image_uri=${{ inputs.api_image_uri }}"
+        run: >-
+          terraform apply -auto-approve -input=false
+          -var="risk_engine_image_uri=${{ inputs.risk_engine_image_uri }}"
+          -var="platform_api_image_uri=${{ inputs.platform_api_image_uri }}"
       - name: Deploy production web
         run: |
           API_URL=$(terraform -chdir=infra/environments/prod output -raw api_url)

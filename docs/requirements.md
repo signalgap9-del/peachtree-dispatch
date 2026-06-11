@@ -2,7 +2,7 @@
 
 ## Problem
 
-Small delivery operations teams need one place to see active deliveries, understand their event history, and recover failed status updates without inspecting cloud infrastructure directly.
+Drivers across the United States and small delivery operations teams need one place to plan climate-aware routes, see active deliveries, understand their event history, and recover failed status updates without inspecting cloud infrastructure directly.
 
 Peachtree Dispatch demonstrates the engineering behind that operational workflow. It is not intended to compete with a full transportation management system.
 
@@ -38,6 +38,8 @@ Supported delivery status transitions and the API boundary are defined in [domai
 - Failed-event DLQ and replay
 - Operational dashboard and alarms
 - Climate-aware multi-vehicle route optimization
+- Car, van, and truck route profiles that affect optimization costs and duration estimates
+- Nationwide U.S. place search and point-to-point directions
 - Asynchronous optimization jobs with status tracking
 
 ### Later

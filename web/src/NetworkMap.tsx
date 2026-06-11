@@ -1,12 +1,13 @@
 import maplibregl, { type Map } from "maplibre-gl";
 import { useEffect, useRef } from "react";
 
-import type { NetworkOverview } from "./types";
+import type { DirectionsPlan, NationalRiskOverview } from "./types";
 
 interface Props {
-  network: NetworkOverview | null;
-  selectedRoute: string | null;
-  onSelectRoute: (routeId: string) => void;
+  plan: DirectionsPlan | null;
+  risk: NationalRiskOverview | null;
+  showRisk: boolean;
+  recenterToken: number;
 }
 
 const style = {
@@ -22,7 +23,7 @@ const style = {
   layers: [{ id: "osm", type: "raster" as const, source: "osm" }],
 };
 
-export function NetworkMap({ network, selectedRoute, onSelectRoute }: Props) {
+export function NetworkMap({ plan, risk, showRisk, recenterToken }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
   const markers = useRef<maplibregl.Marker[]>([]);
@@ -32,146 +33,99 @@ export function NetworkMap({ network, selectedRoute, onSelectRoute }: Props) {
     const map = new maplibregl.Map({
       container: container.current,
       style,
-      center: [-84.2, 33.42],
-      zoom: 7,
-      pitch: 28,
-      bearing: 0,
+      center: [-98.58, 39.83],
+      zoom: 3.4,
+      pitch: 0,
       attributionControl: false,
     });
-    map.addControl(new maplibregl.NavigationControl({ showCompass: true }), "bottom-right");
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
     mapRef.current = map;
-    return () => {
-      map.remove();
-      mapRef.current = null;
-    };
+    return () => { map.remove(); mapRef.current = null; };
   }, []);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !network) return;
-    const routeListeners: Array<{
-      layerId: string;
-      selectRoute: () => void;
-      showPointer: () => void;
-      hidePointer: () => void;
-    }> = [];
+    if (!map) return;
     const render = () => {
       markers.current.forEach((marker) => marker.remove());
       markers.current = [];
-
-      network.routes.forEach((route) => {
-        const sourceId = `route-${route.route_id}`;
-        const casingId = `route-casing-${route.route_id}`;
-        const layerId = `route-line-${route.route_id}`;
-        if (map.getLayer(casingId)) map.removeLayer(casingId);
-        if (map.getLayer(layerId)) map.removeLayer(layerId);
-        if (map.getSource(sourceId)) map.removeSource(sourceId);
-        map.addSource(sourceId, {
-          type: "geojson",
-          data: {
-            type: "Feature",
-            properties: { routeId: route.route_id },
-            geometry: { type: "LineString", coordinates: route.coordinates },
-          },
-        });
-        map.addLayer({
-          id: casingId,
-          type: "line",
-          source: sourceId,
-          layout: { "line-cap": "round", "line-join": "round" },
-          paint: {
-            "line-color": "#ffffff",
-            "line-width": selectedRoute === route.route_id ? 11 : 7,
-            "line-opacity": selectedRoute && selectedRoute !== route.route_id ? 0.35 : 0.82,
-          },
-        });
-        map.addLayer({
-          id: layerId,
-          type: "line",
-          source: sourceId,
-          layout: { "line-cap": "round", "line-join": "round" },
-          paint: {
-            "line-color": route.color,
-            "line-width": selectedRoute === route.route_id ? 7 : 4,
-            "line-opacity": selectedRoute && selectedRoute !== route.route_id ? 0.48 : 0.95,
-          },
-        });
-        const selectRoute = () => onSelectRoute(route.route_id);
-        const showPointer = () => {
-          map.getCanvas().style.cursor = "pointer";
-        };
-        const hidePointer = () => {
-          map.getCanvas().style.cursor = "";
-        };
-        map.on("click", layerId, selectRoute);
-        map.on("mouseenter", layerId, showPointer);
-        map.on("mouseleave", layerId, hidePointer);
-        routeListeners.push({ layerId, selectRoute, showPointer, hidePointer });
-
-        route.stops.forEach((stop) => {
-          const element = document.createElement("button");
-          element.className = `stop-marker ${selectedRoute === route.route_id ? "active" : ""}`;
-          element.style.setProperty("--route-color", route.color);
-          element.innerHTML = `<strong>${stop.sequence}</strong><span>${stop.address}</span>`;
-          element.title = `${stop.sequence}. ${stop.address}`;
-          element.addEventListener("click", selectRoute);
-          markers.current.push(
-            new maplibregl.Marker({ element, anchor: "bottom" })
-              .setLngLat([stop.longitude, stop.latitude])
-              .addTo(map),
-          );
-        });
+      for (const layer of ["route-main", "route-casing"]) if (map.getLayer(layer)) map.removeLayer(layer);
+      if (map.getSource("route")) map.removeSource("route");
+      if (!plan) return;
+      map.addSource("route", {
+        type: "geojson",
+        data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: plan.coordinates } },
       });
-
-      const depot = document.createElement("button");
-      depot.className = "depot-marker";
-      depot.innerHTML = "<strong>P</strong><span>Peachtree Dispatch Depot</span>";
-      depot.title = "675 Ponce De Leon Ave NE, Atlanta, GA 30308";
-      markers.current.push(
-        new maplibregl.Marker({ element: depot, anchor: "bottom" })
-          .setLngLat([-84.3656, 33.7725])
-          .addTo(map),
-      );
-
-      network.weather.forEach((weather) => {
+      map.addLayer({ id: "route-casing", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#ffffff", "line-width": 10, "line-opacity": 0.92 } });
+      map.addLayer({ id: "route-main", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#1a73e8", "line-width": 6 } });
+      [plan.origin, plan.destination].forEach((place, index) => {
         const element = document.createElement("button");
-        element.className = `weather-marker ${weather.risk_level.toLowerCase()}`;
+        element.className = `place-marker ${index ? "destination" : "origin"}`;
+        element.innerHTML = `<strong>${index ? "B" : "A"}</strong><span>${place.display_name}</span>`;
+        markers.current.push(new maplibregl.Marker({ element, anchor: "bottom" }).setLngLat([place.longitude, place.latitude]).addTo(map));
+      });
+      plan.weather.forEach((weather) => {
+        const element = document.createElement("button");
+        element.className = `weather-bubble ${weather.risk_level.toLowerCase()}`;
         element.innerHTML = `<strong>${weather.risk_score}</strong><span>${weather.city}</span>`;
-        element.title = `${weather.city}: ${weather.precipitation_probability}% precipitation risk`;
-        markers.current.push(
-          new maplibregl.Marker({ element })
-            .setLngLat([weather.longitude, weather.latitude])
-            .addTo(map),
-        );
+        markers.current.push(new maplibregl.Marker({ element }).setLngLat([weather.longitude, weather.latitude]).addTo(map));
       });
+      if (plan.coordinates.length) {
+        const first = plan.coordinates[0] as [number, number];
+        const bounds = plan.coordinates.reduce((current, coordinate) => current.extend(coordinate as [number, number]), new maplibregl.LngLatBounds(first, first));
+        map.fitBounds(bounds, { padding: { top: 110, right: 80, bottom: 80, left: 470 }, duration: 800 });
+      }
     };
-    if (map.loaded()) render();
-    else map.once("load", render);
-    return () => {
-      map.off("load", render);
-      routeListeners.forEach(({ layerId, selectRoute, showPointer, hidePointer }) => {
-        map.off("click", layerId, selectRoute);
-        map.off("mouseenter", layerId, showPointer);
-        map.off("mouseleave", layerId, hidePointer);
-      });
-    };
-  }, [network, onSelectRoute, selectedRoute]);
+    if (map.loaded()) render(); else map.once("load", render);
+    return () => { map.off("load", render); };
+  }, [plan]);
 
   useEffect(() => {
     const map = mapRef.current;
-    const route = network?.routes.find((item) => item.route_id === selectedRoute);
-    if (!map || !route || route.coordinates.length === 0) return;
-    const first = route.coordinates[0] as [number, number];
-    const bounds = route.coordinates.reduce(
-      (current, coordinate) => current.extend(coordinate as [number, number]),
-      new maplibregl.LngLatBounds(first, first),
-    );
-    map.fitBounds(bounds, {
-      padding: { top: 110, right: 310, bottom: 130, left: 370 },
-      duration: 700,
-    });
-  }, [network, selectedRoute]);
+    if (!map) return;
+    const render = () => {
+      for (const layer of ["risk-alert-outline", "risk-alert-fill", "risk-heat"]) {
+        if (map.getLayer(layer)) map.removeLayer(layer);
+      }
+      for (const source of ["risk-alerts", "risk-points"]) {
+        if (map.getSource(source)) map.removeSource(source);
+      }
+      if (!showRisk || !risk) return;
+      const points = risk.alerts
+        .filter((alert) => alert.longitude != null && alert.latitude != null)
+        .map((alert) => ({
+          type: "Feature" as const,
+          properties: { score: alert.score, event: alert.event },
+          geometry: { type: "Point" as const, coordinates: [alert.longitude as number, alert.latitude as number] },
+        }));
+      const polygons = risk.alerts
+        .filter((alert) => alert.geometry)
+        .map((alert) => ({ type: "Feature" as const, properties: { score: alert.score, event: alert.event }, geometry: alert.geometry! }));
+      map.addSource("risk-points", { type: "geojson", data: { type: "FeatureCollection", features: points } });
+      // Adapted from MapLibre's BSD-3-Clause create-a-heatmap-layer example.
+      map.addLayer({
+        id: "risk-heat", type: "heatmap", source: "risk-points", maxzoom: 9,
+        paint: {
+          "heatmap-weight": ["interpolate", ["linear"], ["get", "score"], 0, 0, 100, 1],
+          "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1.4, 9, 3],
+          "heatmap-color": ["interpolate", ["linear"], ["heatmap-density"], 0, "rgba(11,87,208,0)", 0.2, "#6ea8fe", 0.4, "#f9ab00", 0.7, "#f97316", 1, "#d93025"],
+          "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 22, 9, 70],
+          "heatmap-opacity": 0.72,
+        },
+      });
+      map.addSource("risk-alerts", { type: "geojson", data: { type: "FeatureCollection", features: polygons } });
+      map.addLayer({ id: "risk-alert-fill", type: "fill", source: "risk-alerts", paint: { "fill-color": ["interpolate", ["linear"], ["get", "score"], 20, "#f9ab00", 60, "#f97316", 90, "#d93025"], "fill-opacity": 0.18 } });
+      map.addLayer({ id: "risk-alert-outline", type: "line", source: "risk-alerts", paint: { "line-color": "#b3261e", "line-width": 1.3, "line-opacity": 0.7 } });
+    };
+    if (map.loaded()) render(); else map.once("load", render);
+    return () => { map.off("load", render); };
+  }, [risk, showRisk]);
+
+  useEffect(() => {
+    if (!mapRef.current || !recenterToken) return;
+    mapRef.current.easeTo({ center: [-98.58, 39.83], zoom: 3.4, pitch: 0, bearing: 0, duration: 700 });
+  }, [recenterToken]);
 
   return <div className="network-map" ref={container} />;
 }

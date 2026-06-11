@@ -6,7 +6,15 @@ os.environ["DATABASE_PATH"] = str(Path(__file__).parent / "test.db")
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.models import NetworkOverview
+from app.models import (
+    DirectionsPlan,
+    LocationRisk,
+    NationalRiskOverview,
+    NetworkOverview,
+    Place,
+    VehicleType,
+    WeatherRisk,
+)
 
 
 client = TestClient(app)
@@ -43,7 +51,7 @@ def test_invalid_transition_returns_conflict() -> None:
 def test_network_returns_optimized_routes(monkeypatch) -> None:
     monkeypatch.setattr(
         "app.main.build_network",
-        lambda deliveries: NetworkOverview(
+        lambda deliveries, vehicle_type=None: NetworkOverview(
             generated_at="2026-06-10T00:00:00Z",
             routes=[],
             weather=[],
@@ -57,6 +65,131 @@ def test_network_returns_optimized_routes(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert response.json()["algorithm"] == "test optimizer"
+
+
+def test_search_places_supports_nationwide_results(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.main.search_places",
+        lambda query: [
+            Place(
+                place_id="1",
+                display_name="Space Needle, Seattle, Washington, United States",
+                city="Seattle",
+                state="Washington",
+                latitude=47.6205,
+                longitude=-122.3493,
+            )
+        ],
+    )
+
+    response = client.get("/places/search?q=Space%20Needle")
+
+    assert response.status_code == 200
+    assert response.json()[0]["state"] == "Washington"
+
+
+def test_directions_accepts_us_places(monkeypatch) -> None:
+    seattle = Place(
+        place_id="1",
+        display_name="Seattle, Washington, United States",
+        city="Seattle",
+        state="Washington",
+        latitude=47.6062,
+        longitude=-122.3321,
+    )
+    miami = Place(
+        place_id="2",
+        display_name="Miami, Florida, United States",
+        city="Miami",
+        state="Florida",
+        latitude=25.7617,
+        longitude=-80.1918,
+    )
+    monkeypatch.setattr(
+        "app.main.build_directions",
+        lambda command: DirectionsPlan(
+            generated_at="2026-06-11T00:00:00Z",
+            origin=command.origin,
+            destination=command.destination,
+            vehicle_type=VehicleType.CAR,
+            coordinates=[[-122.3321, 47.6062], [-80.1918, 25.7617]],
+            distance_miles=3300,
+            duration_minutes=2880,
+            climate_delay_minutes=20,
+            risk_score=15,
+            weather=[],
+            summary="Seattle to Miami",
+            alternatives=[],
+        ),
+    )
+
+    response = client.post(
+        "/directions",
+        json={"origin": seattle.model_dump(), "destination": miami.model_dump(), "vehicle_type": "CAR"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["summary"] == "Seattle to Miami"
+
+
+def test_national_risk_returns_live_summary(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.main.national_risk",
+        lambda: NationalRiskOverview(
+            generated_at="2026-06-11T00:00:00Z",
+            score=72,
+            level="HIGH",
+            active_alerts=12,
+            severe_alerts=3,
+            alerts_with_geometry=8,
+            alerts=[],
+            by_event={"Flood Warning": 4},
+        ),
+    )
+
+    response = client.get("/risk/national")
+
+    assert response.status_code == 200
+    assert response.json()["level"] == "HIGH"
+
+
+def test_location_risk_scores_selected_place(monkeypatch) -> None:
+    place = Place(
+        place_id="miami",
+        display_name="Miami, Florida, United States",
+        city="Miami",
+        state="Florida",
+        latitude=25.7617,
+        longitude=-80.1918,
+    )
+    monkeypatch.setattr(
+        "app.main.location_risk",
+        lambda selected: LocationRisk(
+            generated_at="2026-06-11T00:00:00Z",
+            place=selected,
+            score=45,
+            level="MODERATE",
+            summary="Moderate near-term driving weather risk",
+            factors={"active_alerts": 0, "flood": 0, "precipitation": 70, "wind": 20, "heat": 15},
+            alerts=[],
+            weather=WeatherRisk(
+                id="weather-miami",
+                city="Miami",
+                latitude=25.7617,
+                longitude=-80.1918,
+                temperature_f=88,
+                precipitation_probability=70,
+                wind_speed_mph=8,
+                risk_score=45,
+                risk_level="ELEVATED",
+            ),
+        ),
+    )
+
+    response = client.post("/risk/location", json=place.model_dump())
+
+    assert response.status_code == 200
+    assert response.json()["factors"]["precipitation"] == 70
 
 
 def test_submit_and_get_optimization_job() -> None:

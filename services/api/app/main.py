@@ -12,16 +12,24 @@ from .models import (
     Delivery,
     DeliveryStatus,
     DeliverySummary,
+    DirectionsPlan,
+    DirectionsRequest,
+    LocationRisk,
+    NationalRiskOverview,
     NetworkOverview,
+    Place,
+    VehicleType,
     OptimizationJob,
     RecordEvent,
 )
+from .directions import build_directions, search_places
+from .risk import location_risk, national_risk
 from .network import build_network
 from .repository_contract import DuplicateEventError
 from .repository_factory import create_repository
 from .optimization_service import OptimizationService
 
-app = FastAPI(title="Peachtree Dispatch API", version="0.1.0")
+app = FastAPI(title="AtmosPath Internal Risk Engine", version="0.2.0")
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
 app.add_middleware(
     CORSMiddleware,
@@ -38,7 +46,7 @@ optimization_service = OptimizationService()
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "healthy", "service": "peachtree-dispatch-api"}
+    return {"status": "healthy", "service": "atmospath-risk-engine"}
 
 
 @app.get("/dashboard", response_model=DashboardSummary)
@@ -72,8 +80,28 @@ def dashboard() -> DashboardSummary:
 
 
 @app.get("/network", response_model=NetworkOverview)
-def network() -> NetworkOverview:
-    return build_network(repository.list())
+def network(vehicle_type: VehicleType | None = None) -> NetworkOverview:
+    return build_network(repository.list(), vehicle_type)
+
+
+@app.get("/places/search", response_model=list[Place])
+def places_search(q: str = Query(min_length=2, max_length=160)) -> list[Place]:
+    return search_places(q)
+
+
+@app.post("/directions", response_model=DirectionsPlan)
+def directions(command: DirectionsRequest) -> DirectionsPlan:
+    return build_directions(command)
+
+
+@app.get("/risk/national", response_model=NationalRiskOverview)
+def risk_national() -> NationalRiskOverview:
+    return national_risk()
+
+
+@app.post("/risk/location", response_model=LocationRisk)
+def risk_location(place: Place) -> LocationRisk:
+    return location_risk(place)
 
 
 @app.post(

@@ -19,6 +19,7 @@ cdk.out/
 node_modules/
 dist/
 build/
+target/
 coverage/
 *.tsbuildinfo
 web/vite.config.js
@@ -35,3 +36,6 @@ __pycache__/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Local design research captures
+tmp/

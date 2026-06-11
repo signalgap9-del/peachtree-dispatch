@@ -4,8 +4,8 @@ from datetime import UTC, datetime
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
-from .models import DeliverySummary, Location, NetworkOverview, OptimizedRoute, RouteStop, WeatherRisk
-from .optimizer import solve_routes
+from .models import DeliverySummary, Location, NetworkOverview, OptimizedRoute, RouteStop, VehicleType, WeatherRisk
+from .optimizer import VEHICLE_PROFILES, solve_routes
 
 
 CITY_COORDINATES: dict[str, tuple[float, float]] = {
@@ -43,7 +43,9 @@ DEPOT = Location(
 ROUTE_COLORS = ["#29e184", "#ff9f43", "#6ea8fe", "#ec5b69"]
 
 
-def build_network(deliveries: list) -> NetworkOverview:
+def build_network(
+    deliveries: list, preferred_vehicle_type: VehicleType | None = None
+) -> NetworkOverview:
     active = [
         delivery
         for delivery in deliveries
@@ -56,15 +58,19 @@ def build_network(deliveries: list) -> NetworkOverview:
         weather = list(executor.map(fetch_weather, weather_cities))
 
     weather_by_city = {item.city: item for item in weather}
-    optimized = solve_routes(active, weather_by_city, CITY_COORDINATES)
+    optimized = solve_routes(
+        active, weather_by_city, CITY_COORDINATES, preferred_vehicle_type
+    )
 
     routes: list[OptimizedRoute] = []
     for index, vehicle_route in enumerate(optimized):
         driver_id = vehicle_route.driver_id
+        vehicle_type = vehicle_route.vehicle_type
         ordered = vehicle_route.deliveries
         waypoints = [location_coordinates(DEPOT)]
         waypoints.extend(location_coordinates(job.destination) for job in ordered)
-        geometry, distance, duration = fetch_route(waypoints)
+        geometry, distance, base_duration = fetch_route(waypoints)
+        duration = base_duration * VEHICLE_PROFILES[vehicle_type]["duration"]
         average_risk = round(
             sum(weather_by_city[job.destination.city].risk_score for job in ordered)
             / len(ordered)
@@ -74,6 +80,7 @@ def build_network(deliveries: list) -> NetworkOverview:
             OptimizedRoute(
                 route_id=f"OPT-{index + 1:02}",
                 driver_id=driver_id,
+                vehicle_type=vehicle_type,
                 color=ROUTE_COLORS[index % len(ROUTE_COLORS)],
                 delivery_ids=[job.delivery_id for job in ordered],
                 coordinates=geometry,
@@ -165,16 +172,8 @@ def fetch_weather(city: str) -> WeatherRisk:
             ),
         )
     except Exception:
-        defaults = {
-            "Atlanta": (87, 24, 9),
-            "Savannah": (89, 62, 14),
-            "Athens": (85, 31, 8),
-            "Macon": (91, 48, 12),
-            "Augusta": (90, 71, 16),
-            "Columbus": (92, 38, 11),
-        }
-        temperature, precipitation_probability, wind = defaults.get(city, (86, 25, 9))
-        risk = min(100, round(precipitation_probability * 0.6 + wind * 1.4))
+        temperature, precipitation_probability, wind = 0, 0, 0
+        risk = 50
     return WeatherRisk(
         id=f"weather-{city.lower()}",
         city=city,
@@ -184,7 +183,16 @@ def fetch_weather(city: str) -> WeatherRisk:
         precipitation_probability=precipitation_probability,
         wind_speed_mph=wind,
         risk_score=risk,
-        risk_level="HIGH" if risk >= 60 else "ELEVATED" if risk >= 35 else "LOW",
+        risk_level=(
+            "UNKNOWN"
+            if temperature == 0 and precipitation_probability == 0 and wind == 0
+            else "HIGH" if risk >= 60 else "ELEVATED" if risk >= 35 else "LOW"
+        ),
+        data_status=(
+            "UNAVAILABLE"
+            if temperature == 0 and precipitation_probability == 0 and wind == 0
+            else "LIVE"
+        ),
     )
 
 

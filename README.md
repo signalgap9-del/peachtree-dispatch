@@ -1,8 +1,8 @@
-# Peachtree Dispatch
+# AtmosPath
 
 A climate-aware route optimization platform built to demonstrate production-style AWS, DevOps, and SRE practices.
 
-The map-first product combines live Open-Meteo forecasts, OSRM road geometry,
+The map-first weather-aware navigation product combines live Open-Meteo forecasts, OSRM road geometry,
 and an OR-Tools capacitated vehicle-routing solver in a MapLibre interface
 inspired by modern mobility products.
 

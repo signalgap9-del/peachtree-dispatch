@@ -34,18 +34,25 @@ jobs:
           -backend-config="key=peachtree-dispatch/dev/terraform.tfstate"
           -backend-config="region=us-east-1"
           -backend-config="use_lockfile=true"
-      - name: Build and push immutable Lambda image
-        id: image
+      - name: Build and push immutable Lambda images
+        id: images
         working-directory: infra/environments/dev
         run: |
-          REPOSITORY=$(terraform output -raw api_ecr_repository_url)
-          aws ecr get-login-password | docker login --username AWS --password-stdin "${REPOSITORY%/*}"
-          docker build -f ../../../services/api/Dockerfile.lambda -t "$REPOSITORY:${GITHUB_SHA}" ../../../services/api
-          docker push "$REPOSITORY:${GITHUB_SHA}"
-          echo "uri=$REPOSITORY:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          RISK_REPOSITORY=$(terraform output -raw api_ecr_repository_url)
+          PLATFORM_REPOSITORY=$(terraform output -raw platform_api_ecr_repository_url)
+          aws ecr get-login-password | docker login --username AWS --password-stdin "${RISK_REPOSITORY%/*}"
+          docker build -f ../../../services/api/Dockerfile.lambda -t "$RISK_REPOSITORY:${GITHUB_SHA}" ../../../services/api
+          docker build -f ../../../services/platform-api/Dockerfile.lambda -t "$PLATFORM_REPOSITORY:${GITHUB_SHA}" ../../../services/platform-api
+          docker push "$RISK_REPOSITORY:${GITHUB_SHA}"
+          docker push "$PLATFORM_REPOSITORY:${GITHUB_SHA}"
+          echo "risk_uri=$RISK_REPOSITORY:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "platform_uri=$PLATFORM_REPOSITORY:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
       - name: Deploy application
         working-directory: infra/environments/dev
-        run: terraform apply -auto-approve -input=false -var="api_image_uri=${{ steps.image.outputs.uri }}"
+        run: >-
+          terraform apply -auto-approve -input=false
+          -var="risk_engine_image_uri=${{ steps.images.outputs.risk_uri }}"
+          -var="platform_api_image_uri=${{ steps.images.outputs.platform_uri }}"
       - name: Build and upload web
         run: |
           API_URL=$(terraform -chdir=infra/environments/dev output -raw api_url)

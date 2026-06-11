@@ -3,12 +3,18 @@ module "application" {
 
   environment                = "dev"
   api_image_uri              = var.api_image_uri
+  platform_api_image_uri     = var.platform_api_image_uri
+  risk_engine_image_uri      = var.risk_engine_image_uri
   log_retention_days         = 14
   enable_deletion_protection = false
 }
 
 output "api_ecr_repository_url" {
   value = module.application.api_ecr_repository_url
+}
+
+output "platform_api_ecr_repository_url" {
+  value = module.application.platform_api_ecr_repository_url
 }
 
 output "api_url" {

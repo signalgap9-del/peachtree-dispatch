@@ -4,7 +4,7 @@
 
 Peachtree Dispatch is a climate-aware route optimization platform for assigning deliveries, visualizing live weather risk, and producing road-aware multi-stop routes for operators.
 
-The project is intentionally designed around Atlanta's logistics and enterprise technology market while demonstrating broadly useful cloud engineering skills.
+The project serves nationwide U.S. routing use cases while demonstrating cloud engineering skills relevant to Atlanta's logistics and enterprise technology market.
 
 ## Technology Stack
 
@@ -12,7 +12,8 @@ The project is intentionally designed around Atlanta's logistics and enterprise 
 | --- | --- | --- |
 | Frontend | React, TypeScript, Vite, MapLibre | Map-first mobility product experience |
 | Edge | CloudFront, private S3 origin | CDN, TLS, secure static hosting |
-| API | API Gateway, FastAPI, Python Lambda | Serverless API and typed HTTP boundary |
+| Public API | Spring Boot, Java 21 | Enterprise API boundary, auth, orchestration, and operational domains |
+| Risk engine | FastAPI, Python | Geospatial provider adapters, risk scoring, and OR-Tools optimization |
 | Workflows | SQS and Lambda partial batch failures | Buffered optimization, retries, and DLQ handling |
 | Data | DynamoDB with point-in-time recovery | NoSQL modeling and resilience |
 | Packaging | Docker and ECR | Immutable application artifacts |
@@ -30,7 +31,9 @@ flowchart LR
     User[Operator] --> CloudFront
     CloudFront --> Web[S3 React application]
     Web --> Api[API Gateway]
-    Api --> Commands[FastAPI Lambda]
+    Api --> Platform[Spring Boot platform API]
+    Platform --> Risk[Python risk engine]
+    Platform --> Commands[Operational commands]
     Commands --> Table[(DynamoDB single table)]
     Commands --> Queue[SQS optimization queue]
     Queue --> Worker[OR-Tools optimizer Lambda]
@@ -51,7 +54,8 @@ infra/
     prod/          # Approval-gated production environment
 
 services/
-  api/             # FastAPI, DynamoDB repository, and OR-Tools worker
+  platform-api/    # Spring Boot public API and orchestration boundary
+  api/             # Internal Python risk engine and OR-Tools worker
 
 web/               # React operations dashboard
 ```
