@@ -4,6 +4,9 @@
 
 - CloudFront serves the private S3 web origin over HTTPS.
 - CloudFront viewer access is limited to `US` and `KR`.
+- The initial portfolio preview requires an unlisted tokenized link. A successful
+  link visit stores a secure, HTTP-only, seven-day preview cookie; direct
+  requests without the link or cookie return `404`.
 - Security response headers deny framing, prevent MIME sniffing, enforce HSTS,
   and use a strict referrer policy.
 - Browser API traffic uses the same CloudFront distribution under `/api/*`.
@@ -35,3 +38,8 @@ Before production promotion:
   requires an explicit Terraform variable and cost review.
 - User-owned relational write APIs remain closed until Cognito JWT
   authorization supplies the immutable owner subject.
+- Cognito Managed Login uses authorization-code flow with PKCE. The browser
+  keeps short-lived ID/access tokens in session storage; no client secret is
+  embedded in the web application.
+- Authenticated saved-place APIs exist only when both Cognito authentication
+  and the optional PostGIS store are enabled.

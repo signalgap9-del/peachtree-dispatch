@@ -33,6 +33,6 @@ test("header actions navigate or explain unavailable account features", async ({
   await page.getByRole("button", { name: "Notifications", exact: true }).click();
   await expect(page).toHaveURL(/\/alerts$/);
 
-  await page.getByRole("button", { name: "AB", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("Guest portfolio session");
+  await page.getByRole("button", { name: "IN", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Sign-in is available");
 });

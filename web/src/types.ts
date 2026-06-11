@@ -45,6 +45,15 @@ export interface Place {
   longitude: number;
 }
 
+export interface SavedPlaceRecord {
+  savedItemId: string;
+  userId: string;
+  name: string;
+  longitude: number;
+  latitude: number;
+  currentRiskScore: number | null;
+}
+
 export interface DirectionsPlan {
   generated_at: string;
   origin: Place;

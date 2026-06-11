@@ -25,8 +25,9 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { Navigate } from "./App";
 import { api } from "./api";
+import { currentUser, login } from "./auth";
 import { changes, places, riskLevel, riskRows, savedItems } from "./mockData";
-import type { LocationRisk, NationalRiskOverview, NationalWeatherSnapshot, RiskAlert } from "./types";
+import type { LocationRisk, NationalRiskOverview, NationalWeatherSnapshot, RiskAlert, SavedPlaceRecord } from "./types";
 import { notify } from "./ui";
 
 export function HomePage({ navigate, national }: { navigate: Navigate; national: NationalRiskOverview | null }) {
@@ -94,7 +95,23 @@ export function SavedPage({ navigate, weatherSnapshot }: { navigate: Navigate; w
   const [selectedId, setSelectedId] = useState(savedItems[0].id);
   const [query, setQuery] = useState("");
   const [highestRisk, setHighestRisk] = useState(false);
-  const liveItems = useMemo(() => applyLiveSavedRisk(weatherSnapshot), [weatherSnapshot]);
+  const [personalPlaces, setPersonalPlaces] = useState<SavedPlaceRecord[]>([]);
+  useEffect(() => {
+    if (currentUser()) void api.savedPlaces().then(setPersonalPlaces).catch(() => setPersonalPlaces([]));
+  }, []);
+  const liveItems = useMemo(() => [
+    ...personalPlaces.map((place) => ({
+      id: place.savedItemId,
+      kind: "Place",
+      title: place.name,
+      risk: place.currentRiskScore ?? 0,
+      level: riskLevelLabel(place.currentRiskScore ?? 0),
+      change: "Saved to your AtmosPath account",
+      meta: "Personal saved place",
+      action: "View on map",
+    })),
+    ...applyLiveSavedRisk(weatherSnapshot),
+  ], [personalPlaces, weatherSnapshot]);
   const filtered = useMemo(() => {
     const byTab = tab === "All" ? liveItems : liveItems.filter((item) => item.kind === tab.slice(0, -1));
     const byQuery = byTab.filter((item) => item.title.toLowerCase().includes(query.toLowerCase()));
@@ -146,7 +163,14 @@ export function PlaceDetailPage({ navigate, slug }: { navigate: Navigate; slug: 
   return (
     <main className="page-shell place-page">
       <button className="back-link" onClick={() => navigate("/map")}>← Back to map</button>
-      <section className="place-heading"><div><h1>{place.city}, {place.state}</h1><span>Last updated {formatTime(risk?.generated_at)}</span></div><Metric label="Composite risk" value={`${score}`} meta={risk?.level ?? "High"} tone={riskLevel(score)} /><Metric label="Confidence" value="High" meta="Live data" tone="low" /><Metric label="Current weather" value={`${Math.round(risk?.weather.temperature_f ?? 74)}°F`} meta={risk?.weather.precipitation_probability ? "Heavy rain" : "Cloudy"} tone="moderate" /><div className="place-actions"><button className="button primary" onClick={() => navigate("/directions")}>Plan a route</button><button className="button secondary" onClick={() => navigate("/alerts")}>Manage alerts</button></div></section>
+      <section className="place-heading"><div><h1>{place.city}, {place.state}</h1><span>Last updated {formatTime(risk?.generated_at)}</span></div><Metric label="Composite risk" value={`${score}`} meta={risk?.level ?? "High"} tone={riskLevel(score)} /><Metric label="Confidence" value="High" meta="Live data" tone="low" /><Metric label="Current weather" value={`${Math.round(risk?.weather.temperature_f ?? 74)}°F`} meta={risk?.weather.precipitation_probability ? "Heavy rain" : "Cloudy"} tone="moderate" /><div className="place-actions"><button className="button primary" onClick={() => navigate("/directions")}>Plan a route</button><button className="button secondary" onClick={() => {
+        if (!currentUser()) {
+          notify("Sign in to save this place to your account.");
+          void login();
+          return;
+        }
+        void api.savePlace(place, score).then(() => notify(`${place.city} saved to your account.`)).catch(() => notify("This place could not be saved."));
+      }}><Bookmark size={15} /> Save place</button><button className="button secondary" onClick={() => navigate("/alerts")}>Manage alerts</button></div></section>
       <section className="place-top"><div className="surface place-map"><RiskMapVisual regional /><div className="layer-box"><strong>Map layers</strong><span><Droplets /> Precipitation <b>✓</b></span><span><CloudRain /> Flood risk <b>✓</b></span><span><Wind /> Wind</span><span><AlertTriangle /> Active alerts <b>✓</b></span></div><Timeline score={score} /></div><div className="surface why-risk"><SectionHeader title="Why risk is high" action="Risk calculation" onAction={() => notify("Score combines precipitation, wind, heat, flood exposure, and active NWS alerts.")} />{reasons.map(({ name, contribution, icon: Icon }) => <div className="risk-reason" key={name}><Icon size={22} /><span><strong>{name}</strong><small>{name === "Heavy rain" ? "Rainfall rate and duration" : "Current conditions and alerts"}</small></span><em className={contribution >= 30 ? "high" : "moderate"}>{contribution >= 30 ? "High" : "Moderate"}</em><b>{contribution}<small>/100</small></b></div>)}<p>Risk combines hazards, exposure, and local sensitivity.</p></div></section>
       <section className="place-bottom"><div className="surface seven-day"><SectionHeader title="7-day risk forecast" action="Forecast methodology" onAction={() => notify("The public preview currently exposes live conditions and a directional risk outlook, not a certified seven-day forecast.")} /><div className="forecast-grid">{["Today", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, index) => <div key={day}><strong>{day}</strong><CloudRain size={20} /><i className={riskLevel([score, 69, 46, 32, 28, 31, 35][index])}>{[score, 69, 46, 32, 28, 31, 35][index]}</i><small>{index < 2 ? "High" : "Improving"}</small></div>)}</div></div><div className="surface active-place-alerts"><SectionHeader title="Active alerts" action="View all alerts" onAction={() => navigate("/alerts")} />{(risk?.alerts.length ? risk.alerts : topAlerts(null)).slice(0, 3).map((alert) => <button key={alert.alert_id} onClick={() => navigate("/alerts")}><AlertTriangle size={16} /><span>{alert.event}</span><small>{alert.area || `${place.city} area`}</small><ChevronRight size={15} /></button>)}</div><div className="surface common-routes"><SectionHeader title={`Common routes from ${place.city}`} action="Compare routes" onAction={() => navigate("/directions")} />{commonRoutes(place.city).map(([name, time, routeRisk]) => <button key={name} onClick={() => navigate("/directions")}><strong>{name}</strong><span>{time}</span><i className={riskLevel(routeRisk)}>{routeRisk}</i><ChevronRight size={15} /></button>)}</div></section>
       <section className="context-row"><div className="surface live-context"><strong>Live conditions</strong><span><CloudRain /> {Math.round(risk?.weather.temperature_f ?? 74)}°F</span><span><Droplets /> {risk?.weather.precipitation_probability ?? 85}% rain</span><span><Wind /> {Math.round(risk?.weather.wind_speed_mph ?? 24)} mph</span></div><div className="surface long-context"><strong>Long-term context <small>(not a live warning)</small></strong><span><ShieldCheck /> FEMA National Risk Index: Relatively High</span><button onClick={() => navigate("/map")}>View full risk profile <ArrowRight size={15} /></button></div></section>
@@ -228,6 +252,13 @@ function applyLiveSavedRisk(snapshot: NationalWeatherSnapshot | null) {
     const level = risk >= 80 ? "Severe" : risk >= 55 ? "High" : risk >= 30 ? "Moderate" : "Low";
     return { ...item, risk, level, meta: `Live NOAA/NWS · ${formatTime(snapshot?.generated_at)}` };
   });
+}
+
+function riskLevelLabel(score: number) {
+  if (score >= 80) return "Severe";
+  if (score >= 55) return "High";
+  if (score >= 30) return "Moderate";
+  return "Low";
 }
 
 function topAlerts(national: NationalRiskOverview | null): RiskAlert[] {

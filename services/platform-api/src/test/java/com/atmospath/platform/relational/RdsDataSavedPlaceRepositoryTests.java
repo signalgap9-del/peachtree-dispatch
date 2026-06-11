@@ -38,6 +38,16 @@ class RdsDataSavedPlaceRepositoryTests {
     }
 
     @Test
+    void projectsAuthenticatedUserByImmutableSubject() {
+        var userId = UUID.randomUUID();
+        when(client.executeStatement(any(ExecuteStatementRequest.class))).thenReturn(
+                ExecuteStatementResponse.builder().records(List.of(List.of(string(userId.toString())))).build());
+
+        assertThat(repository.ensureUser("cognito-subject", "person@example.com")).isEqualTo(userId);
+        assertThat(captureRequest().sql()).contains("ON CONFLICT(auth_subject)", "RETURNING user_id");
+    }
+
+    @Test
     void mapsNearbyPostgisQueryResults() {
         var savedItemId = UUID.randomUUID();
         var userId = UUID.randomUUID();

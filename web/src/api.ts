@@ -5,14 +5,17 @@ import type {
   NationalWeatherSnapshot,
   WeatherRasterManifest,
   Place,
+  SavedPlaceRecord,
   VehicleType,
 } from "./types";
+import { accessToken } from "./auth";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = accessToken();
   const response = await fetch(`${API_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     ...options,
   });
   if (!response.ok) {
@@ -34,4 +37,17 @@ export const api = {
   weatherRaster: () => request<WeatherRasterManifest>("/risk/weather-raster"),
   locationRisk: (place: Place) =>
     request<LocationRisk>("/risk/location", { method: "POST", body: JSON.stringify(place) }),
+  savedPlaces: () => request<SavedPlaceRecord[]>("/me/saved/places"),
+  savePlace: (place: Place, currentRiskScore?: number) =>
+    request<SavedPlaceRecord>("/me/saved/places", {
+      method: "POST",
+      body: JSON.stringify({
+        name: place.display_name,
+        longitude: place.longitude,
+        latitude: place.latitude,
+        currentRiskScore,
+      }),
+    }),
+  deleteSavedPlace: (savedItemId: string) =>
+    request<void>(`/me/saved/places/${savedItemId}`, { method: "DELETE" }),
 };

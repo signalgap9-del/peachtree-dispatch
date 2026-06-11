@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { api } from "./api";
+import { authConfigured, completeLogin, currentUser, login, logout, type AuthUser } from "./auth";
 import { MapPage } from "./MapPage";
 import { AlertsPage, DashboardPage, HomePage, PlaceDetailPage, SavedPage } from "./ProductPages";
 import type { NationalRiskOverview, NationalWeatherSnapshot, WeatherRasterManifest } from "./types";
@@ -34,6 +35,13 @@ function App() {
   const [weatherSnapshot, setWeatherSnapshot] = useState<NationalWeatherSnapshot | null>(null);
   const [weatherRaster, setWeatherRaster] = useState<WeatherRasterManifest | null>(null);
   const [toast, setToast] = useState("");
+  const [user, setUser] = useState<AuthUser | null>(() => currentUser());
+
+  useEffect(() => {
+    void completeLogin()
+      .then((completed) => { if (completed) setUser(currentUser()); })
+      .catch(() => notify("Sign-in could not be completed."));
+  }, []);
 
   useEffect(() => {
     const onPopState = () => setPath(window.location.pathname);
@@ -65,7 +73,7 @@ function App() {
 
   return (
     <div className={`product-app ${path === "/map" || path === "/directions" ? "map-active" : ""}`}>
-      <AppHeader path={path} navigate={navigate} />
+      <AppHeader path={path} navigate={navigate} user={user} onUserChange={setUser} />
       {path === "/" && <HomePage navigate={navigate} national={nationalRisk} />}
       {path === "/dashboard" && <DashboardPage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} />}
       {path === "/saved" && <SavedPage navigate={navigate} weatherSnapshot={weatherSnapshot} />}
@@ -80,8 +88,9 @@ function App() {
   );
 }
 
-function AppHeader({ path, navigate }: { path: string; navigate: Navigate }) {
+function AppHeader({ path, navigate, user, onUserChange }: { path: string; navigate: Navigate; user: AuthUser | null; onUserChange: (user: AuthUser | null) => void }) {
   const activePath = path === "/directions" || path.startsWith("/locations/") ? "/map" : path;
+  const initials = user?.email?.slice(0, 2).toUpperCase() ?? "IN";
   return (
     <header className="app-header">
       <button className="wordmark" onClick={() => navigate("/")} aria-label="AtmosPath home">
@@ -98,7 +107,16 @@ function AppHeader({ path, navigate }: { path: string; navigate: Navigate }) {
       <div className="header-tools">
         <button className="weather-chip" onClick={() => navigate("/locations/atlanta")}><CloudSun size={20} /><span><strong>72°F</strong><small>Atlanta, GA</small></span></button>
         <button className="icon-button" aria-label="Notifications" onClick={() => navigate("/alerts")}><Bell size={19} /></button>
-        <button className="avatar-button" onClick={() => notify("Guest portfolio session. Account sign-in is not enabled.")}>AB</button>
+        <button className="avatar-button" title={user?.email ?? "Sign in"} onClick={() => {
+          if (user) {
+            logout();
+            onUserChange(null);
+          } else if (authConfigured()) {
+            void login();
+          } else {
+            notify("Sign-in is available in the deployed preview.");
+          }
+        }}>{initials}</button>
         <ChevronDown size={15} />
       </div>
     </header>

@@ -13,6 +13,12 @@ import software.amazon.awssdk.services.rdsdata.model.SqlParameter;
 @Repository
 @ConditionalOnProperty(name = "atmospath.relational.enabled", havingValue = "true")
 public class RdsDataSavedPlaceRepository implements SavedPlaceRepository {
+    private static final String ENSURE_USER_SQL = """
+            INSERT INTO app_user(user_id, auth_subject, email)
+            VALUES(CAST(:user_id AS uuid), :auth_subject, :email)
+            ON CONFLICT(auth_subject) DO UPDATE SET email = EXCLUDED.email, updated_at = now()
+            RETURNING user_id::text
+            """;
     private static final String SAVE_SQL = """
             INSERT INTO saved_item(saved_item_id, user_id, item_type, name, point, current_risk_score)
             VALUES(CAST(:id AS uuid), CAST(:user_id AS uuid), 'PLACE', :name,
@@ -38,6 +44,22 @@ public class RdsDataSavedPlaceRepository implements SavedPlaceRepository {
             ORDER BY point <-> ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography
             LIMIT 50
             """;
+    private static final String FIND_ALL_SQL = """
+            SELECT saved_item_id::text, user_id::text, name,
+              ST_X(point::geometry), ST_Y(point::geometry), current_risk_score
+            FROM saved_item
+            WHERE user_id = CAST(:user_id AS uuid)
+              AND item_type = 'PLACE'
+              AND deleted_at IS NULL
+            ORDER BY updated_at DESC
+            LIMIT 100
+            """;
+    private static final String DELETE_SQL = """
+            UPDATE saved_item SET deleted_at = now(), updated_at = now()
+            WHERE saved_item_id = CAST(:id AS uuid)
+              AND user_id = CAST(:user_id AS uuid)
+              AND deleted_at IS NULL
+            """;
 
     private final RdsDataClient client;
     private final RelationalStoreProperties properties;
@@ -45,6 +67,16 @@ public class RdsDataSavedPlaceRepository implements SavedPlaceRepository {
     public RdsDataSavedPlaceRepository(RdsDataClient client, RelationalStoreProperties properties) {
         this.client = client;
         this.properties = properties;
+    }
+
+    @Override
+    public UUID ensureUser(String authSubject, String email) {
+        var proposedId = UUID.nameUUIDFromBytes(authSubject.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        var response = client.executeStatement(request(ENSURE_USER_SQL, List.of(
+                string("user_id", proposedId.toString()),
+                string("auth_subject", authSubject),
+                string("email", email == null ? "" : email))));
+        return UUID.fromString(response.records().getFirst().getFirst().stringValue());
     }
 
     @Override
@@ -65,7 +97,24 @@ public class RdsDataSavedPlaceRepository implements SavedPlaceRepository {
                 decimal("longitude", longitude),
                 decimal("latitude", latitude),
                 decimal("radius_meters", radiusMiles * 1609.344))));
-        return response.records().stream().map(row -> new SavedPlace(
+        return mapPlaces(response.records());
+    }
+
+    @Override
+    public List<SavedPlace> findAll(UUID userId) {
+        return mapPlaces(client.executeStatement(request(FIND_ALL_SQL, List.of(
+                string("user_id", userId.toString())))).records());
+    }
+
+    @Override
+    public void delete(UUID userId, UUID savedItemId) {
+        client.executeStatement(request(DELETE_SQL, List.of(
+                string("user_id", userId.toString()),
+                string("id", savedItemId.toString()))));
+    }
+
+    private static List<SavedPlace> mapPlaces(List<List<Field>> records) {
+        return records.stream().map(row -> new SavedPlace(
                 UUID.fromString(row.get(0).stringValue()),
                 UUID.fromString(row.get(1).stringValue()),
                 row.get(2).stringValue(),

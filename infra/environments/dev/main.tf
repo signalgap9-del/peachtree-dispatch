@@ -30,6 +30,19 @@ output "web_url" {
   value = module.application.web_url
 }
 
+output "preview_url" {
+  value     = module.application.preview_url
+  sensitive = true
+}
+
+output "cognito_client_id" {
+  value = module.application.cognito_client_id
+}
+
+output "cognito_domain" {
+  value = module.application.cognito_domain
+}
+
 output "cloudfront_distribution_id" {
   value = module.application.cloudfront_distribution_id
 }

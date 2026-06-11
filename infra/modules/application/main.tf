@@ -9,6 +9,60 @@ resource "random_password" "api_origin_verify" {
   special = false
 }
 
+resource "random_password" "preview_access" {
+  length  = 32
+  special = false
+}
+
+resource "random_id" "cognito_domain" {
+  byte_length = 4
+}
+
+resource "aws_cognito_user_pool" "users" {
+  name                     = "${local.name}-users"
+  username_attributes      = ["email"]
+  auto_verified_attributes = ["email"]
+
+  admin_create_user_config {
+    allow_admin_create_user_only = false
+  }
+
+  password_policy {
+    minimum_length                   = 12
+    require_lowercase                = true
+    require_numbers                  = true
+    require_symbols                  = true
+    require_uppercase                = true
+    temporary_password_validity_days = 7
+  }
+
+  account_recovery_setting {
+    recovery_mechanism {
+      name     = "verified_email"
+      priority = 1
+    }
+  }
+}
+
+resource "aws_cognito_user_pool_client" "web" {
+  name         = "${local.name}-web"
+  user_pool_id = aws_cognito_user_pool.users.id
+
+  generate_secret                      = false
+  allowed_oauth_flows_user_pool_client = true
+  allowed_oauth_flows                  = ["code"]
+  allowed_oauth_scopes                 = ["openid", "email", "profile"]
+  supported_identity_providers         = ["COGNITO"]
+  callback_urls                        = ["https://${aws_cloudfront_distribution.web.domain_name}/"]
+  logout_urls                          = ["https://${aws_cloudfront_distribution.web.domain_name}/"]
+  prevent_user_existence_errors        = "ENABLED"
+}
+
+resource "aws_cognito_user_pool_domain" "web" {
+  domain       = "${local.name}-${random_id.cognito_domain.hex}"
+  user_pool_id = aws_cognito_user_pool.users.id
+}
+
 resource "aws_ecr_repository" "api" {
   name                 = "${local.name}-api"
   image_tag_mutability = "IMMUTABLE"
@@ -252,6 +306,15 @@ resource "aws_cloudfront_function" "api_path" {
   code    = <<-EOT
     function handler(event) {
       var request = event.request;
+      var queryToken = request.querystring && request.querystring.preview && request.querystring.preview.value;
+      var cookieToken = request.cookies && request.cookies['atmospath-preview'] && request.cookies['atmospath-preview'].value;
+      if (${var.enable_preview_gate} && queryToken !== '${random_password.preview_access.result}' && cookieToken !== '${random_password.preview_access.result}') {
+        return {
+          statusCode: 404,
+          statusDescription: 'Not Found',
+          headers: { 'cache-control': { value: 'no-store' } }
+        };
+      }
       request.uri = request.uri.replace(/^\/api/, '') || '/';
       return request;
     }
@@ -266,10 +329,41 @@ resource "aws_cloudfront_function" "spa_path" {
   code    = <<-EOT
     function handler(event) {
       var request = event.request;
+      var queryToken = request.querystring && request.querystring.preview && request.querystring.preview.value;
+      var cookieToken = request.cookies && request.cookies['atmospath-preview'] && request.cookies['atmospath-preview'].value;
+      if (${var.enable_preview_gate} && queryToken !== '${random_password.preview_access.result}' && cookieToken !== '${random_password.preview_access.result}') {
+        return {
+          statusCode: 404,
+          statusDescription: 'Not Found',
+          headers: { 'cache-control': { value: 'no-store' } }
+        };
+      }
       if (!request.uri.includes('.')) {
         request.uri = '/index.html';
       }
       return request;
+    }
+  EOT
+}
+
+resource "aws_cloudfront_function" "preview_cookie" {
+  name    = "${local.name}-preview-cookie"
+  runtime = "cloudfront-js-2.0"
+  comment = "Persist successful preview-link access in a secure browser cookie."
+  publish = true
+  code    = <<-EOT
+    function handler(event) {
+      var response = event.response;
+      var queryToken = event.request.querystring && event.request.querystring.preview && event.request.querystring.preview.value;
+      if (queryToken === '${random_password.preview_access.result}') {
+        response.cookies = response.cookies || {};
+        response.cookies['atmospath-preview'] = {
+          value: '${random_password.preview_access.result}',
+          attributes: 'Path=/; Max-Age=604800; Secure; HttpOnly; SameSite=Lax'
+        };
+        response.headers['cache-control'] = { value: 'no-store' };
+      }
+      return response;
     }
   EOT
 }
@@ -321,6 +415,11 @@ resource "aws_cloudfront_distribution" "web" {
       event_type   = "viewer-request"
       function_arn = aws_cloudfront_function.spa_path.arn
     }
+
+    function_association {
+      event_type   = "viewer-response"
+      function_arn = aws_cloudfront_function.preview_cookie.arn
+    }
   }
 
   dynamic "ordered_cache_behavior" {
@@ -337,6 +436,11 @@ resource "aws_cloudfront_distribution" "web" {
       function_association {
         event_type   = "viewer-request"
         function_arn = aws_cloudfront_function.api_path.arn
+      }
+
+      function_association {
+        event_type   = "viewer-response"
+        function_arn = aws_cloudfront_function.preview_cookie.arn
       }
     }
   }
@@ -515,6 +619,8 @@ resource "aws_lambda_function" "api" {
       RELATIONAL_DATABASE          = "atmospath"
       RELATIONAL_RESOURCE_ARN      = var.enable_relational_store ? aws_rds_cluster.relational[0].arn : ""
       RELATIONAL_SECRET_ARN        = var.enable_relational_store ? aws_rds_cluster.relational[0].master_user_secret[0].secret_arn : ""
+      AUTH_ENABLED                 = "true"
+      AUTH_ISSUER_URI              = "https://cognito-idp.us-east-1.amazonaws.com/${aws_cognito_user_pool.users.id}"
     }
   }
 }

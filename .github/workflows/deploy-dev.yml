@@ -56,14 +56,19 @@ jobs:
       - name: Build and upload web
         run: |
           API_URL=$(terraform -chdir=infra/environments/dev output -raw api_url)
+          COGNITO_CLIENT_ID=$(terraform -chdir=infra/environments/dev output -raw cognito_client_id)
+          COGNITO_DOMAIN=$(terraform -chdir=infra/environments/dev output -raw cognito_domain)
           BUCKET=$(terraform -chdir=infra/environments/dev output -raw web_bucket_name)
           DISTRIBUTION=$(terraform -chdir=infra/environments/dev output -raw cloudfront_distribution_id)
           cd web
           npm ci
-          VITE_API_URL="$API_URL" npm run build
+          VITE_API_URL="$API_URL" VITE_COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" VITE_COGNITO_DOMAIN="$COGNITO_DOMAIN" npm run build
           aws s3 sync dist "s3://$BUCKET" --delete
           aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION" --paths "/*"
       - name: Smoke test
         run: |
-          API_URL=$(terraform -chdir=infra/environments/dev output -raw api_url)
-          curl --fail --retry 8 --retry-delay 5 "$API_URL/health"
+          WEB_URL=$(terraform -chdir=infra/environments/dev output -raw web_url)
+          PREVIEW_URL=$(terraform -chdir=infra/environments/dev output -raw preview_url)
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' "$WEB_URL")" = "404"
+          curl --fail --cookie-jar /tmp/atmospath-preview.cookies --retry 8 --retry-delay 5 "$PREVIEW_URL"
+          curl --fail --cookie /tmp/atmospath-preview.cookies "$WEB_URL/api/health"
