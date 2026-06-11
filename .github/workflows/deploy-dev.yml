@@ -1,0 +1,74 @@
+name: Deploy Dev
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.13.5
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_APPLY_ROLE_ARN }}
+          aws-region: us-east-1
+      - name: Initialize Terraform
+        working-directory: infra/environments/dev
+        run: >-
+          terraform init
+          -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+          -backend-config="key=peachtree-dispatch/dev/terraform.tfstate"
+          -backend-config="region=us-east-1"
+          -backend-config="use_lockfile=true"
+      - name: Build and push immutable Lambda images
+        id: images
+        working-directory: infra/environments/dev
+        run: |
+          RISK_REPOSITORY=$(terraform output -raw api_ecr_repository_url)
+          PLATFORM_REPOSITORY=$(terraform output -raw platform_api_ecr_repository_url)
+          aws ecr get-login-password | docker login --username AWS --password-stdin "${RISK_REPOSITORY%/*}"
+          docker build -f ../../../services/api/Dockerfile.lambda -t "$RISK_REPOSITORY:${GITHUB_SHA}" ../../../services/api
+          docker build -f ../../../services/platform-api/Dockerfile.lambda -t "$PLATFORM_REPOSITORY:${GITHUB_SHA}" ../../../services/platform-api
+          docker push "$RISK_REPOSITORY:${GITHUB_SHA}"
+          docker push "$PLATFORM_REPOSITORY:${GITHUB_SHA}"
+          echo "risk_uri=$RISK_REPOSITORY:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "platform_uri=$PLATFORM_REPOSITORY:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+      - name: Deploy application
+        working-directory: infra/environments/dev
+        run: >-
+          terraform apply -auto-approve -input=false
+          -var="risk_engine_image_uri=${{ steps.images.outputs.risk_uri }}"
+          -var="platform_api_image_uri=${{ steps.images.outputs.platform_uri }}"
+      - name: Build and upload web
+        run: |
+          API_URL=$(terraform -chdir=infra/environments/dev output -raw api_url)
+          COGNITO_CLIENT_ID=$(terraform -chdir=infra/environments/dev output -raw cognito_client_id)
+          COGNITO_DOMAIN=$(terraform -chdir=infra/environments/dev output -raw cognito_domain)
+          BUCKET=$(terraform -chdir=infra/environments/dev output -raw web_bucket_name)
+          DISTRIBUTION=$(terraform -chdir=infra/environments/dev output -raw cloudfront_distribution_id)
+          cd web
+          npm ci
+          VITE_API_URL="$API_URL" VITE_COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" VITE_COGNITO_DOMAIN="$COGNITO_DOMAIN" npm run build
+          aws s3 sync dist "s3://$BUCKET" --delete
+          aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION" --paths "/*"
+      - name: Smoke test
+        run: |
+          WEB_URL=$(terraform -chdir=infra/environments/dev output -raw web_url)
+          PREVIEW_URL=$(terraform -chdir=infra/environments/dev output -raw preview_url)
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' "$WEB_URL")" = "404"
+          curl --fail --cookie-jar /tmp/atmospath-preview.cookies --retry 8 --retry-delay 5 "$PREVIEW_URL"
+          curl --fail --cookie /tmp/atmospath-preview.cookies "$WEB_URL/api/health"

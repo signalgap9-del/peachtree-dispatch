@@ -1,0 +1,53 @@
+output "api_ecr_repository_url" {
+  value = aws_ecr_repository.api.repository_url
+}
+
+output "platform_api_ecr_repository_url" {
+  value = aws_ecr_repository.platform_api.repository_url
+}
+
+output "api_url" {
+  value = local.deploy_app ? "https://${aws_cloudfront_distribution.web.domain_name}/api" : null
+}
+
+output "web_bucket_name" {
+  value = aws_s3_bucket.web.id
+}
+
+output "web_url" {
+  value = "https://${aws_cloudfront_distribution.web.domain_name}"
+}
+
+output "preview_url" {
+  value     = "https://${aws_cloudfront_distribution.web.domain_name}/?preview=${random_password.preview_access.result}"
+  sensitive = true
+}
+
+output "cognito_client_id" {
+  value = aws_cognito_user_pool_client.web.id
+}
+
+output "cognito_domain" {
+  value = "${aws_cognito_user_pool_domain.web.domain}.auth.us-east-1.amazoncognito.com"
+}
+
+output "cloudfront_distribution_id" {
+  value = aws_cloudfront_distribution.web.id
+}
+
+output "dynamodb_table_name" {
+  value = aws_dynamodb_table.operational.name
+}
+
+output "weather_snapshot_bucket_name" {
+  value = aws_s3_bucket.weather.id
+}
+
+output "relational_cluster_arn" {
+  value = try(aws_rds_cluster.relational[0].arn, null)
+}
+
+output "relational_secret_arn" {
+  value     = try(aws_rds_cluster.relational[0].master_user_secret[0].secret_arn, null)
+  sensitive = true
+}

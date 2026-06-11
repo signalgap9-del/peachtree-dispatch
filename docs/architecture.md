@@ -1,114 +1,90 @@
-# Peachtree Dispatch Architecture
+# AtmosPath Architecture
 
 ## Product
 
-Peachtree Dispatch is a delivery operations platform for creating deliveries, ingesting status events, tracking workflow progress, and surfacing failed or delayed deliveries to operators.
+AtmosPath is a nationwide U.S. weather-risk navigation product for ordinary
+drivers and travelers. It compares road-route alternatives, visualizes current
+and forecast hazards, explains risk scores, and monitors saved places, routes,
+and highway corridors.
 
-The project is intentionally designed around Atlanta's logistics and enterprise technology market while demonstrating broadly useful cloud engineering skills.
+AtmosPath is not a delivery-dispatch, fleet-management, or CRM product.
 
 ## Technology Stack
 
-| Area | Choice | Portfolio Signal |
+| Area | Choice | Portfolio signal |
 | --- | --- | --- |
-| Frontend | React, TypeScript, Vite | Modern application delivery |
-| Edge | CloudFront, private S3 origin | CDN, TLS, secure static hosting |
-| Authentication | Amazon Cognito | Managed identity and authorization |
-| API | API Gateway, Python Lambda, AWS Lambda Powertools | Serverless API and structured operations |
-| Workflows | EventBridge, SQS, targeted Step Functions Express | Event routing, buffering, retries, and exception handling |
-| Data | DynamoDB with point-in-time recovery | NoSQL modeling and resilience |
-| Batch | Docker, ECR, on-demand ECS Fargate task | Container delivery without always-on cost |
+| Frontend | React, TypeScript, Vite, MapLibre | Map-first responsive product |
+| Edge | CloudFront, private S3 origin | CDN, TLS, origin protection, geo restriction |
+| Public API | Spring Boot, Java 21 | Enterprise API boundary and orchestration |
+| Risk engine | FastAPI, Python | Provider adapters and explainable geospatial scoring |
+| Weather pipeline | HRRR/MRMS inputs, S3 raster artifacts | National-scale data engineering |
+| Workflows | SQS, Lambda, partial batch failures | Buffered jobs, retries, DLQ |
+| Operational data | DynamoDB with TTL and PITR | Jobs, caches, idempotency, dedupe |
+| User and spatial data | Optional Aurora PostgreSQL Serverless v2 + PostGIS | Relational and spatial SQL |
+| Optimization | Ranked route alternatives; OR-Tools for bounded multi-stop planning | Operations research without fleet coupling |
 | Observability | CloudWatch logs, metrics, alarms, dashboard, X-Ray | SRE and incident response |
-| Infrastructure | Terraform | Reusable and reviewable IaC |
+| Infrastructure | Terraform | Reusable, reviewable IaC |
 | CI/CD | GitHub Actions with AWS OIDC | Secretless automated delivery |
-| Security | IAM least privilege, KMS, dependency and IaC scanning | DevSecOps |
 
 ## Runtime Flow
 
 ```mermaid
 flowchart LR
-    User[Operator] --> CloudFront
-    CloudFront --> Web[S3 React application]
-    User --> Cognito
-    Web --> Api[API Gateway]
-    Api --> Commands[Command and Query Lambda]
-    Commands --> Table[(DynamoDB)]
-    Commands --> Bus[EventBridge]
-    Bus --> Queue[SQS event queue]
-    Queue --> Worker[Event Worker Lambda]
-    Worker --> Table
-    Queue --> DLQ[SQS dead-letter queue]
-    Bus --> Exceptions[Exception Step Functions workflow]
-    User --> Report[Run report request]
-    Report --> Fargate[On-demand ECS Fargate task]
-    Fargate --> Archive[(S3 report output)]
+    User[Driver or traveler] --> Edge[CloudFront]
+    Edge --> Web[S3 React application]
+    Edge --> Api[API Gateway]
+    Api --> Platform[Spring Boot platform API]
+    Platform --> Risk[Python risk engine]
+    Risk --> Roads[Road routing provider]
+    Risk --> Snapshot[Current weather and hazard snapshot]
+    Platform --> DataAPI[RDS Data API]
+    DataAPI --> PostGIS[(Aurora PostgreSQL and PostGIS)]
+    Pipeline[Scheduled weather pipeline] --> Queue[SQS]
+    Queue --> Worker[Raster and risk workers]
+    Worker --> Objects[(S3 weather artifacts)]
+    Worker --> Ops[(DynamoDB jobs and pointers)]
+    Snapshot --> Objects
+    Snapshot --> Ops
     Api --> Observability[CloudWatch and X-Ray]
     Worker --> Observability
-    Workflow --> Observability
 ```
 
-## Infrastructure Layout
+## Data Ownership
+
+- **S3:** raw/model weather data, national rasters, tiles, and historical artifacts.
+- **DynamoDB:** bounded operational jobs, idempotency, TTL caches, notification
+  dedupe, and current snapshot pointers.
+- **PostgreSQL/PostGIS:** users, saved items, collections, subscriptions, route
+  history, and spatial risk exposures.
+
+Cross-store transactions are prohibited. Events and reconciliation coordinate
+work that crosses ownership boundaries.
+
+## Repository Layout
 
 ```text
-infra/
-  bootstrap/       # Terraform state, GitHub OIDC, CI roles
-  modules/         # Reusable AWS modules
-  environments/
-    dev/           # Low-cost deployed portfolio environment
-
-services/
-  api/             # Python command/query API
-  worker/          # Asynchronous event processor
-
-web/               # React operations dashboard
-tests/
-  integration/     # Deployed-environment smoke and failure tests
+infra/                  # Terraform bootstrap, modules, dev, and prod
+services/platform-api/  # Spring Boot public API and PostGIS access
+services/api/           # Python risk engine and provider adapters
+services/weather-raster/# Weather raster pipeline
+web/                    # React map-first application
 ```
 
-## Engineering Decisions
+## Cost and Security Guardrails
 
-### Terraform instead of application-only deployment tools
-
-Terraform is widely requested in Atlanta cloud and DevOps roles and makes infrastructure reviewable in pull requests. The repository will use an encrypted, versioned S3 backend with S3 state locking.
-
-### Hybrid compute
-
-Lambda handles low-volume request and event workloads because it scales to zero and integrates directly with API Gateway and SQS. A later on-demand ECS Fargate task demonstrates container delivery for work that benefits from a longer-running process. No always-on container service is required.
-
-Step Functions is not placed in the normal event path. It is reserved for a later exception workflow only when the process has multiple explicit steps, waits, or compensating actions.
-
-### One deployed development environment
-
-The initial portfolio uses one persistent `dev` environment. Pull requests run validation and Terraform plans without creating expensive preview environments.
-
-### GitHub OIDC instead of AWS access keys
-
-GitHub Actions will assume narrowly scoped AWS roles using OIDC. The plan role trusts pull requests, while the apply role trusts only the protected GitHub `dev` environment. No long-lived AWS credentials will be stored in GitHub secrets.
-
-## Cost Guardrails
-
-- Maintain a monthly AWS budget.
-- Avoid NAT Gateway, always-on RDS, load balancers, and EKS in the first release.
-- Configure short CloudWatch log retention.
-- Tag every resource with project, environment, owner, and IaC metadata.
-- Document expected monthly cost in each infrastructure pull request.
+- Avoid NAT Gateway, always-on databases, load balancers, and EKS.
+- Keep Aurora disabled by default; when enabled, use 0-1 ACUs and auto-pause.
+- Put public API traffic behind CloudFront and cap API/Lambda concurrency.
+- Require Cognito JWT ownership before exposing user writes.
+- Use short log retention, budgets, AWS OIDC, least privilege, and IaC tags.
+- Review cost before enabling any recurring-cost resource.
 
 ## Detailed Design Documents
 
 - [Product requirements](requirements.md)
 - [Domain model and API boundary](domain-model.md)
-- [DynamoDB data model](data-model.md)
+- [DynamoDB operational data model](data-model.md)
+- [PostgreSQL/PostGIS data model](relational-data-model.md)
 - [Cost model](cost-model.md)
-- [ADR 0002: Hybrid compute](adr/0002-hybrid-compute.md)
-- [ADR 0003: DynamoDB operational store](adr/0003-dynamodb-operational-store.md)
-
-## Definition of Production-Style
-
-The project is considered production-style when it includes:
-
-- Automated tests and deployment gates
-- Least-privilege IAM
-- Encryption and secure defaults
-- Structured logs, metrics, traces, alarms, and a dashboard
-- Retries, idempotency, DLQ handling, and a replay procedure
-- Backup/recovery settings and a tested runbook
-- Architecture decisions and operational documentation
+- [ADR 0006: Hybrid DynamoDB and PostGIS](adr/0006-hybrid-dynamodb-postgis.md)
+- [Deployment and promotion](deployment.md)

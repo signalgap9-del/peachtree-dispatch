@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: atmospath-platform-api
+server:
+  port: ${PORT:8080}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+atmospath:
+  risk-engine-mode: ${RISK_ENGINE_MODE:http}
+  risk-engine-url: ${RISK_ENGINE_URL:http://localhost:8000}
+  risk-engine-function-name: ${RISK_ENGINE_FUNCTION_NAME:}
+  cors-origins: ${CORS_ORIGINS:http://localhost:5173}
+  api-origin-verify-secret: ${API_ORIGIN_VERIFY_SECRET:}
+  auth:
+    enabled: ${AUTH_ENABLED:false}
+    issuer-uri: ${AUTH_ISSUER_URI:}
+  relational:
+    enabled: ${RELATIONAL_STORE_ENABLED:false}
+    initialize-schema: ${RELATIONAL_INITIALIZE_SCHEMA:false}
+    database: ${RELATIONAL_DATABASE:atmospath}
+    resource-arn: ${RELATIONAL_RESOURCE_ARN:}
+    secret-arn: ${RELATIONAL_SECRET_ARN:}

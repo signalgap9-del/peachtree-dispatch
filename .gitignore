@@ -11,6 +11,7 @@ credentials
 .terraform/
 *.tfstate
 *.tfstate.*
+*.tfplan
 cdk.out/
 .aws-sam/
 
@@ -18,10 +19,25 @@ cdk.out/
 node_modules/
 dist/
 build/
+target/
 coverage/
+*.tsbuildinfo
+web/vite.config.js
+web/vite.config.d.ts
+*.db
+*.db-shm
+*.db-wal
+.pytest_cache/
+__pycache__/
+*.pyc
 
 # Editors and operating systems
 .idea/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Local design research captures
+tmp/
+web/test-results/
+web/playwright-report/

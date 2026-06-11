@@ -1,0 +1,139 @@
+export interface WeatherRisk {
+  id: string;
+  city: string;
+  latitude: number;
+  longitude: number;
+  temperature_f: number;
+  precipitation_probability: number;
+  wind_speed_mph: number;
+  risk_score: number;
+  risk_level: "LOW" | "ELEVATED" | "HIGH" | "UNKNOWN";
+  data_status?: "LIVE" | "UNAVAILABLE";
+  source?: string;
+}
+
+export interface NationalWeatherSnapshot {
+  generated_at: string;
+  expires_at: string;
+  model_version: string;
+  refresh_minutes: number;
+  coverage: number;
+  points: WeatherRisk[];
+  source_status: Record<string, string>;
+}
+
+export interface WeatherRasterManifest {
+  generated_at: string;
+  expires_at: string;
+  layer: string;
+  source: string;
+  url: string;
+  bounds: number[][];
+  point_count: number;
+  coverage: number;
+  model_version: string;
+}
+
+export type VehicleType = "CAR" | "VAN" | "TRUCK";
+
+export interface Place {
+  place_id: string;
+  display_name: string;
+  city: string;
+  state: string;
+  latitude: number;
+  longitude: number;
+}
+
+export interface SavedPlaceRecord {
+  savedItemId: string;
+  userId: string;
+  name: string;
+  longitude: number;
+  latitude: number;
+  currentRiskScore: number | null;
+}
+
+export interface DirectionsPlan {
+  generated_at: string;
+  origin: Place;
+  destination: Place;
+  vehicle_type: VehicleType;
+  coordinates: number[][];
+  distance_miles: number;
+  duration_minutes: number;
+  climate_delay_minutes: number;
+  risk_score: number;
+  weather: WeatherRisk[];
+  summary: string;
+  alternatives: RouteAlternative[];
+  model_version?: string;
+}
+
+export interface HazardExposure {
+  category: string;
+  score: number;
+  samples_affected: number;
+  summary: string;
+}
+
+export interface RouteAlternative {
+  alternative_id: string;
+  label: string;
+  coordinates: number[][];
+  distance_miles: number;
+  duration_minutes: number;
+  climate_delay_minutes: number;
+  risk_score: number;
+  weather: WeatherRisk[];
+  hazards: HazardExposure[];
+  model_version?: string;
+  data_coverage?: number;
+  confidence?: "HIGH" | "MEDIUM" | "LOW" | "UNAVAILABLE";
+  source_status?: Record<string, string>;
+}
+
+export interface RiskAlert {
+  alert_id: string;
+  event: string;
+  severity: string;
+  urgency: string;
+  certainty: string;
+  headline: string;
+  area: string;
+  instruction?: string | null;
+  score: number;
+  longitude?: number | null;
+  latitude?: number | null;
+  geometry?: RiskGeometry | null;
+  category?: string;
+}
+
+export type RiskGeometry =
+  | { type: "Polygon"; coordinates: number[][][] }
+  | { type: "MultiPolygon"; coordinates: number[][][][] };
+
+export interface NationalRiskOverview {
+  generated_at: string;
+  score: number;
+  level: string;
+  active_alerts: number;
+  severe_alerts: number;
+  alerts_with_geometry: number;
+  alerts: RiskAlert[];
+  by_event: Record<string, number>;
+  source_status?: Record<string, string>;
+}
+
+export interface LocationRisk {
+  generated_at: string;
+  place: Place;
+  score: number;
+  level: string;
+  summary: string;
+  factors: Record<string, number>;
+  alerts: RiskAlert[];
+  weather: WeatherRisk;
+  model_version?: string;
+  source_status?: Record<string, string>;
+}

@@ -15,7 +15,6 @@ jobs:
     name: Dev Plan
     if: vars.AWS_TERRAFORM_PLAN_ROLE_ARN != '' && vars.TF_STATE_BUCKET != ''
     runs-on: ubuntu-latest
-    environment: dev
     defaults:
       run:
         working-directory: infra/environments/dev

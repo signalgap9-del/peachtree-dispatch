@@ -1,0 +1,11 @@
+FROM maven:3.9.11-eclipse-temurin-21 AS build
+WORKDIR /workspace
+COPY pom.xml .
+RUN mvn -q -DskipTests dependency:go-offline
+COPY src src
+RUN mvn -q -DskipTests package dependency:copy-dependencies -DincludeScope=runtime
+
+FROM public.ecr.aws/lambda/java:21
+COPY --from=build /workspace/target/classes ${LAMBDA_TASK_ROOT}
+COPY --from=build /workspace/target/dependency/* ${LAMBDA_TASK_ROOT}/lib/
+CMD ["com.atmospath.platform.StreamLambdaHandler::handleRequest"]
