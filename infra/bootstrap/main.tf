@@ -78,7 +78,10 @@ data "aws_iam_policy_document" "github_plan_assume_role" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repository}:pull_request"]
+      values = [
+        "repo:${var.github_repository}:pull_request",
+        "repo:${var.github_repository}:ref:refs/heads/main",
+      ]
     }
   }
 }
@@ -106,6 +109,29 @@ data "aws_iam_policy_document" "github_apply_assume_role" {
   }
 }
 
+data "aws_iam_policy_document" "github_prod_assume_role" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:${var.github_repository}:environment:production"]
+    }
+  }
+}
+
 resource "aws_iam_role" "terraform_plan" {
   name               = "peachtree-dispatch-github-plan"
   assume_role_policy = data.aws_iam_policy_document.github_plan_assume_role.json
@@ -116,6 +142,11 @@ resource "aws_iam_role" "terraform_apply" {
   assume_role_policy = data.aws_iam_policy_document.github_apply_assume_role.json
 }
 
+resource "aws_iam_role" "terraform_prod" {
+  name               = "peachtree-dispatch-github-prod"
+  assume_role_policy = data.aws_iam_policy_document.github_prod_assume_role.json
+}
+
 resource "aws_iam_role_policy_attachment" "terraform_plan_read_only" {
   role       = aws_iam_role.terraform_plan.name
   policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
@@ -123,6 +154,11 @@ resource "aws_iam_role_policy_attachment" "terraform_plan_read_only" {
 
 resource "aws_iam_role_policy_attachment" "terraform_apply_power_user" {
   role       = aws_iam_role.terraform_apply.name
+  policy_arn = "arn:aws:iam::aws:policy/PowerUserAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "terraform_prod_power_user" {
+  role       = aws_iam_role.terraform_prod.name
   policy_arn = "arn:aws:iam::aws:policy/PowerUserAccess"
 }
 
@@ -170,6 +206,11 @@ resource "aws_iam_role_policy_attachment" "terraform_apply_state" {
   policy_arn = aws_iam_policy.terraform_state_access.arn
 }
 
+resource "aws_iam_role_policy_attachment" "terraform_prod_state" {
+  role       = aws_iam_role.terraform_prod.name
+  policy_arn = aws_iam_policy.terraform_state_access.arn
+}
+
 data "aws_iam_policy_document" "terraform_project_iam" {
   statement {
     actions = [
@@ -209,5 +250,10 @@ resource "aws_iam_policy" "terraform_project_iam" {
 
 resource "aws_iam_role_policy_attachment" "terraform_apply_project_iam" {
   role       = aws_iam_role.terraform_apply.name
+  policy_arn = aws_iam_policy.terraform_project_iam.arn
+}
+
+resource "aws_iam_role_policy_attachment" "terraform_prod_project_iam" {
+  role       = aws_iam_role.terraform_prod.name
   policy_arn = aws_iam_policy.terraform_project_iam.arn
 }

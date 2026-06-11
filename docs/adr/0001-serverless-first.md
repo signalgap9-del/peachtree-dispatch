@@ -1,4 +1,4 @@
-# ADR 0001: Use a Serverless-First AWS Architecture
+# ADR 0001: Use a Low-Fixed-Cost AWS Architecture
 
 ## Status
 
@@ -10,7 +10,7 @@ The portfolio must demonstrate production AWS and DevOps practices while remaini
 
 ## Decision
 
-Use API Gateway, Lambda, EventBridge, SQS, Step Functions, DynamoDB, CloudFront, and S3 for the first production-style release.
+Use API Gateway, Lambda, EventBridge, SQS, Step Functions, DynamoDB, CloudFront, and S3 for the first production-style release. Add an on-demand ECS Fargate task for a bounded batch workload, but avoid always-on container infrastructure.
 
 Use Terraform for infrastructure and GitHub Actions OIDC for deployment.
 
@@ -18,4 +18,4 @@ Use Terraform for infrastructure and GitHub Actions OIDC for deployment.
 
 - The platform can demonstrate distributed workflow reliability at low idle cost.
 - The repository can focus on CI/CD, security, observability, and incident response.
-- Container orchestration remains an optional later migration exercise rather than a prerequisite.
+- Container delivery is demonstrated with an on-demand task rather than an always-on service.

@@ -1,6 +1,16 @@
-# Peachtree Dispatch
+# AtmosPath
 
-An event-driven delivery operations platform built to demonstrate production-style AWS, DevOps, and SRE practices.
+A climate-aware route optimization platform built to demonstrate production-style AWS, DevOps, and SRE practices.
+
+The map-first weather-aware navigation product combines road-route alternatives,
+live weather and hazard signals, explainable risk scoring, and a MapLibre
+interface inspired by modern mobility products.
+
+## Live Development Environment
+
+- Web: https://d23c97ytqgl4xu.cloudfront.net
+- API health: https://d23c97ytqgl4xu.cloudfront.net/api/health after the next guarded deployment
+- API documentation is available locally at `http://localhost:8000/docs`.
 
 ## Portfolio Goals
 
@@ -15,8 +25,34 @@ See [docs/architecture.md](docs/architecture.md) and [docs/roadmap.md](docs/road
 
 - Pull requests validate and security-scan Terraform.
 - Infrastructure pull requests generate a remote Terraform plan through GitHub OIDC.
-- Development applies run manually through a protected GitHub environment.
+- `main` deploys the dev environment with an immutable Lambda image.
+- Production promotion and rollback are manual, approval-gated workflows.
 - Dependabot maintains GitHub Actions and Terraform dependencies.
+
+## Run Locally
+
+Requirements: Docker Desktop.
+
+```powershell
+docker compose up --build
+```
+
+Open:
+
+- Climate routing map: `http://localhost:5173`
+- API documentation: `http://localhost:8000/docs`
+- API health: `http://localhost:8000/health`
+
+The current Python service retains a local SQLite adapter for legacy operational
+prototype code. New AtmosPath operational state uses DynamoDB only for bounded
+jobs, caches, idempotency, deduplication, and snapshot pointers.
+
+An optional PostGIS Compose profile and Aurora Serverless v2/Data API path
+demonstrate durable user and spatial persistence. Aurora remains disabled by
+default and must not be enabled before Cognito ownership and migration/runtime
+credential separation are implemented.
+
+See [docs/local-development.md](docs/local-development.md) for the local-to-AWS component mapping and verification commands.
 
 ## Local AWS access
 

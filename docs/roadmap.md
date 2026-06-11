@@ -1,62 +1,42 @@
-# Delivery Roadmap
+# AtmosPath Roadmap
 
-## Phase 0: Account and Repository Foundation
+## Phase 1: Public Read Experience
 
-- Enable root MFA.
-- Add email notifications to the existing monthly budget.
-- Create the GitHub repository.
-- Bootstrap Terraform remote state in an encrypted, versioned S3 bucket.
-- Configure S3 state locking.
-- Configure GitHub OIDC with separate plan and deploy roles.
-- Add branch protection and a GitHub `dev` environment approval gate.
+- Complete map, dashboard, saved, and alert interactions.
+- Provide nationwide place search, route alternatives, and honest source status.
+- Render national weather/hazard layers and explain route risk.
+- Keep CloudFront/API protections and low-cost concurrency caps.
 
-## Phase 1: CI and Infrastructure Skeleton
+## Phase 2: Data and Risk Integrity
 
-- Add Terraform provider/version constraints and common tags.
-- Add `terraform fmt`, `validate`, TFLint, Checkov, and Trivy checks.
-- Run Terraform plan on pull requests.
-- Apply only from protected `main` after approval.
-- Add Dependabot and pre-commit hooks.
+- Build scheduled HRRR/MRMS ingestion and raster-generation jobs.
+- Store large artifacts in S3 and current snapshot pointers in DynamoDB.
+- Version the risk model and persist explainable risk exposures.
+- Add freshness, coverage, confidence, retry, DLQ, and replay controls.
 
-## Phase 2: Minimum Viable Platform
+## Phase 3: Authenticated Product
 
-- Build the React operations dashboard.
-- Add Cognito authentication.
-- Implement delivery create/read/update API operations.
-- Store delivery state in DynamoDB.
-- Deploy CloudFront, S3, API Gateway, and Lambda with Terraform.
-- Add unit and deployed smoke tests.
+- Add Cognito sign-in and verified JWT ownership.
+- Enable saved places, routes, corridors, collections, and route history.
+- Enable alert subscriptions and notification deduplication.
+- Separate PostGIS migration and runtime credentials before Aurora enablement.
 
-## Phase 3: Event-Driven Operations
+## Phase 4: Production Operations
 
-- Publish delivery events through EventBridge.
-- Implement a Step Functions workflow.
-- Process asynchronous work through SQS and Lambda.
-- Add retries, idempotency, DLQ, and replay tooling.
-- Demonstrate a failed-delivery incident scenario.
+- Add synthetic checks, SLOs, dashboards, alarms, and incident exercises.
+- Test backup/restore and queue replay.
+- Review IAM least privilege, dependency risk, and cost anomaly controls.
+- Promote through approval-gated production state.
 
-## Phase 4: SRE and DevSecOps
+## Phase 5: Portfolio Evidence
 
-- Add CloudWatch dashboards, alarms, structured logs, and X-Ray traces.
-- Define SLIs and an SLO for API availability and workflow success.
-- Add a runbook and an incident postmortem.
-- Add IAM least-privilege review and security scanning.
-- Add backup and restore verification.
+- Publish architecture and ERD diagrams.
+- Record a short product and incident-recovery demo.
+- Show GitHub Actions OIDC, Terraform plans, test evidence, and cost decisions.
+- Document measured risk-pipeline latency, cache hit rate, and monthly cost.
 
-## Phase 5: Portfolio Packaging
+## Explicitly Excluded
 
-- Add an architecture diagram and short demo video.
-- Add screenshots of CI plans, dashboards, alarms, and incident recovery.
-- Publish cost breakdown and security decisions.
-- Write resume bullets with measured outcomes.
-- Optionally migrate one worker to ECS Fargate or Kubernetes as a documented comparison.
-
-## GitHub Evidence Checklist
-
-- Pull request showing Terraform plan and review
-- Successful CI/CD workflow using OIDC
-- CloudWatch dashboard screenshot
-- DLQ failure and replay demonstration
-- Incident runbook and postmortem
-- Cost estimate and monthly budget
-- Clear architecture decision records
+- Delivery dispatch, fleet CRM, and driver assignment
+- Always-on Kubernetes
+- Unbounded nationwide compute without freshness and cost controls

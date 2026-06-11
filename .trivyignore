@@ -1,0 +1,7 @@
+# Portfolio traffic does not justify the AWS WAF monthly fixed cost. The public
+# API is throttled at API Gateway and CloudFront serves a private static origin.
+AVD-AWS-0011
+
+# Public static web assets contain no secrets. SSE-S3 avoids a customer-managed
+# KMS key's fixed monthly cost; Terraform state remains encrypted with a CMK.
+AVD-AWS-0132

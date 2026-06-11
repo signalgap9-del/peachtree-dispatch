@@ -1,0 +1,63 @@
+name: Roll Back Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to roll back
+        required: true
+        type: choice
+        options: [dev, production]
+      risk_engine_image_uri:
+        description: Previously verified immutable Python risk-engine image URI
+        required: true
+        type: string
+      platform_api_image_uri:
+        description: Previously verified immutable Spring platform API image URI
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.13.5
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_APPLY_ROLE_ARN }}
+          aws-region: us-east-1
+      - name: Select Terraform environment
+        id: target
+        shell: bash
+        run: |
+          if [[ "${{ inputs.environment }}" == "production" ]]; then
+            echo "dir=prod" >> "$GITHUB_OUTPUT"
+          else
+            echo "dir=dev" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Initialize Terraform
+        working-directory: infra/environments/${{ steps.target.outputs.dir }}
+        run: >-
+          terraform init
+          -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+          -backend-config="key=peachtree-dispatch/${{ steps.target.outputs.dir }}/terraform.tfstate"
+          -backend-config="region=us-east-1"
+          -backend-config="use_lockfile=true"
+      - name: Restore verified image
+        working-directory: infra/environments/${{ steps.target.outputs.dir }}
+        run: >-
+          terraform apply -auto-approve -input=false
+          -var="risk_engine_image_uri=${{ inputs.risk_engine_image_uri }}"
+          -var="platform_api_image_uri=${{ inputs.platform_api_image_uri }}"
