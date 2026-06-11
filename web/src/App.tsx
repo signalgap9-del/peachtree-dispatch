@@ -14,7 +14,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { api } from "./api";
 import { MapPage } from "./MapPage";
 import { AlertsPage, DashboardPage, HomePage, PlaceDetailPage, SavedPage } from "./ProductPages";
-import type { NationalRiskOverview } from "./types";
+import type { NationalRiskOverview, NationalWeatherSnapshot, WeatherRasterManifest } from "./types";
 import "./styles.css";
 
 export type Navigate = (path: string) => void;
@@ -30,6 +30,8 @@ const navItems = [
 function App() {
   const [path, setPath] = useState(window.location.pathname);
   const [nationalRisk, setNationalRisk] = useState<NationalRiskOverview | null>(null);
+  const [weatherSnapshot, setWeatherSnapshot] = useState<NationalWeatherSnapshot | null>(null);
+  const [weatherRaster, setWeatherRaster] = useState<WeatherRasterManifest | null>(null);
 
   useEffect(() => {
     const onPopState = () => setPath(window.location.pathname);
@@ -39,6 +41,8 @@ function App() {
 
   useEffect(() => {
     void api.nationalRisk().then(setNationalRisk).catch(() => setNationalRisk(null));
+    void api.weatherSnapshot().then(setWeatherSnapshot).catch(() => setWeatherSnapshot(null));
+    void api.weatherRaster().then(setWeatherRaster).catch(() => setWeatherRaster(null));
   }, []);
 
   const navigate: Navigate = (nextPath) => {
@@ -51,11 +55,11 @@ function App() {
     <div className={`product-app ${path === "/map" || path === "/directions" ? "map-active" : ""}`}>
       <AppHeader path={path} navigate={navigate} />
       {path === "/" && <HomePage navigate={navigate} national={nationalRisk} />}
-      {path === "/dashboard" && <DashboardPage navigate={navigate} national={nationalRisk} />}
-      {path === "/saved" && <SavedPage navigate={navigate} />}
+      {path === "/dashboard" && <DashboardPage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} />}
+      {path === "/saved" && <SavedPage navigate={navigate} weatherSnapshot={weatherSnapshot} />}
       {path === "/alerts" && <AlertsPage navigate={navigate} national={nationalRisk} />}
       {path.startsWith("/locations/") && <PlaceDetailPage navigate={navigate} slug={path.split("/").pop() ?? "miami"} />}
-      {(path === "/map" || path === "/directions") && <MapPage navigate={navigate} national={nationalRisk} />}
+      {(path === "/map" || path === "/directions") && <MapPage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} />}
       {!["/", "/dashboard", "/saved", "/alerts", "/map", "/directions"].includes(path) && !path.startsWith("/locations/") && (
         <NotFound navigate={navigate} />
       )}

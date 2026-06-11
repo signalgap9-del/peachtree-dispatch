@@ -64,6 +64,28 @@ export interface WeatherRisk {
   source?: string;
 }
 
+export interface NationalWeatherSnapshot {
+  generated_at: string;
+  expires_at: string;
+  model_version: string;
+  refresh_minutes: number;
+  coverage: number;
+  points: WeatherRisk[];
+  source_status: Record<string, string>;
+}
+
+export interface WeatherRasterManifest {
+  generated_at: string;
+  expires_at: string;
+  layer: string;
+  source: string;
+  url: string;
+  bounds: number[][];
+  point_count: number;
+  coverage: number;
+  model_version: string;
+}
+
 export type VehicleType = "CAR" | "VAN" | "TRUCK";
 
 export interface Place {

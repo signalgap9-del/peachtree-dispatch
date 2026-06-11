@@ -16,6 +16,8 @@ from .models import (
     DirectionsRequest,
     LocationRisk,
     NationalRiskOverview,
+    NationalWeatherSnapshot,
+    WeatherRasterManifest,
     NetworkOverview,
     Place,
     VehicleType,
@@ -24,13 +26,18 @@ from .models import (
 )
 from .directions import build_directions, search_places
 from .risk import location_risk, national_risk
+from .weather_snapshot import get_weather_snapshot
+from .weather_raster import get_weather_raster_manifest, get_weather_raster_png
 from .network import build_network
 from .repository_contract import DuplicateEventError
 from .repository_factory import create_repository
 from .optimization_service import OptimizationService
 
 app = FastAPI(title="AtmosPath Internal Risk Engine", version="0.2.0")
-cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+cors_origins = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:5173,http://127.0.0.1:5173",
+).split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -97,6 +104,21 @@ def directions(command: DirectionsRequest) -> DirectionsPlan:
 @app.get("/risk/national", response_model=NationalRiskOverview)
 def risk_national() -> NationalRiskOverview:
     return national_risk()
+
+
+@app.get("/risk/weather-snapshot", response_model=NationalWeatherSnapshot)
+def risk_weather_snapshot() -> NationalWeatherSnapshot:
+    return get_weather_snapshot()
+
+
+@app.get("/risk/weather-raster", response_model=WeatherRasterManifest)
+def risk_weather_raster() -> WeatherRasterManifest:
+    return get_weather_raster_manifest()
+
+
+@app.get("/risk/weather-raster.png")
+def risk_weather_raster_png() -> Response:
+    return Response(content=get_weather_raster_png(), media_type="image/png")
 
 
 @app.post("/risk/location", response_model=LocationRisk)

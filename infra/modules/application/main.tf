@@ -126,6 +126,35 @@ resource "aws_s3_bucket" "web" {
   force_destroy = var.environment != "prod"
 }
 
+resource "aws_s3_bucket" "weather" {
+  bucket_prefix = "${local.name}-weather-"
+  force_destroy = var.environment != "prod"
+}
+
+resource "aws_s3_bucket_public_access_block" "weather" {
+  bucket = aws_s3_bucket.weather.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "weather" {
+  bucket = aws_s3_bucket.weather.id
+
+  rule {
+    id     = "expire-weather-snapshots"
+    status = "Enabled"
+
+    filter {}
+
+    expiration {
+      days = 3
+    }
+  }
+}
+
 resource "aws_s3_bucket_public_access_block" "web" {
   bucket = aws_s3_bucket.web.id
 
@@ -275,6 +304,11 @@ data "aws_iam_policy_document" "worker" {
     ]
     resources = [aws_sqs_queue.optimization.arn]
   }
+
+  statement {
+    actions   = ["s3:GetObject", "s3:PutObject"]
+    resources = ["${aws_s3_bucket.weather.arn}/weather/*"]
+  }
 }
 
 resource "aws_iam_role_policy" "api" {
@@ -335,9 +369,54 @@ resource "aws_lambda_function" "risk_engine" {
 
   environment {
     variables = {
-      ENVIRONMENT = var.environment
+      ENVIRONMENT             = var.environment
+      WEATHER_SNAPSHOT_BUCKET = aws_s3_bucket.weather.id
     }
   }
+}
+
+resource "aws_lambda_function" "weather_collector" {
+  count         = local.deploy_app ? 1 : 0
+  function_name = "${local.name}-weather-collector"
+  role          = aws_iam_role.worker.arn
+  package_type  = "Image"
+  image_uri     = local.risk_engine_image
+  timeout       = 120
+  memory_size   = 512
+
+  image_config {
+    command = ["app.weather_collector.handler"]
+  }
+
+  environment {
+    variables = {
+      ENVIRONMENT             = var.environment
+      WEATHER_SNAPSHOT_BUCKET = aws_s3_bucket.weather.id
+    }
+  }
+}
+
+resource "aws_cloudwatch_event_rule" "weather_collector" {
+  count               = local.deploy_app ? 1 : 0
+  name                = "${local.name}-weather-hourly"
+  description         = "Refresh the low-cost NOAA/NWS interest-point weather snapshot."
+  schedule_expression = "rate(1 hour)"
+}
+
+resource "aws_cloudwatch_event_target" "weather_collector" {
+  count     = local.deploy_app ? 1 : 0
+  rule      = aws_cloudwatch_event_rule.weather_collector[0].name
+  target_id = "weather-collector"
+  arn       = aws_lambda_function.weather_collector[0].arn
+}
+
+resource "aws_lambda_permission" "weather_collector" {
+  count         = local.deploy_app ? 1 : 0
+  statement_id  = "AllowEventBridgeWeatherCollector"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.weather_collector[0].function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.weather_collector[0].arn
 }
 
 resource "aws_lambda_function" "worker" {
@@ -453,6 +532,12 @@ resource "aws_cloudwatch_log_group" "worker" {
 resource "aws_cloudwatch_log_group" "risk_engine" {
   count             = local.deploy_app ? 1 : 0
   name              = "/aws/lambda/${aws_lambda_function.risk_engine[0].function_name}"
+  retention_in_days = var.log_retention_days
+}
+
+resource "aws_cloudwatch_log_group" "weather_collector" {
+  count             = local.deploy_app ? 1 : 0
+  name              = "/aws/lambda/${aws_lambda_function.weather_collector[0].function_name}"
   retention_in_days = var.log_retention_days
 }
 

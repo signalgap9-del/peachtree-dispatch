@@ -67,6 +67,7 @@ jobs:
       - run: docker build services/api
       - run: docker build services/platform-api
       - run: docker build -f services/platform-api/Dockerfile.lambda services/platform-api
+      - run: docker build services/weather-raster
       - run: docker build web
 
   terraform:

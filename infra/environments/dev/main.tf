@@ -36,3 +36,7 @@ output "cloudfront_distribution_id" {
 output "dynamodb_table_name" {
   value = module.application.dynamodb_table_name
 }
+
+output "weather_snapshot_bucket_name" {
+  value = module.application.weather_snapshot_bucket_name
+}

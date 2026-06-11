@@ -6,6 +6,8 @@ import type {
   DirectionsPlan,
   LocationRisk,
   NationalRiskOverview,
+  NationalWeatherSnapshot,
+  WeatherRasterManifest,
   NetworkOverview,
   Place,
   VehicleType,
@@ -36,6 +38,8 @@ export const api = {
       body: JSON.stringify({ origin, destination, vehicle_type: vehicleType }),
     }),
   nationalRisk: () => request<NationalRiskOverview>("/risk/national"),
+  weatherSnapshot: () => request<NationalWeatherSnapshot>("/risk/weather-snapshot"),
+  weatherRaster: () => request<WeatherRasterManifest>("/risk/weather-raster"),
   locationRisk: (place: Place) =>
     request<LocationRisk>("/risk/location", { method: "POST", body: JSON.stringify(place) }),
   deliveries: (status?: DeliveryStatus) =>

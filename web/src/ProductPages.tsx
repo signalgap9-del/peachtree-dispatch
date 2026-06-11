@@ -21,12 +21,12 @@ import {
   SlidersHorizontal,
   Wind,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { Navigate } from "./App";
 import { api } from "./api";
 import { changes, places, riskLevel, riskRows, savedItems } from "./mockData";
-import type { LocationRisk, NationalRiskOverview, RiskAlert } from "./types";
+import type { LocationRisk, NationalRiskOverview, NationalWeatherSnapshot, RiskAlert } from "./types";
 
 export function HomePage({ navigate, national }: { navigate: Navigate; national: NationalRiskOverview | null }) {
   const [query, setQuery] = useState("");
@@ -66,7 +66,7 @@ export function HomePage({ navigate, national }: { navigate: Navigate; national:
   );
 }
 
-export function DashboardPage({ navigate, national }: { navigate: Navigate; national: NationalRiskOverview | null }) {
+export function DashboardPage({ navigate, national, weatherSnapshot }: { navigate: Navigate; national: NationalRiskOverview | null; weatherSnapshot: NationalWeatherSnapshot | null }) {
   return (
     <main className="page-shell dashboard-page">
       <PageTitle title="Your risk dashboard" subtitle="3 saved items need attention">
@@ -82,25 +82,26 @@ export function DashboardPage({ navigate, national }: { navigate: Navigate; nati
         <div className="surface departures"><SectionHeader title="Upcoming departures" action="View all" onAction={() => navigate("/saved")} /><h3>Atlanta, GA → Nashville, TN</h3><div className="departure-options"><RouteOption label="Fastest" time="3 hr 18 min" risk={54} /><RouteOption label="Lower weather risk" time="4 hr 2 min" risk={29} /></div><button className="button primary wide" onClick={() => navigate("/directions")}>Compare routes</button></div>
       </section>
       <section className="dashboard-bottom"><div className="surface forecast-panel"><SectionHeader title="7-day forecast for your saved areas" action="See full outlook" onAction={() => navigate("/saved")} /><div className="forecast-grid">{riskRows.map((row) => <ForecastCard key={row.name} title={row.name} values={row.values.concat([44, 38, 31])} onClick={() => navigate("/saved")} />)}</div></div><div className="surface alert-summary"><SectionHeader title="Alert summary" action="View all alerts" onAction={() => navigate("/alerts")} />{["Severe Thunderstorm Warning", "Coastal Flood Advisory", "High Wind Watch"].map((name, index) => <button key={name} onClick={() => navigate("/alerts")}><AlertTriangle size={16} /><span>{name}</span><strong>{index + 1}</strong><ChevronRight size={15} /></button>)}</div></section>
+      <InterestGridPanel snapshot={weatherSnapshot} navigate={navigate} />
     </main>
   );
 }
 
-export function SavedPage({ navigate }: { navigate: Navigate }) {
+export function SavedPage({ navigate, weatherSnapshot }: { navigate: Navigate; weatherSnapshot: NationalWeatherSnapshot | null }) {
   const [tab, setTab] = useState("All");
   const [selected, setSelected] = useState(savedItems[0]);
   const filtered = tab === "All" ? savedItems : savedItems.filter((item) => item.kind === tab.slice(0, -1));
   return (
     <main className="saved-layout">
       <aside className="collections-panel"><h3>Collections <button><Plus size={16} /></button></h3>{[["All saved", "24"], ["Summer trip", "6"], ["Family", "5"], ["Work travel", "7"]].map(([name, count], index) => <button className={index === 0 ? "active" : ""} key={name}><Folder size={17} /><span>{name}</span><em>{count}</em></button>)}<div className="collection-insight"><strong>Insights</strong><span>4 items have high risk <b>4</b></span><span>3 items changing soon <b>3</b></span><span>2 items need attention <b>2</b></span></div></aside>
-      <section className="saved-main"><PageTitle title="Saved places & routes" subtitle="Monitor what matters before conditions change"><button className="button primary"><Plus size={16} /> Add saved item</button></PageTitle><div className="tab-row">{["All", "Places", "Routes", "Corridors"].map((name) => <button className={tab === name ? "active" : ""} onClick={() => setTab(name)} key={name}>{name}</button>)}</div><div className="saved-toolbar"><label><Search size={17} /><input placeholder="Search saved places & routes..." /></label><button><Filter size={16} /> Highest risk</button></div><div className="saved-grid">{filtered.map((item) => <button key={item.id} className={selected.id === item.id ? "selected" : ""} onClick={() => setSelected(item)}><MapThumb seed={item.id} /><span className="saved-card-title"><MapPin size={15} /><strong>{item.title}</strong><em>•••</em></span><span className="saved-risk"><b className={riskLevel(item.risk)}>{item.risk}</b><i>{item.level} risk</i><small>{item.change}</small></span><span className="saved-meta"><Bell size={13} /> Alerts on · {item.meta}</span><span className="saved-actions"><i onClick={(event) => { event.stopPropagation(); navigate(item.kind === "Place" ? `/locations/${item.id}` : "/directions"); }}>{item.action}</i><i>Manage alerts</i></span></button>)}</div></section>
+      <section className="saved-main"><PageTitle title="Saved places & routes" subtitle="Monitor what matters before conditions change"><button className="button primary"><Plus size={16} /> Add saved item</button></PageTitle><div className="tab-row">{["All", "Places", "Routes", "Corridors"].map((name) => <button className={tab === name ? "active" : ""} onClick={() => setTab(name)} key={name}>{name}</button>)}</div><div className="saved-toolbar"><label><Search size={17} /><input placeholder="Search saved places & routes..." /></label><button><Filter size={16} /> Highest risk</button></div><div className="saved-grid">{filtered.map((item) => <button key={item.id} className={selected.id === item.id ? "selected" : ""} onClick={() => setSelected(item)}><MapThumb seed={item.id} /><span className="saved-card-title"><MapPin size={15} /><strong>{item.title}</strong><em>•••</em></span><span className="saved-risk"><b className={riskLevel(item.risk)}>{item.risk}</b><i>{item.level} risk</i><small>{item.change}</small></span><span className="saved-meta"><Bell size={13} /> Alerts on · {item.meta}</span><span className="saved-actions"><i onClick={(event) => { event.stopPropagation(); navigate(item.kind === "Place" ? `/locations/${item.id}` : "/directions"); }}>{item.action}</i><i>Manage alerts</i></span></button>)}</div><InterestGridPanel snapshot={weatherSnapshot} navigate={navigate} compact /></section>
       <aside className="saved-inspector"><div className="inspector-title"><MapPin size={18} /><div><h2>{selected.title}</h2><span>{selected.kind}</span></div><Bookmark size={18} /></div><MapThumb seed={`${selected.id}-large`} large /><div className="selected-risk"><b className={riskLevel(selected.risk)}>{selected.risk}</b><span><strong>{selected.level} risk</strong><small>Current composite score</small></span><em>↑ 18</em></div><h4>Next material change</h4><div className="material-change"><CloudRain size={20} /><span><strong>{selected.change}</strong><small>Conditions are expected to change soon.</small></span></div><h4>Active hazards</h4>{["Severe thunderstorms", "Flash flood watch", "High wind advisory"].map((name, index) => <div className="hazard-row" key={name}><AlertTriangle size={15} /><span>{name}</span><i className={index === 0 ? "high" : "moderate"}>{index === 0 ? "High" : "Moderate"}</i></div>)}<button className="button primary wide" onClick={() => navigate(selected.kind === "Place" ? `/locations/${selected.id}` : "/directions")}>Open {selected.kind.toLowerCase()}</button><button className="button secondary wide" onClick={() => navigate("/directions")}>Plan route from here</button></aside>
     </main>
   );
 }
 
 export function AlertsPage({ navigate, national }: { navigate: Navigate; national: NationalRiskOverview | null }) {
-  const alerts = topAlerts(national);
+  const alerts = useMemo(() => topAlerts(national), [national]);
   const [selected, setSelected] = useState<RiskAlert>(alerts[0]);
   useEffect(() => setSelected(alerts[0]), [alerts]);
   return (
@@ -151,6 +152,14 @@ function QuickAction({ icon, title, subtitle, onClick }: { icon: React.ReactNode
 
 function RiskMapVisual({ national, compact, regional }: { national?: NationalRiskOverview | null; compact?: boolean; regional?: boolean }) {
   return <div className={`risk-map-visual ${compact ? "compact" : ""} ${regional ? "regional" : ""}`}><div className="weather-field field-one" /><div className="weather-field field-two" /><div className="weather-field field-three" /><span className="map-city city-one">Seattle</span><span className="map-city city-two">Atlanta</span><span className="map-city city-three">Miami</span><div className="map-alert alert-one">1</div><div className="map-alert alert-two">2</div><div className="map-alert alert-three">3</div><div className="risk-legend"><strong>Risk level</strong><i /><span>Low</span><span>Extreme</span></div>{national && <small className="map-status">{national.active_alerts} active alerts · {national.severe_alerts} severe</small>}</div>;
+}
+
+function InterestGridPanel({ snapshot, navigate, compact }: { snapshot: NationalWeatherSnapshot | null; navigate: Navigate; compact?: boolean }) {
+  const points = useMemo(
+    () => [...(snapshot?.points ?? [])].filter((point) => point.data_status !== "UNAVAILABLE").sort((a, b) => b.risk_score - a.risk_score).slice(0, compact ? 6 : 12),
+    [compact, snapshot],
+  );
+  return <section className={`surface interest-grid ${compact ? "compact" : ""}`}><SectionHeader title="Live city & Interstate monitor" meta={`${snapshot?.points.length ?? 0} NOAA/NWS points · ${Math.round((snapshot?.coverage ?? 0) * 100)}% live`} action="Open national map" onAction={() => navigate("/map")} /><div>{points.map((point) => <button key={point.id} onClick={() => navigate("/map")}><span><strong>{point.city}</strong><small>{Math.round(point.temperature_f)}°F · {Math.round(point.wind_speed_mph)} mph · {Math.round(point.precipitation_probability)}% rain</small></span><i className={riskLevel(point.risk_score)}>{point.risk_score}</i></button>)}</div></section>;
 }
 
 function AlertStory({ alert, index, onClick }: { alert: RiskAlert; index: number; onClick: () => void }) {

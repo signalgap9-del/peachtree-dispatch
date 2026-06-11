@@ -16,12 +16,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Navigate } from "./App";
 import { api } from "./api";
 import { NetworkMap } from "./NetworkMap";
-import type { DirectionsPlan, LocationRisk, NationalRiskOverview, Place, RouteAlternative, VehicleType } from "./types";
+import type { DirectionsPlan, LocationRisk, NationalRiskOverview, NationalWeatherSnapshot, Place, RouteAlternative, VehicleType, WeatherRasterManifest } from "./types";
 
 type Field = "origin" | "destination";
 type Alternative = "fastest" | "lower" | "balanced";
 
-export function MapPage({ navigate, national }: { navigate: Navigate; national: NationalRiskOverview | null }) {
+export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: { navigate: Navigate; national: NationalRiskOverview | null; weatherSnapshot: NationalWeatherSnapshot | null; weatherRaster: WeatherRasterManifest | null }) {
   const [origin, setOrigin] = useState<Place | null>(null);
   const [destination, setDestination] = useState<Place | null>(null);
   const [originQuery, setOriginQuery] = useState("");
@@ -118,7 +118,7 @@ export function MapPage({ navigate, national }: { navigate: Navigate; national: 
 
   return (
     <main className="map-page">
-      <NetworkMap plan={showWeather ? displayedPlan : displayedPlan && { ...displayedPlan, weather: [] }} risk={national} showRisk={showRisk} recenterToken={recenterToken} />
+      <NetworkMap plan={showWeather ? displayedPlan : displayedPlan && { ...displayedPlan, weather: [] }} risk={national} weatherSnapshot={showWeather ? weatherSnapshot : null} weatherRaster={showWeather ? weatherRaster : null} showRisk={showRisk} recenterToken={recenterToken} />
       <aside className="directions-panel">
         <div className="directions-head">
           <div><span>Trip</span><h1>{plan ? plan.summary : "Plan a climate-aware route"}</h1></div>

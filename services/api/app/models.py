@@ -103,6 +103,28 @@ class WeatherRisk(BaseModel):
     source: str = "Open-Meteo"
 
 
+class NationalWeatherSnapshot(BaseModel):
+    generated_at: datetime
+    expires_at: datetime
+    model_version: str = "interest-grid-v0.1"
+    refresh_minutes: int = 60
+    coverage: float
+    points: list[WeatherRisk]
+    source_status: dict[str, str] = Field(default_factory=dict)
+
+
+class WeatherRasterManifest(BaseModel):
+    generated_at: datetime
+    expires_at: datetime
+    layer: str
+    source: str
+    url: str
+    bounds: list[list[float]]
+    point_count: int
+    coverage: float
+    model_version: str = "weather-raster-v0.1"
+
+
 class HazardExposure(BaseModel):
     category: str
     score: int

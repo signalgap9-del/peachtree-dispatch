@@ -38,6 +38,16 @@ public class RiskController {
         return riskEngine.get("/risk/national");
     }
 
+    @GetMapping("/risk/weather-snapshot")
+    JsonNode weatherSnapshot() {
+        return riskEngine.get("/risk/weather-snapshot");
+    }
+
+    @GetMapping("/risk/weather-raster")
+    JsonNode weatherRaster() {
+        return riskEngine.get("/risk/weather-raster");
+    }
+
     @PostMapping("/risk/location")
     JsonNode locationRisk(@RequestBody JsonNode request) {
         return riskEngine.post("/risk/location", request);

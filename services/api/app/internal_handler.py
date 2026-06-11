@@ -3,6 +3,8 @@ from .models import DirectionsRequest, Place, VehicleType
 from .network import build_network
 from .repository_factory import create_repository
 from .risk import location_risk, national_risk
+from .weather_snapshot import get_weather_snapshot
+from .weather_raster import get_weather_raster_manifest
 
 repository = create_repository()
 repository.seed()
@@ -20,6 +22,10 @@ def handler(event: dict, context: object) -> dict:
         result = build_directions(DirectionsRequest.model_validate(body))
     elif method == "GET" and path == "/risk/national":
         result = national_risk()
+    elif method == "GET" and path == "/risk/weather-snapshot":
+        result = get_weather_snapshot()
+    elif method == "GET" and path == "/risk/weather-raster":
+        result = get_weather_raster_manifest()
     elif method == "POST" and path == "/risk/location":
         result = location_risk(Place.model_validate(body))
     elif method == "GET" and path == "/network":

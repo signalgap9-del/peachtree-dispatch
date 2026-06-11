@@ -1,11 +1,13 @@
 import maplibregl, { type Map } from "maplibre-gl";
 import { useEffect, useRef } from "react";
 
-import type { DirectionsPlan, NationalRiskOverview } from "./types";
+import type { DirectionsPlan, NationalRiskOverview, NationalWeatherSnapshot, WeatherRasterManifest } from "./types";
 
 interface Props {
   plan: DirectionsPlan | null;
   risk: NationalRiskOverview | null;
+  weatherSnapshot: NationalWeatherSnapshot | null;
+  weatherRaster: WeatherRasterManifest | null;
   showRisk: boolean;
   recenterToken: number;
 }
@@ -23,7 +25,7 @@ const style = {
   layers: [{ id: "osm", type: "raster" as const, source: "osm" }],
 };
 
-export function NetworkMap({ plan, risk, showRisk, recenterToken }: Props) {
+export function NetworkMap({ plan, risk, weatherSnapshot, weatherRaster, showRisk, recenterToken }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
   const markers = useRef<maplibregl.Marker[]>([]);
@@ -91,15 +93,23 @@ export function NetworkMap({ plan, risk, showRisk, recenterToken }: Props) {
       for (const source of ["risk-alerts", "risk-points"]) {
         if (map.getSource(source)) map.removeSource(source);
       }
-      if (!showRisk || !risk) return;
-      const points = risk.alerts
+      if (!showRisk || (!risk && !weatherSnapshot)) return;
+      const alertPoints = (risk?.alerts ?? [])
         .filter((alert) => alert.longitude != null && alert.latitude != null)
         .map((alert) => ({
           type: "Feature" as const,
-          properties: { score: alert.score, event: alert.event },
+          properties: { score: alert.score, event: alert.event, kind: "alert" },
           geometry: { type: "Point" as const, coordinates: [alert.longitude as number, alert.latitude as number] },
         }));
-      const polygons = risk.alerts
+      const weatherPoints = (weatherSnapshot?.points ?? [])
+        .filter((point) => point.data_status !== "UNAVAILABLE")
+        .map((point) => ({
+          type: "Feature" as const,
+          properties: { score: point.risk_score, event: point.city, kind: "weather" },
+          geometry: { type: "Point" as const, coordinates: [point.longitude, point.latitude] },
+        }));
+      const points = [...weatherPoints, ...alertPoints];
+      const polygons = (risk?.alerts ?? [])
         .filter((alert) => alert.geometry)
         .map((alert) => ({ type: "Feature" as const, properties: { score: alert.score, event: alert.event }, geometry: alert.geometry! }));
       map.addSource("risk-points", { type: "geojson", data: { type: "FeatureCollection", features: points } });
@@ -120,7 +130,27 @@ export function NetworkMap({ plan, risk, showRisk, recenterToken }: Props) {
     };
     if (map.loaded()) render(); else map.once("load", render);
     return () => { map.off("load", render); };
-  }, [risk, showRisk]);
+  }, [risk, showRisk, weatherSnapshot]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const render = () => {
+      if (map.getLayer("weather-raster")) map.removeLayer("weather-raster");
+      if (map.getSource("weather-raster")) map.removeSource("weather-raster");
+      if (!weatherRaster) return;
+      const [[west, south], [east, north]] = weatherRaster.bounds;
+      map.addSource("weather-raster", {
+        type: "image",
+        url: weatherRaster.url,
+        coordinates: [[west, north], [east, north], [east, south], [west, south]],
+      });
+      const before = map.getLayer("risk-heat") ? "risk-heat" : undefined;
+      map.addLayer({ id: "weather-raster", type: "raster", source: "weather-raster", paint: { "raster-opacity": 0.68 } }, before);
+    };
+    if (map.loaded()) render(); else map.once("load", render);
+    return () => { map.off("load", render); };
+  }, [weatherRaster]);
 
   useEffect(() => {
     if (!mapRef.current || !recenterToken) return;

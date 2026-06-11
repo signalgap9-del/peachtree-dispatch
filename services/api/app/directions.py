@@ -15,6 +15,7 @@ from .models import (
     WeatherRisk,
 )
 from .optimizer import VEHICLE_PROFILES
+from .weather_snapshot import nearest_snapshot_weather
 
 
 def search_places(query: str) -> list[Place]:
@@ -226,7 +227,8 @@ def fetch_route_weather(samples: list[tuple[int, float, float]]) -> list[Weather
         ]
     except Exception:
         return [
-            WeatherRisk(
+            nearest_snapshot_weather(sample[2], sample[1])
+            or WeatherRisk(
                 id=f"weather-{sample[2]:.3f}-{sample[1]:.3f}",
                 city=f"Route sample {position + 1}",
                 latitude=sample[2],

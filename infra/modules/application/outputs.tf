@@ -25,3 +25,7 @@ output "cloudfront_distribution_id" {
 output "dynamodb_table_name" {
   value = aws_dynamodb_table.operational.name
 }
+
+output "weather_snapshot_bucket_name" {
+  value = aws_s3_bucket.weather.id
+}

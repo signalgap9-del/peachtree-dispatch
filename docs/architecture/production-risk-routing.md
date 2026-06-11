@@ -7,7 +7,7 @@
 | Place search | Live Nominatim U.S. search | Live Nominatim with Open-Meteo city fallback, but public endpoints need a provider contract or self-hosting before commercial traffic |
 | Directions geometry | Live OSRM public demo server, first route only | Live road geometry, but no SLA and not suitable as the production provider |
 | Alternative route cards | Synthetic time, distance, and risk changes over one geometry | Removed; alternatives now come from actual OSRM alternative-route responses |
-| Weather | Live Open-Meteo at origin and destination; silent fake defaults on failure | Route candidates are sampled; failed samples are marked `UNAVAILABLE`, never replaced with plausible fake weather |
+| Weather | Live Open-Meteo at origin and destination; silent fake defaults on failure | Hourly NOAA/NWS interest-grid snapshot powers the nationwide heatmap and can backstop route samples; unresolved samples remain `UNAVAILABLE` |
 | Alerts | Live NWS national and point alerts | Live official U.S. alerts with hazard-category normalization and explicit provider availability status |
 | Location score | Heuristic using point weather and active alerts | Still a heuristic and must be calibrated and versioned |
 | Route score | Average of origin and destination weather | Candidate geometry is sampled along the route and combined with NWS alerts |
