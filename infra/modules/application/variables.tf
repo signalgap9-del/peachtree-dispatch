@@ -58,9 +58,9 @@ variable "enable_preview_gate" {
 }
 
 variable "lambda_reserved_concurrency" {
-  description = "Small per-function concurrency ceiling to protect the portfolio account from runaway cost."
+  description = "Optional per-function reserved concurrency. Null keeps the account-wide unreserved pool available."
   type        = number
-  default     = 2
+  default     = null
 }
 
 variable "enable_relational_store" {

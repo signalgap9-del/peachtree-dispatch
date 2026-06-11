@@ -368,6 +368,58 @@ resource "aws_cloudfront_function" "preview_cookie" {
   EOT
 }
 
+resource "aws_cloudfront_cache_policy" "api_disabled" {
+  name        = "${local.name}-api-disabled"
+  comment     = "Disable API response caching while preserving request forwarding controls."
+  default_ttl = 0
+  max_ttl     = 0
+  min_ttl     = 0
+
+  parameters_in_cache_key_and_forwarded_to_origin {
+    enable_accept_encoding_brotli = true
+    enable_accept_encoding_gzip   = true
+
+    cookies_config {
+      cookie_behavior = "none"
+    }
+
+    headers_config {
+      header_behavior = "none"
+    }
+
+    query_strings_config {
+      query_string_behavior = "none"
+    }
+  }
+}
+
+resource "aws_cloudfront_origin_request_policy" "api" {
+  name    = "${local.name}-api"
+  comment = "Forward authentication, CORS, and query inputs required by the API."
+
+  cookies_config {
+    cookie_behavior = "none"
+  }
+
+  headers_config {
+    header_behavior = "whitelist"
+
+    headers {
+      items = [
+        "Access-Control-Request-Headers",
+        "Access-Control-Request-Method",
+        "Authorization",
+        "Content-Type",
+        "Origin",
+      ]
+    }
+  }
+
+  query_strings_config {
+    query_string_behavior = "all"
+  }
+}
+
 resource "aws_cloudfront_distribution" "web" {
   enabled             = true
   default_root_object = "index.html"
@@ -430,8 +482,8 @@ resource "aws_cloudfront_distribution" "web" {
       viewer_protocol_policy   = "https-only"
       allowed_methods          = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
       cached_methods           = ["GET", "HEAD"]
-      cache_policy_id          = "413f8c86-8e88-4d88-91f5-9f789f5b5d1c"
-      origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e2966ac"
+      cache_policy_id          = aws_cloudfront_cache_policy.api_disabled.id
+      origin_request_policy_id = aws_cloudfront_origin_request_policy.api.id
 
       function_association {
         event_type   = "viewer-request"
@@ -655,7 +707,7 @@ resource "aws_lambda_function" "weather_collector" {
   image_uri                      = local.risk_engine_image
   timeout                        = 120
   memory_size                    = 512
-  reserved_concurrent_executions = 1
+  reserved_concurrent_executions = var.lambda_reserved_concurrency
 
   image_config {
     command = ["app.weather_collector.handler"]
