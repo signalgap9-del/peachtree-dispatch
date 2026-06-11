@@ -34,6 +34,12 @@ jobs:
           -backend-config="key=peachtree-dispatch/dev/terraform.tfstate"
           -backend-config="region=us-east-1"
           -backend-config="use_lockfile=true"
+      - name: Bootstrap new image repositories
+        working-directory: infra/environments/dev
+        run: >-
+          terraform apply -auto-approve -input=false
+          -target=module.application.aws_ecr_repository.platform_api
+          -target=module.application.aws_ecr_lifecycle_policy.platform_api
       - name: Build and push immutable Lambda images
         id: images
         working-directory: infra/environments/dev
