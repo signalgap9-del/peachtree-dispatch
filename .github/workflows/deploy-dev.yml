@@ -57,8 +57,37 @@ jobs:
         working-directory: infra/environments/dev
         run: >-
           terraform apply -auto-approve -input=false
+          -var="enable_relational_store=true"
           -var="risk_engine_image_uri=${{ steps.images.outputs.risk_uri }}"
           -var="platform_api_image_uri=${{ steps.images.outputs.platform_uri }}"
+      - name: Apply PostGIS schema
+        env:
+          SCHEMA_FILE: services/platform-api/src/main/resources/db/migration/V001__identity_saved_items_postgis.sql
+        run: |
+          export RELATIONAL_CLUSTER_ARN="$(terraform -chdir=infra/environments/dev output -raw relational_cluster_arn)"
+          export RELATIONAL_SECRET_ARN="$(terraform -chdir=infra/environments/dev output -raw relational_secret_arn)"
+          python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+          import subprocess
+
+          schema = pathlib.Path(os.environ["SCHEMA_FILE"]).read_text(encoding="utf-8")
+          for statement in schema.split("-- statement"):
+              statement = statement.strip()
+              if not statement:
+                  continue
+              payload = {
+                  "database": "atmospath",
+                  "resourceArn": os.environ["RELATIONAL_CLUSTER_ARN"],
+                  "secretArn": os.environ["RELATIONAL_SECRET_ARN"],
+                  "sql": statement,
+              }
+              subprocess.run(
+                  ["aws", "rds-data", "execute-statement", "--cli-input-json", json.dumps(payload)],
+                  check=True,
+              )
+          PY
       - name: Build and upload web
         run: |
           API_URL=$(terraform -chdir=infra/environments/dev output -raw api_url)
@@ -75,6 +104,17 @@ jobs:
         run: |
           WEB_URL=$(terraform -chdir=infra/environments/dev output -raw web_url)
           PREVIEW_URL=$(terraform -chdir=infra/environments/dev output -raw preview_url)
+          COGNITO_CLIENT_ID=$(terraform -chdir=infra/environments/dev output -raw cognito_client_id)
+          COGNITO_DOMAIN=$(terraform -chdir=infra/environments/dev output -raw cognito_domain)
+          RELATIONAL_CLUSTER_ARN=$(terraform -chdir=infra/environments/dev output -raw relational_cluster_arn)
+          RELATIONAL_SECRET_ARN=$(terraform -chdir=infra/environments/dev output -raw relational_secret_arn)
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' "$WEB_URL")" = "404"
           curl --fail --cookie-jar /tmp/atmospath-preview.cookies --retry 8 --retry-delay 5 "$PREVIEW_URL"
           curl --fail --cookie /tmp/atmospath-preview.cookies "$WEB_URL/api/health"
+          aws rds-data execute-statement \
+            --database atmospath \
+            --resource-arn "$RELATIONAL_CLUSTER_ARN" \
+            --secret-arn "$RELATIONAL_SECRET_ARN" \
+            --sql "SELECT PostGIS_Version(), to_regclass('public.saved_item')::text"
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            "https://${COGNITO_DOMAIN}/oauth2/authorize?client_id=${COGNITO_CLIENT_ID}&response_type=code&scope=openid&redirect_uri=${WEB_URL}%2F&code_challenge_method=S256&code_challenge=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")" = "302"

@@ -35,10 +35,10 @@ well below the recurring Lambda free-usage allowance when available.
 | Application Load Balancer | Hourly cost is excessive for portfolio traffic |
 | Always-on RDS/Aurora | Idle compute cost and operational complexity |
 
-## Optional Relational Store
+## Dev Relational Store
 
-Aurora PostgreSQL/PostGIS is intentionally disabled by default. When a
-relational demo is needed, enable it for a bounded period with:
+The dev preview keeps Aurora PostgreSQL/PostGIS enabled so authenticated saved
+places and spatial queries can be exercised end to end. It is bounded with:
 
 - minimum capacity `0` ACUs;
 - maximum capacity `1` ACU;
@@ -49,6 +49,7 @@ relational demo is needed, enable it for a bounded period with:
 
 Even while compute is paused, Aurora storage, backup storage beyond allowance,
 Data API requests, and the managed master secret can incur small charges.
+Production remains an explicit promotion rather than a second always-on environment.
 
 ## Credit Strategy
 

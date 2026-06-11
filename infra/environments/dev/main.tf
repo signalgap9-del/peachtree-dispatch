@@ -58,3 +58,8 @@ output "weather_snapshot_bucket_name" {
 output "relational_cluster_arn" {
   value = module.application.relational_cluster_arn
 }
+
+output "relational_secret_arn" {
+  value     = module.application.relational_secret_arn
+  sensitive = true
+}
