@@ -62,3 +62,10 @@ well below the recurring Lambda free-usage allowance when available.
   which can contain sensitive infrastructure data, uses a customer-managed KMS key.
 - API Gateway throttling, least-privilege IAM, private S3 origin access, dependency
   auditing, and IaC scanning remain mandatory controls.
+- CloudFront allows only viewers from the United States and South Korea. This
+  geo restriction has no fixed monthly WAF charge.
+- Public API traffic is limited to a small portfolio-friendly request rate, and
+  each Lambda has a low reserved-concurrency ceiling to cap burst compute.
+- The default public API ceiling is one request per second with a burst of
+  three. Even a sustained abusive caller is therefore bounded before WAF is
+  justified.

@@ -163,6 +163,8 @@ button { color: inherit; }
 .primary-nav em { width: 15px; height: 15px; display: grid; place-items: center; border-radius: 50%; color:#fff; background:var(--red); font: normal 700 8px "DM Mono"; }
 .header-tools { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-right: 20px; color: var(--muted); }
 .header-tools button { border:0; background:transparent; }.weather-chip { display:flex; align-items:center; gap:7px; padding:6px 9px!important; }.weather-chip strong,.weather-chip small { display:block; }.weather-chip strong { color:var(--ink); font-size:10px; }.weather-chip small { font-size:7px; }.icon-button,.avatar-button { width:34px;height:34px;display:grid;place-items:center;border-radius:50%!important; }.icon-button:hover { background:#f1f3f4!important; }.avatar-button { background:#ded7ef!important; font-size:10px; }
+.app-toast{position:fixed;right:24px;bottom:24px;z-index:10000;max-width:360px;padding:12px 16px;border-radius:10px;background:#202124;color:#fff;box-shadow:0 8px 30px #0003;font-size:13px}
+.route-explanation{margin:0 0 10px;padding:10px;border-radius:8px;background:#f5f8ff;color:#445;line-height:1.45;font-size:11px}
 .page-shell { max-width: 1500px; margin: 0 auto; padding: 26px 30px 34px; }
 .surface { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: 0 2px 8px rgba(32,33,36,.05); }
 .eyebrow { color: var(--muted); font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; }

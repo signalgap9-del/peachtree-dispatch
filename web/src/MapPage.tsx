@@ -17,6 +17,7 @@ import type { Navigate } from "./App";
 import { api } from "./api";
 import { NetworkMap } from "./NetworkMap";
 import type { DirectionsPlan, LocationRisk, NationalRiskOverview, NationalWeatherSnapshot, Place, RouteAlternative, VehicleType, WeatherRasterManifest } from "./types";
+import { notify, saveRoute } from "./ui";
 
 type Field = "origin" | "destination";
 type Alternative = "fastest" | "lower" | "balanced";
@@ -25,7 +26,7 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
   const [origin, setOrigin] = useState<Place | null>(null);
   const [destination, setDestination] = useState<Place | null>(null);
   const [originQuery, setOriginQuery] = useState("");
-  const [destinationQuery, setDestinationQuery] = useState("");
+  const [destinationQuery, setDestinationQuery] = useState(() => new URLSearchParams(window.location.search).get("search") ?? "");
   const [activeField, setActiveField] = useState<Field>("destination");
   const [results, setResults] = useState<Place[]>([]);
   const [plan, setPlan] = useState<DirectionsPlan | null>(null);
@@ -37,6 +38,7 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
   const [selectedRisk, setSelectedRisk] = useState<LocationRisk | null>(null);
   const [showRisk, setShowRisk] = useState(true);
   const [selectedAlternative, setSelectedAlternative] = useState<Alternative>("lower");
+  const [showWhy, setShowWhy] = useState(false);
 
   const query = activeField === "origin" ? originQuery : destinationQuery;
   useEffect(() => {
@@ -137,7 +139,8 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
         {!plan && results.length === 0 && <div className="empty-directions"><Navigation size={24} /><strong>Compare time against weather risk</strong><p>Search any U.S. city, address, landmark, or highway corridor.</p></div>}
         {plan && (
           <section className="route-alternatives">
-            <div className="section-label"><strong>Route options</strong><button>Why these routes?</button></div>
+            <div className="section-label"><strong>Route options</strong><button onClick={() => setShowWhy((value) => !value)}>Why these routes?</button></div>
+            {showWhy && <p className="route-explanation">Alternatives balance travel time with live precipitation, wind, heat, and active NWS alerts. Lower-risk routes may take longer.</p>}
             {alternatives.map((alternative) => (
               <button key={alternative.alternative_id} className={`alternative-card ${selectedAlternative === alternativeKind(alternative) ? "selected" : ""}`} onClick={() => setSelectedAlternative(alternativeKind(alternative))}>
                 <span className="alternative-top"><strong>{alternative.label}</strong><em>{formatDuration(alternative.duration_minutes)}</em></span>
@@ -145,7 +148,11 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
                 <span className="alternative-note">{alternative.hazards.length ? alternative.hazards.map((hazard) => hazard.category.replaceAll("_", " ")).join(" / ") : "No active route hazard alerts"}</span>
               </button>
             ))}
-            <button className="text-action" onClick={() => navigate("/saved")}>Save this trip</button>
+            <button className="text-action" onClick={() => {
+              if (!displayedPlan) return notify("Choose an origin and destination first.");
+              saveRoute(displayedPlan);
+              navigate("/saved");
+            }}>Save this trip</button>
           </section>
         )}
         {loading && <div className="route-loading">Calculating nationwide route...</div>}

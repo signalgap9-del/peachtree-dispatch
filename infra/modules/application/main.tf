@@ -4,6 +4,11 @@ locals {
   deploy_app        = var.platform_api_image_uri != "" && local.risk_engine_image != ""
 }
 
+resource "random_password" "api_origin_verify" {
+  length  = 32
+  special = false
+}
+
 resource "aws_ecr_repository" "api" {
   name                 = "${local.name}-api"
   image_tag_mutability = "IMMUTABLE"
@@ -179,6 +184,63 @@ resource "aws_cloudfront_origin_access_control" "web" {
   signing_protocol                  = "sigv4"
 }
 
+resource "aws_cloudfront_response_headers_policy" "security" {
+  name = "${local.name}-security-headers"
+
+  security_headers_config {
+    content_type_options { override = true }
+    frame_options {
+      frame_option = "DENY"
+      override     = true
+    }
+    referrer_policy {
+      referrer_policy = "strict-origin-when-cross-origin"
+      override        = true
+    }
+    strict_transport_security {
+      access_control_max_age_sec = 31536000
+      include_subdomains         = true
+      preload                    = true
+      override                   = true
+    }
+    xss_protection {
+      mode_block = true
+      protection = true
+      override   = true
+    }
+  }
+}
+
+resource "aws_cloudfront_function" "api_path" {
+  name    = "${local.name}-api-path"
+  runtime = "cloudfront-js-2.0"
+  comment = "Strip the public /api prefix before forwarding to API Gateway."
+  publish = true
+  code    = <<-EOT
+    function handler(event) {
+      var request = event.request;
+      request.uri = request.uri.replace(/^\/api/, '') || '/';
+      return request;
+    }
+  EOT
+}
+
+resource "aws_cloudfront_function" "spa_path" {
+  name    = "${local.name}-spa-path"
+  runtime = "cloudfront-js-2.0"
+  comment = "Serve the SPA shell for client-side routes without masking API errors."
+  publish = true
+  code    = <<-EOT
+    function handler(event) {
+      var request = event.request;
+      if (!request.uri.includes('.')) {
+        request.uri = '/index.html';
+      }
+      return request;
+    }
+  EOT
+}
+
 resource "aws_cloudfront_distribution" "web" {
   enabled             = true
   default_root_object = "index.html"
@@ -190,26 +252,67 @@ resource "aws_cloudfront_distribution" "web" {
     origin_access_control_id = aws_cloudfront_origin_access_control.web.id
   }
 
+  dynamic "origin" {
+    for_each = local.deploy_app ? [1] : []
+    content {
+      domain_name = replace(aws_apigatewayv2_api.api[0].api_endpoint, "https://", "")
+      origin_id   = "api"
+
+      custom_header {
+        name  = "X-Origin-Verify"
+        value = random_password.api_origin_verify.result
+      }
+
+      custom_origin_config {
+        http_port              = 80
+        https_port             = 443
+        origin_protocol_policy = "https-only"
+        origin_ssl_protocols   = ["TLSv1.2"]
+      }
+    }
+  }
+
   default_cache_behavior {
-    target_origin_id       = "web"
-    viewer_protocol_policy = "redirect-to-https"
-    allowed_methods        = ["GET", "HEAD", "OPTIONS"]
-    cached_methods         = ["GET", "HEAD"]
+    target_origin_id           = "web"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD", "OPTIONS"]
+    cached_methods             = ["GET", "HEAD"]
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
 
     forwarded_values {
       query_string = false
       cookies { forward = "none" }
     }
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.spa_path.arn
+    }
   }
 
-  custom_error_response {
-    error_code         = 403
-    response_code      = 200
-    response_page_path = "/index.html"
+  dynamic "ordered_cache_behavior" {
+    for_each = local.deploy_app ? [1] : []
+    content {
+      path_pattern             = "/api/*"
+      target_origin_id         = "api"
+      viewer_protocol_policy   = "https-only"
+      allowed_methods          = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+      cached_methods           = ["GET", "HEAD"]
+      cache_policy_id          = "413f8c86-8e88-4d88-91f5-9f789f5b5d1c"
+      origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e2966ac"
+
+      function_association {
+        event_type   = "viewer-request"
+        function_arn = aws_cloudfront_function.api_path.arn
+      }
+    }
   }
 
   restrictions {
-    geo_restriction { restriction_type = "none" }
+    geo_restriction {
+      restriction_type = "whitelist"
+      locations        = var.allowed_country_codes
+    }
   }
 
   viewer_certificate {
@@ -334,20 +437,22 @@ resource "aws_iam_role_policy_attachment" "worker_logs" {
 }
 
 resource "aws_lambda_function" "api" {
-  count         = local.deploy_app ? 1 : 0
-  function_name = "${local.name}-api"
-  role          = aws_iam_role.api.arn
-  package_type  = "Image"
-  image_uri     = var.platform_api_image_uri
-  timeout       = 30
-  memory_size   = 1024
+  count                          = local.deploy_app ? 1 : 0
+  function_name                  = "${local.name}-api"
+  role                           = aws_iam_role.api.arn
+  package_type                   = "Image"
+  image_uri                      = var.platform_api_image_uri
+  timeout                        = 30
+  memory_size                    = 1024
+  reserved_concurrent_executions = var.lambda_reserved_concurrency
 
   environment {
     variables = {
       DYNAMODB_TABLE            = aws_dynamodb_table.operational.name
       OPTIMIZATION_QUEUE_URL    = aws_sqs_queue.optimization.url
       ENVIRONMENT               = var.environment
-      CORS_ORIGINS              = "https://${aws_cloudfront_distribution.web.domain_name}"
+      CORS_ORIGINS              = "https://invalid.local"
+      API_ORIGIN_VERIFY_SECRET  = random_password.api_origin_verify.result
       RISK_ENGINE_MODE          = "lambda"
       RISK_ENGINE_FUNCTION_NAME = aws_lambda_function.risk_engine[0].function_name
     }
@@ -355,13 +460,14 @@ resource "aws_lambda_function" "api" {
 }
 
 resource "aws_lambda_function" "risk_engine" {
-  count         = local.deploy_app ? 1 : 0
-  function_name = "${local.name}-risk-engine"
-  role          = aws_iam_role.worker.arn
-  package_type  = "Image"
-  image_uri     = local.risk_engine_image
-  timeout       = 60
-  memory_size   = 1536
+  count                          = local.deploy_app ? 1 : 0
+  function_name                  = "${local.name}-risk-engine"
+  role                           = aws_iam_role.worker.arn
+  package_type                   = "Image"
+  image_uri                      = local.risk_engine_image
+  timeout                        = 60
+  memory_size                    = 1536
+  reserved_concurrent_executions = var.lambda_reserved_concurrency
 
   image_config {
     command = ["app.internal_handler.handler"]
@@ -376,13 +482,14 @@ resource "aws_lambda_function" "risk_engine" {
 }
 
 resource "aws_lambda_function" "weather_collector" {
-  count         = local.deploy_app ? 1 : 0
-  function_name = "${local.name}-weather-collector"
-  role          = aws_iam_role.worker.arn
-  package_type  = "Image"
-  image_uri     = local.risk_engine_image
-  timeout       = 120
-  memory_size   = 512
+  count                          = local.deploy_app ? 1 : 0
+  function_name                  = "${local.name}-weather-collector"
+  role                           = aws_iam_role.worker.arn
+  package_type                   = "Image"
+  image_uri                      = local.risk_engine_image
+  timeout                        = 120
+  memory_size                    = 512
+  reserved_concurrent_executions = 1
 
   image_config {
     command = ["app.weather_collector.handler"]
@@ -420,13 +527,14 @@ resource "aws_lambda_permission" "weather_collector" {
 }
 
 resource "aws_lambda_function" "worker" {
-  count         = local.deploy_app ? 1 : 0
-  function_name = "${local.name}-optimizer"
-  role          = aws_iam_role.worker.arn
-  package_type  = "Image"
-  image_uri     = local.risk_engine_image
-  timeout       = 120
-  memory_size   = 2048
+  count                          = local.deploy_app ? 1 : 0
+  function_name                  = "${local.name}-optimizer"
+  role                           = aws_iam_role.worker.arn
+  package_type                   = "Image"
+  image_uri                      = local.risk_engine_image
+  timeout                        = 120
+  memory_size                    = 2048
+  reserved_concurrent_executions = var.lambda_reserved_concurrency
 
   image_config {
     command = ["app.worker.handler"]
@@ -454,11 +562,6 @@ resource "aws_apigatewayv2_api" "api" {
   name          = local.name
   protocol_type = "HTTP"
 
-  cors_configuration {
-    allow_headers = ["content-type", "authorization", "idempotency-key"]
-    allow_methods = ["GET", "POST", "OPTIONS"]
-    allow_origins = ["https://${aws_cloudfront_distribution.web.domain_name}"]
-  }
 }
 
 resource "aws_apigatewayv2_integration" "api" {

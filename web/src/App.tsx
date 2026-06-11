@@ -15,6 +15,7 @@ import { api } from "./api";
 import { MapPage } from "./MapPage";
 import { AlertsPage, DashboardPage, HomePage, PlaceDetailPage, SavedPage } from "./ProductPages";
 import type { NationalRiskOverview, NationalWeatherSnapshot, WeatherRasterManifest } from "./types";
+import { notify } from "./ui";
 import "./styles.css";
 
 export type Navigate = (path: string) => void;
@@ -32,6 +33,7 @@ function App() {
   const [nationalRisk, setNationalRisk] = useState<NationalRiskOverview | null>(null);
   const [weatherSnapshot, setWeatherSnapshot] = useState<NationalWeatherSnapshot | null>(null);
   const [weatherRaster, setWeatherRaster] = useState<WeatherRasterManifest | null>(null);
+  const [toast, setToast] = useState("");
 
   useEffect(() => {
     const onPopState = () => setPath(window.location.pathname);
@@ -45,9 +47,19 @@ function App() {
     void api.weatherRaster().then(setWeatherRaster).catch(() => setWeatherRaster(null));
   }, []);
 
+  useEffect(() => {
+    const onToast = (event: Event) => {
+      setToast((event as CustomEvent<string>).detail);
+      window.setTimeout(() => setToast(""), 3000);
+    };
+    window.addEventListener("atmospath:toast", onToast);
+    return () => window.removeEventListener("atmospath:toast", onToast);
+  }, []);
+
   const navigate: Navigate = (nextPath) => {
-    if (nextPath !== window.location.pathname) window.history.pushState({}, "", nextPath);
-    setPath(nextPath);
+    const nextUrl = new URL(nextPath, window.location.origin);
+    if (`${nextUrl.pathname}${nextUrl.search}` !== `${window.location.pathname}${window.location.search}`) window.history.pushState({}, "", nextUrl);
+    setPath(nextUrl.pathname);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -63,6 +75,7 @@ function App() {
       {!["/", "/dashboard", "/saved", "/alerts", "/map", "/directions"].includes(path) && !path.startsWith("/locations/") && (
         <NotFound navigate={navigate} />
       )}
+      {toast && <div className="app-toast" role="status">{toast}</div>}
     </div>
   );
 }
@@ -83,9 +96,9 @@ function AppHeader({ path, navigate }: { path: string; navigate: Navigate }) {
         ))}
       </nav>
       <div className="header-tools">
-        <button className="weather-chip"><CloudSun size={20} /><span><strong>72°F</strong><small>Atlanta, GA</small></span></button>
-        <button className="icon-button" aria-label="Notifications"><Bell size={19} /></button>
-        <button className="avatar-button">AB</button>
+        <button className="weather-chip" onClick={() => navigate("/locations/atlanta")}><CloudSun size={20} /><span><strong>72°F</strong><small>Atlanta, GA</small></span></button>
+        <button className="icon-button" aria-label="Notifications" onClick={() => navigate("/alerts")}><Bell size={19} /></button>
+        <button className="avatar-button" onClick={() => notify("Guest portfolio session. Account sign-in is not enabled.")}>AB</button>
         <ChevronDown size={15} />
       </div>
     </header>

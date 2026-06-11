@@ -37,10 +37,22 @@ variable "enable_deletion_protection" {
 
 variable "api_throttling_burst_limit" {
   type    = number
-  default = 20
+  default = 3
 }
 
 variable "api_throttling_rate_limit" {
   type    = number
-  default = 10
+  default = 1
+}
+
+variable "allowed_country_codes" {
+  description = "ISO 3166-1 alpha-2 countries allowed to access the public web distribution."
+  type        = list(string)
+  default     = ["US", "KR"]
+}
+
+variable "lambda_reserved_concurrency" {
+  description = "Small per-function concurrency ceiling to protect the portfolio account from runaway cost."
+  type        = number
+  default     = 2
 }

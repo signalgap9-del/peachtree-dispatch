@@ -9,7 +9,7 @@ inspired by modern mobility products.
 ## Live Development Environment
 
 - Web: https://d23c97ytqgl4xu.cloudfront.net
-- API health: https://6zi4acjsz2.execute-api.us-east-1.amazonaws.com/health
+- API health: https://d23c97ytqgl4xu.cloudfront.net/api/health after the next guarded deployment
 - API documentation is available locally at `http://localhost:8000/docs`.
 
 ## Portfolio Goals

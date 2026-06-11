@@ -7,7 +7,7 @@ output "platform_api_ecr_repository_url" {
 }
 
 output "api_url" {
-  value = try(aws_apigatewayv2_api.api[0].api_endpoint, null)
+  value = local.deploy_app ? "https://${aws_cloudfront_distribution.web.domain_name}/api" : null
 }
 
 output "web_bucket_name" {
