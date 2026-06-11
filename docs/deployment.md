@@ -18,9 +18,10 @@ The `Deploy Dev` workflow:
 1. Assumes the dev apply role.
 2. Builds and pushes an immutable Lambda image tagged with the Git SHA.
 3. Applies Terraform with that image URI.
-4. Builds the web app with the deployed API URL.
-5. Syncs assets to the private S3 origin and invalidates CloudFront.
-6. Runs an API health smoke test.
+4. Applies the versioned PostGIS schema through the RDS Data API.
+5. Builds the web app with the deployed API URL.
+6. Syncs assets to the private S3 origin and invalidates CloudFront.
+7. Verifies the preview gate, API health, PostGIS schema, and Cognito authorization entry point.
 
 ## Production Promotion
 
