@@ -627,7 +627,7 @@ resource "aws_iam_role" "worker" {
 data "aws_iam_policy_document" "api" {
   statement {
     actions = [
-      "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query",
+      "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem", "dynamodb:Query",
       "dynamodb:TransactWriteItems"
     ]
     resources = [
@@ -732,6 +732,7 @@ resource "aws_lambda_function" "api" {
   environment {
     variables = {
       DYNAMODB_TABLE               = aws_dynamodb_table.operational.name
+      SAVED_PLACE_STORE            = "dynamodb"
       OPTIMIZATION_QUEUE_URL       = aws_sqs_queue.optimization.url
       ENVIRONMENT                  = var.environment
       CORS_ORIGINS                 = "https://invalid.local"

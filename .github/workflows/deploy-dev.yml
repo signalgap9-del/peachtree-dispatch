@@ -57,40 +57,9 @@ jobs:
         working-directory: infra/environments/dev
         run: >-
           terraform apply -auto-approve -input=false
-          -var="enable_relational_store=true"
+          -var="enable_relational_store=false"
           -var="risk_engine_image_uri=${{ steps.images.outputs.risk_uri }}"
           -var="platform_api_image_uri=${{ steps.images.outputs.platform_uri }}"
-      - name: Apply PostGIS schema
-        env:
-          SCHEMA_FILE: services/platform-api/src/main/resources/db/migration/V001__identity_saved_items_postgis.sql
-        run: |
-          export RELATIONAL_SECRET_ARN="$(terraform -chdir=infra/environments/dev output -raw relational_secret_arn)"
-          export PGHOST="$(terraform -chdir=infra/environments/dev output -raw relational_endpoint)"
-          export PGUSER="$(terraform -chdir=infra/environments/dev output -raw relational_master_username)"
-          export PGDATABASE=postgres
-          export PGPORT=5432
-          export PGSSLMODE=require
-          export PGPASSWORD="$(aws rds generate-db-auth-token --hostname "$PGHOST" --port "$PGPORT" --username "$PGUSER")"
-          export APP_PASSWORD="$(aws secretsmanager get-secret-value --secret-id "$RELATIONAL_SECRET_ARN" --query SecretString --output text | jq -r .password)"
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
-          psql -v ON_ERROR_STOP=1 <<'SQL'
-          SELECT 'CREATE DATABASE atmospath'
-          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'atmospath') \gexec
-          SQL
-          export PGDATABASE=atmospath
-          psql -v ON_ERROR_STOP=1 -f "$SCHEMA_FILE"
-          psql -v ON_ERROR_STOP=1 -v app_password="$APP_PASSWORD" <<'SQL'
-          SELECT format('CREATE ROLE atmospath_app LOGIN PASSWORD %L', :'app_password')
-          WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'atmospath_app') \gexec
-          ALTER ROLE atmospath_app LOGIN PASSWORD :'app_password';
-          GRANT CONNECT ON DATABASE atmospath TO atmospath_app;
-          GRANT USAGE ON SCHEMA public TO atmospath_app;
-          GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO atmospath_app;
-          GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO atmospath_app;
-          ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO atmospath_app;
-          ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO atmospath_app;
-          SQL
       - name: Build and upload web
         run: |
           API_URL=$(terraform -chdir=infra/environments/dev output -raw api_url)
@@ -109,15 +78,9 @@ jobs:
           PREVIEW_URL=$(terraform -chdir=infra/environments/dev output -raw preview_url)
           COGNITO_CLIENT_ID=$(terraform -chdir=infra/environments/dev output -raw cognito_client_id)
           COGNITO_DOMAIN=$(terraform -chdir=infra/environments/dev output -raw cognito_domain)
-          RELATIONAL_CLUSTER_ARN=$(terraform -chdir=infra/environments/dev output -raw relational_cluster_arn)
-          RELATIONAL_SECRET_ARN=$(terraform -chdir=infra/environments/dev output -raw relational_secret_arn)
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' "$WEB_URL")" = "404"
           curl --fail --cookie-jar /tmp/atmospath-preview.cookies --retry 8 --retry-delay 5 "$PREVIEW_URL"
           curl --fail --cookie /tmp/atmospath-preview.cookies "$WEB_URL/api/health"
-          aws rds-data execute-statement \
-            --database atmospath \
-            --resource-arn "$RELATIONAL_CLUSTER_ARN" \
-            --secret-arn "$RELATIONAL_SECRET_ARN" \
-            --sql "SELECT PostGIS_Version(), to_regclass('public.saved_item')::text"
+          test -n "$(terraform -chdir=infra/environments/dev output -raw dynamodb_table_name)"
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
             "https://${COGNITO_DOMAIN}/oauth2/authorize?client_id=${COGNITO_CLIENT_ID}&response_type=code&scope=openid&redirect_uri=${WEB_URL}%2F&code_challenge_method=S256&code_challenge=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")" = "302"

@@ -44,22 +44,23 @@ Open:
 - API health: `http://localhost:8000/health`
 
 The current Python service retains a local SQLite adapter for legacy operational
-prototype code. New AtmosPath operational state uses DynamoDB only for bounded
-jobs, caches, idempotency, deduplication, and snapshot pointers.
+prototype code. The deployed Spring Boot API uses DynamoDB for authenticated
+saved places as well as bounded jobs, caches, idempotency, deduplication, and
+snapshot pointers.
 
 An optional PostGIS Compose profile and Aurora Serverless v2/Data API path
-demonstrate durable user and spatial persistence. Aurora remains disabled by
-default and must not be enabled before Cognito ownership and migration/runtime
-credential separation are implemented.
+demonstrate a future high-scale spatial-query path. Aurora remains disabled by
+default so the portfolio preview has no relational database idle cost.
 
 See [docs/local-development.md](docs/local-development.md) for the local-to-AWS component mapping and verification commands.
 
-## Local AWS access
+## AWS access
 
-This repository uses temporary browser-login credentials instead of long-lived access keys.
+Routine deployments use GitHub Actions OIDC and require no local AWS login or
+long-lived access keys. Local browser login is a break-glass operation only:
 
 ```powershell
-./scripts/aws-login.ps1 -Profile awsresume-admin
+./scripts/aws-login.ps1 -Profile bootstrap -BreakGlass
 ./scripts/aws.ps1 sts get-caller-identity
 ```
 

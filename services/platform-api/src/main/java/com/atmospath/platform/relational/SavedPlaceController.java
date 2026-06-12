@@ -25,9 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/me/saved/places")
-@ConditionalOnProperty(
-        name = {"atmospath.auth.enabled", "atmospath.relational.enabled"},
-        havingValue = "true")
+@ConditionalOnProperty(name = "atmospath.auth.enabled", havingValue = "true")
 public class SavedPlaceController {
     private final SavedPlaceRepository repository;
 

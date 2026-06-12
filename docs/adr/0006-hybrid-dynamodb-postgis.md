@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded for the deployed preview by [ADR 0007](0007-dynamodb-preview-persistence.md).
 
 ## Context
 

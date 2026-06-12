@@ -35,20 +35,15 @@ well below the recurring Lambda free-usage allowance when available.
 | Application Load Balancer | Hourly cost is excessive for portfolio traffic |
 | Always-on RDS/Aurora | Idle compute cost and operational complexity |
 
-## Dev Relational Store
+## Dev Persistence
 
-The dev preview keeps Aurora PostgreSQL/PostGIS enabled so authenticated saved
-places and spatial queries can be exercised end to end. It is bounded with:
+The dev preview stores authenticated saved places in the existing on-demand
+DynamoDB table. This keeps the deployed product functional without a relational
+database idle charge.
 
-- Free Plan-compatible Aurora express configuration;
-- automatic idle pause and Free Plan capacity boundaries managed by Aurora;
-- RDS Data API access from Spring Boot, avoiding NAT Gateway and RDS Proxy;
-- one writer instance only; and
-- deletion protection only in production.
-
-Even while compute is paused, Aurora storage, backup storage beyond allowance,
-Data API requests, and the managed master secret can incur small charges.
-Production remains an explicit promotion rather than a second always-on environment.
+Aurora PostgreSQL/PostGIS remains an optional, code-reviewed architecture path
+for high-scale spatial relationships and is validated in CI against PostGIS.
+It is not provisioned in dev or production by default.
 
 ## Credit Strategy
 

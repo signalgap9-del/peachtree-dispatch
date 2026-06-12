@@ -2,7 +2,7 @@
 
 ## Status
 
-Superseded by [ADR 0006](0006-hybrid-dynamodb-postgis.md).
+Superseded by [ADR 0007](0007-dynamodb-preview-persistence.md).
 
 ## Context
 
@@ -16,9 +16,9 @@ those access patterns no longer define the product architecture.
 Retain the deployed table temporarily to avoid a destructive migration.
 Do not add new product features to its legacy delivery access patterns.
 
-New DynamoDB usage is limited to weather/risk operational jobs, idempotency,
-TTL caches, notification deduplication, and current snapshot metadata. Durable
-user and spatial data belongs in PostgreSQL/PostGIS.
+New DynamoDB usage includes weather/risk operational state and the bounded
+saved-place access pattern documented in ADR 0007. Complex spatial
+relationships belong in optional PostgreSQL/PostGIS.
 
 ## Consequences
 

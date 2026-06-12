@@ -1,8 +1,14 @@
 param(
-    [string]$Profile = "bootstrap"
+    [string]$Profile = "bootstrap",
+    [switch]$BreakGlass
 )
 
 $ErrorActionPreference = "Stop"
+
+if (-not $BreakGlass) {
+    throw "Routine deployments use GitHub Actions OIDC and require no local AWS login. Pass -BreakGlass only for an explicitly approved emergency session."
+}
+
 $awsDir = Join-Path $HOME ".aws"
 
 New-Item -ItemType Directory -Force -Path $awsDir | Out-Null

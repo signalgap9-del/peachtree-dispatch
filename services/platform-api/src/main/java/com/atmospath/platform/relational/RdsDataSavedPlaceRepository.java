@@ -11,7 +11,7 @@ import software.amazon.awssdk.services.rdsdata.model.Field;
 import software.amazon.awssdk.services.rdsdata.model.SqlParameter;
 
 @Repository
-@ConditionalOnProperty(name = "atmospath.relational.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "atmospath.saved-place-store", havingValue = "postgis")
 public class RdsDataSavedPlaceRepository implements SavedPlaceRepository {
     private static final String ENSURE_USER_SQL = """
             INSERT INTO app_user(user_id, auth_subject, email)

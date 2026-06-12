@@ -2,9 +2,9 @@
 
 ## Ownership Boundary
 
-DynamoDB owns short-lived, key-addressable operational state for weather
-ingestion and risk processing. It does not own AtmosPath users, saved items,
-route history, or spatial relationships; PostgreSQL/PostGIS owns those records.
+DynamoDB owns key-addressable operational state for weather ingestion and risk
+processing and the low-volume authenticated saved-place workflow. Optional
+PostgreSQL/PostGIS remains the future path for complex spatial relationships.
 
 ## Access Patterns
 
@@ -17,6 +17,8 @@ route history, or spatial relationships; PostgreSQL/PostGIS owns those records.
 | AP5 | Read a short-lived computed risk result | `PK=CACHE#RISK#<cacheKey>`, `SK=RESULT` |
 | AP6 | Deduplicate one alert notification | `PK=NOTIFY#<subscriptionId>`, `SK=<eventFingerprint>` |
 | AP7 | Find failed asynchronous work | SQS DLQ, not a table scan |
+| AP8 | List one user's saved places | `PK=USER#<userId>`, `SK begins_with SAVED_PLACE#` |
+| AP9 | Create or delete one saved place | `PK=USER#<userId>`, `SK=SAVED_PLACE#<savedItemId>` |
 
 ## Representative Items
 
@@ -54,4 +56,5 @@ removed only through a separately reviewed, non-destructive migration.
 - TTL removes idempotency locks, caches, job history, and notification dedupe records.
 - Large weather objects and rasters live in S3, never DynamoDB.
 - Job failures and replay are handled through SQS/DLQ.
-- Durable user and spatial data lives in PostgreSQL/PostGIS.
+- Saved places live in DynamoDB for the low-traffic preview.
+- Complex route-history and spatial relationship queries belong in optional PostgreSQL/PostGIS.
