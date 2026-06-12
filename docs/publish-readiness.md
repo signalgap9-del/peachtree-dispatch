@@ -4,9 +4,8 @@
 
 - CloudFront serves the private S3 web origin over HTTPS.
 - CloudFront viewer access is limited to `US` and `KR`.
-- The initial portfolio preview requires an unlisted tokenized link. A successful
-  link visit stores a secure, HTTP-only, seven-day preview cookie; direct
-  requests without the link or cookie return `404`.
+- The portfolio web application is publicly readable from the allowed
+  countries. Cognito JWT ownership protects authenticated user writes.
 - Security response headers deny framing, prevent MIME sniffing, enforce HSTS,
   and use a strict referrer policy.
 - Browser API traffic uses the same CloudFront distribution under `/api/*`.
@@ -30,16 +29,15 @@ Before production promotion:
 
 ## Known Public-Portfolio Boundaries
 
-- Personal accounts and notification delivery are intentionally disabled.
-- Saved-route writes use browser local storage in the public preview.
+- Cognito-backed personal accounts and DynamoDB saved places are enabled.
+- Saved-route comparison state still uses browser local storage.
 - High-resolution HRRR/MRMS processing is not scheduled until a measured
   one-shot run proves it remains within the monthly budget.
 - Aurora PostgreSQL/PostGIS is code-ready but disabled by default. Enabling it
   requires an explicit Terraform variable and cost review.
-- User-owned relational write APIs remain closed until Cognito JWT
-  authorization supplies the immutable owner subject.
+- User-owned saved-place writes require a Cognito JWT and derive the immutable
+  owner partition from its subject.
 - Cognito Managed Login uses authorization-code flow with PKCE. The browser
   keeps short-lived ID/access tokens in session storage; no client secret is
   embedded in the web application.
-- Authenticated saved-place APIs exist only when both Cognito authentication
-  and the optional PostGIS store are enabled.
+- Authenticated saved-place APIs use the deployed on-demand DynamoDB table.

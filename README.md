@@ -1,16 +1,35 @@
 # AtmosPath
 
-A climate-aware route optimization platform built to demonstrate production-style AWS, DevOps, and SRE practices.
+[![CI](https://github.com/signalgap9-del/peachtree-dispatch/actions/workflows/ci.yml/badge.svg)](https://github.com/signalgap9-del/peachtree-dispatch/actions/workflows/ci.yml)
+[![Deploy Dev](https://github.com/signalgap9-del/peachtree-dispatch/actions/workflows/deploy-dev.yml/badge.svg)](https://github.com/signalgap9-del/peachtree-dispatch/actions/workflows/deploy-dev.yml)
 
-The map-first weather-aware navigation product combines road-route alternatives,
-live weather and hazard signals, explainable risk scoring, and a MapLibre
-interface inspired by modern mobility products.
+AtmosPath is a nationwide weather-risk navigation platform. It compares route
+alternatives, overlays live weather and hazard signals, and explains why a
+safer route may differ from the fastest route.
 
-## Live Development Environment
+**[Open the live AWS deployment](https://d23c97ytqgl4xu.cloudfront.net/)** |
+**[Architecture](docs/architecture.md)** |
+**[Cost model](docs/cost-model.md)** |
+**[ADRs](docs/adr/)**
 
-- Web: https://d23c97ytqgl4xu.cloudfront.net
-- API health: https://d23c97ytqgl4xu.cloudfront.net/api/health after the next guarded deployment
-- API documentation is available locally at `http://localhost:8000/docs`.
+![AtmosPath nationwide route comparison](docs/design/mockups/nationwide-route-compare-desktop.png)
+
+## Engineering Highlights
+
+- Serverless AWS architecture designed for a sub-$5/month portfolio workload.
+- React, TypeScript, MapLibre, Spring Boot, Java 21, FastAPI, and OR-Tools.
+- Cognito authentication with owner-scoped DynamoDB saved-place persistence.
+- CloudFront private S3 origin, API Gateway, Lambda, SQS, DLQ, S3, and CloudWatch.
+- Terraform-managed dev and production environments.
+- Secretless GitHub Actions delivery through AWS OIDC.
+- CI gates for unit, browser, container, PostGIS schema, dependency, IaC, and security checks.
+
+## Live Environment
+
+- Web: https://d23c97ytqgl4xu.cloudfront.net/
+- API health: https://d23c97ytqgl4xu.cloudfront.net/api/health
+- Access is geo-restricted to the United States and South Korea.
+- Public browsing is enabled; authenticated writes remain protected by Cognito.
 
 ## Portfolio Goals
 

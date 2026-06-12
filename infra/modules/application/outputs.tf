@@ -18,11 +18,6 @@ output "web_url" {
   value = "https://${aws_cloudfront_distribution.web.domain_name}"
 }
 
-output "preview_url" {
-  value     = "https://${aws_cloudfront_distribution.web.domain_name}/?preview=${random_password.preview_access.result}"
-  sensitive = true
-}
-
 output "cognito_client_id" {
   value = aws_cognito_user_pool_client.web.id
 }

@@ -30,11 +30,6 @@ output "web_url" {
   value = module.application.web_url
 }
 
-output "preview_url" {
-  value     = module.application.preview_url
-  sensitive = true
-}
-
 output "cognito_client_id" {
   value = module.application.cognito_client_id
 }

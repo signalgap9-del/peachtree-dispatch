@@ -19,8 +19,8 @@ AtmosPath is not a delivery-dispatch, fleet-management, or CRM product.
 | Risk engine | FastAPI, Python | Provider adapters and explainable geospatial scoring |
 | Weather pipeline | HRRR/MRMS inputs, S3 raster artifacts | National-scale data engineering |
 | Workflows | SQS, Lambda, partial batch failures | Buffered jobs, retries, DLQ |
-| Operational data | DynamoDB with TTL and PITR | Jobs, caches, idempotency, dedupe |
-| User and spatial data | Optional Aurora PostgreSQL Serverless v2 + PostGIS | Relational and spatial SQL |
+| Preview persistence | DynamoDB with TTL and PITR | Saved places, jobs, caches, idempotency |
+| Future spatial scale | Optional Aurora PostgreSQL Serverless v2 + PostGIS | Complex relational and spatial SQL |
 | Optimization | Ranked route alternatives; OR-Tools for bounded multi-stop planning | Operations research without fleet coupling |
 | Observability | CloudWatch logs, metrics, alarms, dashboard, X-Ray | SRE and incident response |
 | Infrastructure | Terraform | Reusable, reviewable IaC |
@@ -37,12 +37,12 @@ flowchart LR
     Platform --> Risk[Python risk engine]
     Risk --> Roads[Road routing provider]
     Risk --> Snapshot[Current weather and hazard snapshot]
-    Platform --> DataAPI[RDS Data API]
-    DataAPI --> PostGIS[(Aurora PostgreSQL and PostGIS)]
+    Platform --> Ops[(DynamoDB saved places and jobs)]
+    Platform -. future complex spatial joins .-> PostGIS[(Optional PostgreSQL and PostGIS)]
     Pipeline[Scheduled weather pipeline] --> Queue[SQS]
     Queue --> Worker[Raster and risk workers]
     Worker --> Objects[(S3 weather artifacts)]
-    Worker --> Ops[(DynamoDB jobs and pointers)]
+    Worker --> Ops
     Snapshot --> Objects
     Snapshot --> Ops
     Api --> Observability[CloudWatch and X-Ray]
@@ -52,10 +52,10 @@ flowchart LR
 ## Data Ownership
 
 - **S3:** raw/model weather data, national rasters, tiles, and historical artifacts.
-- **DynamoDB:** bounded operational jobs, idempotency, TTL caches, notification
-  dedupe, and current snapshot pointers.
-- **PostgreSQL/PostGIS:** users, saved items, collections, subscriptions, route
-  history, and spatial risk exposures.
+- **DynamoDB:** authenticated saved places, bounded operational jobs,
+  idempotency, TTL caches, notification dedupe, and current snapshot pointers.
+- **PostgreSQL/PostGIS:** optional future route history and complex spatial
+  relationships when the DynamoDB access pattern is no longer sufficient.
 
 Cross-store transactions are prohibited. Events and reconciliation coordinate
 work that crosses ownership boundaries.

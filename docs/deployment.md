@@ -20,7 +20,7 @@ The `Deploy Dev` workflow:
 3. Applies Terraform with that image URI.
 4. Builds the web app with the deployed API URL.
 5. Syncs assets to the private S3 origin and invalidates CloudFront.
-6. Verifies the preview gate, API health, DynamoDB output, and Cognito authorization entry point.
+6. Verifies public web access, API health, DynamoDB output, and Cognito authorization entry point.
 
 The workflow uses GitHub Actions OIDC end to end. It does not depend on a local
 AWS browser session.

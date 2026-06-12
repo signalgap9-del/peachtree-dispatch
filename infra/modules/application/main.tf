@@ -24,11 +24,6 @@ resource "random_password" "api_origin_verify" {
   special = false
 }
 
-resource "random_password" "preview_access" {
-  length  = 32
-  special = false
-}
-
 resource "random_id" "cognito_domain" {
   byte_length = 4
 }
@@ -381,15 +376,6 @@ resource "aws_cloudfront_function" "api_path" {
   code    = <<-EOT
     function handler(event) {
       var request = event.request;
-      var queryToken = request.querystring && request.querystring.preview && request.querystring.preview.value;
-      var cookieToken = request.cookies && request.cookies['atmospath-preview'] && request.cookies['atmospath-preview'].value;
-      if (${var.enable_preview_gate} && queryToken !== '${random_password.preview_access.result}' && cookieToken !== '${random_password.preview_access.result}') {
-        return {
-          statusCode: 404,
-          statusDescription: 'Not Found',
-          headers: { 'cache-control': { value: 'no-store' } }
-        };
-      }
       request.uri = request.uri.replace(/^\/api/, '') || '/';
       return request;
     }
@@ -404,41 +390,10 @@ resource "aws_cloudfront_function" "spa_path" {
   code    = <<-EOT
     function handler(event) {
       var request = event.request;
-      var queryToken = request.querystring && request.querystring.preview && request.querystring.preview.value;
-      var cookieToken = request.cookies && request.cookies['atmospath-preview'] && request.cookies['atmospath-preview'].value;
-      if (${var.enable_preview_gate} && queryToken !== '${random_password.preview_access.result}' && cookieToken !== '${random_password.preview_access.result}') {
-        return {
-          statusCode: 404,
-          statusDescription: 'Not Found',
-          headers: { 'cache-control': { value: 'no-store' } }
-        };
-      }
       if (!request.uri.includes('.')) {
         request.uri = '/index.html';
       }
       return request;
-    }
-  EOT
-}
-
-resource "aws_cloudfront_function" "preview_cookie" {
-  name    = "${local.name}-preview-cookie"
-  runtime = "cloudfront-js-2.0"
-  comment = "Persist successful preview-link access in a secure browser cookie."
-  publish = true
-  code    = <<-EOT
-    function handler(event) {
-      var response = event.response;
-      var queryToken = event.request.querystring && event.request.querystring.preview && event.request.querystring.preview.value;
-      if (queryToken === '${random_password.preview_access.result}') {
-        response.cookies = response.cookies || {};
-        response.cookies['atmospath-preview'] = {
-          value: '${random_password.preview_access.result}',
-          attributes: 'Path=/; Max-Age=604800; Secure; HttpOnly; SameSite=Lax'
-        };
-        response.headers['cache-control'] = { value: 'no-store' };
-      }
-      return response;
     }
   EOT
 }
@@ -540,10 +495,6 @@ resource "aws_cloudfront_distribution" "web" {
       function_arn = aws_cloudfront_function.spa_path.arn
     }
 
-    function_association {
-      event_type   = "viewer-response"
-      function_arn = aws_cloudfront_function.preview_cookie.arn
-    }
   }
 
   dynamic "ordered_cache_behavior" {
@@ -562,10 +513,6 @@ resource "aws_cloudfront_distribution" "web" {
         function_arn = aws_cloudfront_function.api_path.arn
       }
 
-      function_association {
-        event_type   = "viewer-response"
-        function_arn = aws_cloudfront_function.preview_cookie.arn
-      }
     }
   }
 

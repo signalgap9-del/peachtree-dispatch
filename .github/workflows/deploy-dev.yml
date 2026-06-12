@@ -75,12 +75,10 @@ jobs:
       - name: Smoke test
         run: |
           WEB_URL=$(terraform -chdir=infra/environments/dev output -raw web_url)
-          PREVIEW_URL=$(terraform -chdir=infra/environments/dev output -raw preview_url)
           COGNITO_CLIENT_ID=$(terraform -chdir=infra/environments/dev output -raw cognito_client_id)
           COGNITO_DOMAIN=$(terraform -chdir=infra/environments/dev output -raw cognito_domain)
-          test "$(curl --silent --output /dev/null --write-out '%{http_code}' "$WEB_URL")" = "404"
-          curl --fail --cookie-jar /tmp/atmospath-preview.cookies --retry 8 --retry-delay 5 "$PREVIEW_URL"
-          curl --fail --cookie /tmp/atmospath-preview.cookies "$WEB_URL/api/health"
+          curl --fail --retry 8 --retry-delay 5 "$WEB_URL/"
+          curl --fail "$WEB_URL/api/health"
           test -n "$(terraform -chdir=infra/environments/dev output -raw dynamodb_table_name)"
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
             "https://${COGNITO_DOMAIN}/oauth2/authorize?client_id=${COGNITO_CLIENT_ID}&response_type=code&scope=openid&redirect_uri=${WEB_URL}%2F&code_challenge_method=S256&code_challenge=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")" = "302"

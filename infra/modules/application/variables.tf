@@ -51,12 +51,6 @@ variable "allowed_country_codes" {
   default     = ["US", "KR"]
 }
 
-variable "enable_preview_gate" {
-  description = "Require the unlisted preview token before serving the web application or API through CloudFront."
-  type        = bool
-  default     = true
-}
-
 variable "lambda_reserved_concurrency" {
   description = "Optional per-function reserved concurrency. Null keeps the account-wide unreserved pool available."
   type        = number

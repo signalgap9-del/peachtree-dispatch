@@ -30,10 +30,6 @@ output "web_url" {
   value = module.application.web_url
 }
 
-output "preview_url" {
-  value     = module.application.preview_url
-  sensitive = true
-}
 output "cloudfront_distribution_id" {
   value = module.application.cloudfront_distribution_id
 }
