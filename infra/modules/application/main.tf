@@ -398,20 +398,6 @@ resource "aws_cloudfront_function" "spa_path" {
   EOT
 }
 
-# Kept for one deployment after removing its distribution associations so AWS
-# can finish propagating the CloudFront update before the function is deleted.
-resource "aws_cloudfront_function" "preview_cookie" {
-  name    = "${local.name}-preview-cookie"
-  runtime = "cloudfront-js-2.0"
-  comment = "Legacy preview response function pending safe removal."
-  publish = true
-  code    = <<-EOT
-    function handler(event) {
-      return event.response;
-    }
-  EOT
-}
-
 resource "aws_cloudfront_cache_policy" "api_disabled" {
   name        = "${local.name}-api-disabled"
   comment     = "Disable API response caching while preserving request forwarding controls."
