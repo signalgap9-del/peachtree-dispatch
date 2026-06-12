@@ -2,6 +2,6 @@ boto3==1.38.36
 cfgrib==0.9.15.1
 herbie-data==2026.3.0
 numpy==2.2.6
-pillow==11.2.1
+pillow==12.2.0
 scipy==1.15.3
 xarray==2025.6.1

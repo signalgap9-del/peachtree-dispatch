@@ -8,5 +8,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY pipeline.py .
+RUN useradd --system --uid 10001 --create-home atmospath \
+    && chown -R atmospath /app
+USER atmospath
 
 ENTRYPOINT ["python", "pipeline.py"]

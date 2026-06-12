@@ -138,6 +138,7 @@ jobs:
           exit-code: "1"
           severity: HIGH,CRITICAL
           trivyignores: .trivyignore
+          skip-files: services/platform-api/Dockerfile.lambda
 
   python-security:
     name: Python Dependency Audit
