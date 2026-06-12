@@ -2,6 +2,21 @@ locals {
   name              = "${var.project_name}-${var.environment}"
   risk_engine_image = var.risk_engine_image_uri != "" ? var.risk_engine_image_uri : var.api_image_uri
   deploy_app        = var.platform_api_image_uri != "" && local.risk_engine_image != ""
+  relational_cluster_arn = !var.enable_relational_store ? "" : (
+    var.use_aurora_express_configuration
+    ? data.aws_rds_cluster.relational_express[0].arn
+    : aws_rds_cluster.relational[0].arn
+  )
+  relational_cluster_identifier = !var.enable_relational_store ? "" : (
+    var.use_aurora_express_configuration
+    ? data.aws_rds_cluster.relational_express[0].cluster_identifier
+    : aws_rds_cluster.relational[0].cluster_identifier
+  )
+  relational_secret_arn = !var.enable_relational_store ? "" : (
+    var.use_aurora_express_configuration
+    ? aws_secretsmanager_secret.relational_app[0].arn
+    : aws_rds_cluster.relational[0].master_user_secret[0].secret_arn
+  )
 }
 
 resource "random_password" "api_origin_verify" {
@@ -163,7 +178,7 @@ resource "aws_dynamodb_table" "operational" {
 }
 
 resource "aws_rds_cluster" "relational" {
-  count = var.enable_relational_store ? 1 : 0
+  count = var.enable_relational_store && !var.use_aurora_express_configuration ? 1 : 0
 
   cluster_identifier          = "${local.name}-relational"
   engine                      = "aurora-postgresql"
@@ -185,7 +200,7 @@ resource "aws_rds_cluster" "relational" {
 }
 
 resource "aws_rds_cluster_instance" "relational" {
-  count = var.enable_relational_store ? 1 : 0
+  count = var.enable_relational_store && !var.use_aurora_express_configuration ? 1 : 0
 
   identifier          = "${local.name}-relational-1"
   cluster_identifier  = aws_rds_cluster.relational[0].id
@@ -193,6 +208,66 @@ resource "aws_rds_cluster_instance" "relational" {
   engine              = aws_rds_cluster.relational[0].engine
   engine_version      = aws_rds_cluster.relational[0].engine_version
   publicly_accessible = false
+}
+
+resource "terraform_data" "relational_express" {
+  count = var.enable_relational_store && var.use_aurora_express_configuration ? 1 : 0
+
+  input = "${local.name}-relational"
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      if ! aws rds describe-db-clusters --db-cluster-identifier "${self.input}" >/dev/null 2>&1; then
+        aws rds create-db-cluster \
+          --db-cluster-identifier "${self.input}" \
+          --engine aurora-postgresql \
+          --with-express-configuration \
+          --database-name atmospath \
+          --tags Key=Project,Value=${var.project_name} Key=ManagedBy,Value=IaC Key=Environment,Value=${var.environment}
+      fi
+      aws rds wait db-cluster-available --db-cluster-identifier "${self.input}"
+      CLUSTER_ARN=$(aws rds describe-db-clusters --db-cluster-identifier "${self.input}" --query 'DBClusters[0].DBClusterArn' --output text)
+      HTTP_ENABLED=$(aws rds describe-db-clusters --db-cluster-identifier "${self.input}" --query 'DBClusters[0].HttpEndpointEnabled' --output text)
+      if [ "$HTTP_ENABLED" != "True" ]; then
+        aws rds enable-http-endpoint --resource-arn "$CLUSTER_ARN"
+      fi
+    EOT
+  }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = "aws rds delete-db-cluster --db-cluster-identifier \"${self.input}\" --skip-final-snapshot || true"
+  }
+}
+
+data "aws_rds_cluster" "relational_express" {
+  count = var.enable_relational_store && var.use_aurora_express_configuration ? 1 : 0
+
+  cluster_identifier = terraform_data.relational_express[0].input
+}
+
+resource "random_password" "relational_app" {
+  count = var.enable_relational_store && var.use_aurora_express_configuration ? 1 : 0
+
+  length  = 32
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "relational_app" {
+  count = var.enable_relational_store && var.use_aurora_express_configuration ? 1 : 0
+
+  name                    = "${local.name}-relational-app"
+  recovery_window_in_days = 0
+}
+
+resource "aws_secretsmanager_secret_version" "relational_app" {
+  count = var.enable_relational_store && var.use_aurora_express_configuration ? 1 : 0
+
+  secret_id = aws_secretsmanager_secret.relational_app[0].id
+  secret_string = jsonencode({
+    username = "atmospath_app"
+    password = random_password.relational_app[0].result
+  })
 }
 
 resource "aws_sqs_queue" "optimization_dlq" {
@@ -584,7 +659,7 @@ data "aws_iam_policy_document" "api" {
         "rds-data:ExecuteStatement",
         "rds-data:RollbackTransaction",
       ]
-      resources = [aws_rds_cluster.relational[0].arn]
+      resources = [local.relational_cluster_arn]
     }
   }
 
@@ -592,7 +667,7 @@ data "aws_iam_policy_document" "api" {
     for_each = var.enable_relational_store ? [1] : []
     content {
       actions   = ["secretsmanager:GetSecretValue"]
-      resources = [aws_rds_cluster.relational[0].master_user_secret[0].secret_arn]
+      resources = [local.relational_secret_arn]
     }
   }
 }
@@ -666,8 +741,8 @@ resource "aws_lambda_function" "api" {
       RELATIONAL_STORE_ENABLED     = tostring(var.enable_relational_store)
       RELATIONAL_INITIALIZE_SCHEMA = "false"
       RELATIONAL_DATABASE          = "atmospath"
-      RELATIONAL_RESOURCE_ARN      = var.enable_relational_store ? aws_rds_cluster.relational[0].arn : ""
-      RELATIONAL_SECRET_ARN        = var.enable_relational_store ? aws_rds_cluster.relational[0].master_user_secret[0].secret_arn : ""
+      RELATIONAL_RESOURCE_ARN      = local.relational_cluster_arn
+      RELATIONAL_SECRET_ARN        = local.relational_secret_arn
       AUTH_ENABLED                 = "true"
       AUTH_ISSUER_URI              = "https://cognito-idp.us-east-1.amazonaws.com/${aws_cognito_user_pool.users.id}"
     }
@@ -938,7 +1013,7 @@ resource "aws_cloudwatch_dashboard" "operations" {
         properties = {
           title = "Optional relational store capacity", region = "us-east-1",
           metrics = var.enable_relational_store ? [
-            ["AWS/RDS", "ServerlessDatabaseCapacity", "DBClusterIdentifier", aws_rds_cluster.relational[0].cluster_identifier],
+            ["AWS/RDS", "ServerlessDatabaseCapacity", "DBClusterIdentifier", local.relational_cluster_identifier],
             [".", "DatabaseConnections", ".", "."],
           ] : []
         }

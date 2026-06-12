@@ -69,6 +69,12 @@ variable "enable_relational_store" {
   default     = false
 }
 
+variable "use_aurora_express_configuration" {
+  description = "Create Aurora through the Free Plan-compatible express configuration workflow."
+  type        = bool
+  default     = false
+}
+
 variable "relational_min_capacity" {
   description = "Minimum Aurora Serverless v2 ACUs. Zero enables auto-pause on supported engine versions."
   type        = number
