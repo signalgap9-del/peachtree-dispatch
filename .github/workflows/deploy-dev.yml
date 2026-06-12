@@ -67,13 +67,18 @@ jobs:
           export RELATIONAL_SECRET_ARN="$(terraform -chdir=infra/environments/dev output -raw relational_secret_arn)"
           export PGHOST="$(terraform -chdir=infra/environments/dev output -raw relational_endpoint)"
           export PGUSER="$(terraform -chdir=infra/environments/dev output -raw relational_master_username)"
-          export PGDATABASE=atmospath
+          export PGDATABASE=postgres
           export PGPORT=5432
           export PGSSLMODE=require
           export PGPASSWORD="$(aws rds generate-db-auth-token --hostname "$PGHOST" --port "$PGPORT" --username "$PGUSER")"
           export APP_PASSWORD="$(aws secretsmanager get-secret-value --secret-id "$RELATIONAL_SECRET_ARN" --query SecretString --output text | jq -r .password)"
           sudo apt-get update
           sudo apt-get install -y postgresql-client
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          SELECT 'CREATE DATABASE atmospath'
+          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'atmospath') \gexec
+          SQL
+          export PGDATABASE=atmospath
           psql -v ON_ERROR_STOP=1 -f "$SCHEMA_FILE"
           psql -v ON_ERROR_STOP=1 -v app_password="$APP_PASSWORD" <<'SQL'
           SELECT format('CREATE ROLE atmospath_app LOGIN PASSWORD %L', :'app_password')
