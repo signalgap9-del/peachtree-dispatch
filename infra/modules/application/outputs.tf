@@ -44,10 +44,26 @@ output "weather_snapshot_bucket_name" {
 }
 
 output "relational_cluster_arn" {
-  value = try(aws_rds_cluster.relational[0].arn, null)
+  value = var.enable_relational_store ? local.relational_cluster_arn : null
 }
 
 output "relational_secret_arn" {
-  value     = try(aws_rds_cluster.relational[0].master_user_secret[0].secret_arn, null)
+  value     = var.enable_relational_store ? local.relational_secret_arn : null
   sensitive = true
+}
+
+output "relational_endpoint" {
+  value = !var.enable_relational_store ? null : (
+    var.use_aurora_express_configuration
+    ? data.aws_rds_cluster.relational_express[0].endpoint
+    : aws_rds_cluster.relational[0].endpoint
+  )
+}
+
+output "relational_master_username" {
+  value = !var.enable_relational_store ? null : (
+    var.use_aurora_express_configuration
+    ? data.aws_rds_cluster.relational_express[0].master_username
+    : aws_rds_cluster.relational[0].master_username
+  )
 }

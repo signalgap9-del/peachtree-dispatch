@@ -40,9 +40,8 @@ well below the recurring Lambda free-usage allowance when available.
 The dev preview keeps Aurora PostgreSQL/PostGIS enabled so authenticated saved
 places and spatial queries can be exercised end to end. It is bounded with:
 
-- minimum capacity `0` ACUs;
-- maximum capacity `1` ACU;
-- automatic pause after 15 idle minutes;
+- Free Plan-compatible Aurora express configuration;
+- automatic idle pause and Free Plan capacity boundaries managed by Aurora;
 - RDS Data API access from Spring Boot, avoiding NAT Gateway and RDS Proxy;
 - one writer instance only; and
 - deletion protection only in production.

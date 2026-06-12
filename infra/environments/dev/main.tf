@@ -1,13 +1,14 @@
 module "application" {
   source = "../../modules/application"
 
-  environment                = "dev"
-  api_image_uri              = var.api_image_uri
-  platform_api_image_uri     = var.platform_api_image_uri
-  risk_engine_image_uri      = var.risk_engine_image_uri
-  log_retention_days         = 14
-  enable_deletion_protection = false
-  enable_relational_store    = var.enable_relational_store
+  environment                      = "dev"
+  api_image_uri                    = var.api_image_uri
+  platform_api_image_uri           = var.platform_api_image_uri
+  risk_engine_image_uri            = var.risk_engine_image_uri
+  log_retention_days               = 14
+  enable_deletion_protection       = false
+  enable_relational_store          = var.enable_relational_store
+  use_aurora_express_configuration = true
 }
 
 output "api_ecr_repository_url" {
@@ -62,4 +63,12 @@ output "relational_cluster_arn" {
 output "relational_secret_arn" {
   value     = module.application.relational_secret_arn
   sensitive = true
+}
+
+output "relational_endpoint" {
+  value = module.application.relational_endpoint
+}
+
+output "relational_master_username" {
+  value = module.application.relational_master_username
 }
