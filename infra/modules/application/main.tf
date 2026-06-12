@@ -217,12 +217,12 @@ resource "terraform_data" "relational_express" {
 
   provisioner "local-exec" {
     command = <<-EOT
+      set -e
       if ! aws rds describe-db-clusters --db-cluster-identifier "${self.input}" >/dev/null 2>&1; then
         aws rds create-db-cluster \
           --db-cluster-identifier "${self.input}" \
           --engine aurora-postgresql \
           --with-express-configuration \
-          --database-name atmospath \
           --tags Key=Project,Value=${var.project_name} Key=ManagedBy,Value=IaC Key=Environment,Value=${var.environment}
       fi
       aws rds wait db-cluster-available --db-cluster-identifier "${self.input}"
