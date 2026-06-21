@@ -4,13 +4,9 @@ from math import hypot
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 
 from .models import DeliverySummary, VehicleType, WeatherRisk
+from .vehicle_profiles import VEHICLE_PROFILES
 
 
-VEHICLE_PROFILES = {
-    VehicleType.CAR: {"distance": 1.0, "climate": 1.0, "duration": 1.0},
-    VehicleType.VAN: {"distance": 1.04, "climate": 1.12, "duration": 1.08},
-    VehicleType.TRUCK: {"distance": 1.1, "climate": 1.3, "duration": 1.18},
-}
 DEFAULT_VEHICLE_TYPES = (VehicleType.CAR, VehicleType.VAN, VehicleType.TRUCK)
 
 
