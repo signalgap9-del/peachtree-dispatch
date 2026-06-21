@@ -14,7 +14,7 @@ from .models import (
     RouteAlternative,
     WeatherRisk,
 )
-from .optimizer import VEHICLE_PROFILES
+from .vehicle_profiles import VEHICLE_PROFILES
 from .weather_snapshot import nearest_snapshot_weather
 
 

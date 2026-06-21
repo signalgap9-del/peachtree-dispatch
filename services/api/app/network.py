@@ -5,7 +5,8 @@ from urllib.parse import urlencode
 from urllib.request import urlopen
 
 from .models import DeliverySummary, Location, NetworkOverview, OptimizedRoute, RouteStop, VehicleType, WeatherRisk
-from .optimizer import VEHICLE_PROFILES, solve_routes
+from .optimizer import solve_routes
+from .vehicle_profiles import VEHICLE_PROFILES
 
 
 CITY_COORDINATES: dict[str, tuple[float, float]] = {

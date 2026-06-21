@@ -1,13 +1,8 @@
 from .directions import build_directions, search_places
 from .models import DirectionsRequest, Place, VehicleType
-from .network import build_network
-from .repository_factory import create_repository
 from .risk import location_risk, national_risk
 from .weather_snapshot import get_weather_snapshot
 from .weather_raster import get_weather_raster_manifest
-
-repository = create_repository()
-repository.seed()
 
 
 def handler(event: dict, context: object) -> dict:
@@ -29,6 +24,13 @@ def handler(event: dict, context: object) -> dict:
     elif method == "POST" and path == "/risk/location":
         result = location_risk(Place.model_validate(body))
     elif method == "GET" and path == "/network":
+        # The public weather and routing API must not import the legacy
+        # multi-stop optimizer or initialize its persistence layer at startup.
+        from .network import build_network
+        from .repository_factory import create_repository
+
+        repository = create_repository()
+        repository.seed()
         vehicle_type = query.get("vehicle_type")
         result = build_network(
             repository.list(),

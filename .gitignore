@@ -42,3 +42,6 @@ Thumbs.db
 tmp/
 web/test-results/
 web/playwright-report/
+
+# Local codebase knowledge graph
+.understand-anything/

@@ -20,6 +20,7 @@ import { notify } from "./ui";
 import "./styles.css";
 
 export type Navigate = (path: string) => void;
+export type DataStatus = "loading" | "ready" | "degraded";
 
 const navItems = [
   { path: "/", label: "Home", icon: Home },
@@ -36,6 +37,7 @@ function App() {
   const [weatherRaster, setWeatherRaster] = useState<WeatherRasterManifest | null>(null);
   const [toast, setToast] = useState("");
   const [user, setUser] = useState<AuthUser | null>(() => currentUser());
+  const [dataStatus, setDataStatus] = useState<DataStatus>("loading");
 
   useEffect(() => {
     void completeLogin()
@@ -50,9 +52,13 @@ function App() {
   }, []);
 
   useEffect(() => {
-    void api.nationalRisk().then(setNationalRisk).catch(() => setNationalRisk(null));
-    void api.weatherSnapshot().then(setWeatherSnapshot).catch(() => setWeatherSnapshot(null));
-    void api.weatherRaster().then(setWeatherRaster).catch(() => setWeatherRaster(null));
+    void Promise.allSettled([
+      api.nationalRisk().then(setNationalRisk),
+      api.weatherSnapshot().then(setWeatherSnapshot),
+      api.weatherRaster().then(setWeatherRaster),
+    ]).then((results) => {
+      setDataStatus(results.some((result) => result.status === "rejected") ? "degraded" : "ready");
+    });
   }, []);
 
   useEffect(() => {
@@ -73,11 +79,11 @@ function App() {
 
   return (
     <div className={`product-app ${path === "/map" || path === "/directions" ? "map-active" : ""}`}>
-      <AppHeader path={path} navigate={navigate} user={user} onUserChange={setUser} />
-      {path === "/" && <HomePage navigate={navigate} national={nationalRisk} />}
-      {path === "/dashboard" && <DashboardPage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} />}
-      {path === "/saved" && <SavedPage navigate={navigate} weatherSnapshot={weatherSnapshot} />}
-      {path === "/alerts" && <AlertsPage navigate={navigate} national={nationalRisk} />}
+      <AppHeader path={path} navigate={navigate} user={user} onUserChange={setUser} national={nationalRisk} weatherSnapshot={weatherSnapshot} />
+      {path === "/" && <HomePage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} dataStatus={dataStatus} />}
+      {path === "/dashboard" && <DashboardPage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} dataStatus={dataStatus} />}
+      {path === "/saved" && <SavedPage navigate={navigate} weatherSnapshot={weatherSnapshot} dataStatus={dataStatus} />}
+      {path === "/alerts" && <AlertsPage navigate={navigate} national={nationalRisk} dataStatus={dataStatus} />}
       {path.startsWith("/locations/") && <PlaceDetailPage navigate={navigate} slug={path.split("/").pop() ?? "miami"} />}
       {(path === "/map" || path === "/directions") && <MapPage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} />}
       {!["/", "/dashboard", "/saved", "/alerts", "/map", "/directions"].includes(path) && !path.startsWith("/locations/") && (
@@ -88,9 +94,10 @@ function App() {
   );
 }
 
-function AppHeader({ path, navigate, user, onUserChange }: { path: string; navigate: Navigate; user: AuthUser | null; onUserChange: (user: AuthUser | null) => void }) {
+function AppHeader({ path, navigate, user, onUserChange, national, weatherSnapshot }: { path: string; navigate: Navigate; user: AuthUser | null; onUserChange: (user: AuthUser | null) => void; national: NationalRiskOverview | null; weatherSnapshot: NationalWeatherSnapshot | null }) {
   const activePath = path === "/directions" || path.startsWith("/locations/") ? "/map" : path;
   const initials = user?.email?.slice(0, 2).toUpperCase() ?? "IN";
+  const atlanta = weatherSnapshot?.points.find((point) => point.city.toLowerCase().includes("atlanta") && point.data_status !== "UNAVAILABLE");
   return (
     <header className="app-header">
       <button className="wordmark" onClick={() => navigate("/")} aria-label="AtmosPath home">
@@ -100,12 +107,12 @@ function AppHeader({ path, navigate, user, onUserChange }: { path: string; navig
       <nav className="primary-nav" aria-label="Primary navigation">
         {navItems.map(({ path: itemPath, label, icon: Icon }) => (
           <button key={itemPath} className={activePath === itemPath ? "active" : ""} onClick={() => navigate(itemPath)}>
-            <Icon size={18} /><span>{label}</span>{label === "Alerts" && <em>3</em>}
+            <Icon size={18} /><span>{label}</span>{label === "Alerts" && Boolean(national?.active_alerts) && <em>{national!.active_alerts > 99 ? "99+" : national!.active_alerts}</em>}
           </button>
         ))}
       </nav>
       <div className="header-tools">
-        <button className="weather-chip" onClick={() => navigate("/locations/atlanta")}><CloudSun size={20} /><span><strong>72°F</strong><small>Atlanta, GA</small></span></button>
+        <button className="weather-chip" onClick={() => navigate("/locations/atlanta")}><CloudSun size={20} /><span><strong>{atlanta ? `${Math.round(atlanta.temperature_f)}°F` : "--"}</strong><small>Atlanta, GA</small></span></button>
         <button className="icon-button" aria-label="Notifications" onClick={() => navigate("/alerts")}><Bell size={19} /></button>
         <button className="avatar-button" title={user?.email ?? "Sign in"} onClick={() => {
           if (user) {
