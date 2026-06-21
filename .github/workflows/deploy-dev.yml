@@ -79,6 +79,20 @@ jobs:
           COGNITO_DOMAIN=$(terraform -chdir=infra/environments/dev output -raw cognito_domain)
           curl --fail --retry 8 --retry-delay 5 "$WEB_URL/"
           curl --fail "$WEB_URL/api/health"
+          ORIGIN=$(curl --fail --silent "$WEB_URL/api/places/search?q=Miami" | jq '.[0]')
+          DESTINATION=$(curl --fail --silent "$WEB_URL/api/places/search?q=West%20Palm%20Beach" | jq '.[0]')
+          DIRECTIONS_PAYLOAD=$(jq -n \
+            --argjson origin "$ORIGIN" \
+            --argjson destination "$DESTINATION" \
+            '{origin: $origin, destination: $destination, vehicle_type: "CAR"}')
+          if ! curl --fail --show-error --max-time 28 \
+            -H "Content-Type: application/json" \
+            -d "$DIRECTIONS_PAYLOAD" \
+            "$WEB_URL/api/directions"; then
+            aws logs tail "/aws/lambda/peachtree-dispatch-dev-api" --since 10m || true
+            aws logs tail "/aws/lambda/peachtree-dispatch-dev-risk-engine" --since 10m || true
+            exit 1
+          fi
           test -n "$(terraform -chdir=infra/environments/dev output -raw dynamodb_table_name)"
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
             "https://${COGNITO_DOMAIN}/oauth2/authorize?client_id=${COGNITO_CLIENT_ID}&response_type=code&scope=openid&redirect_uri=${WEB_URL}%2F&code_challenge_method=S256&code_challenge=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")" = "302"
