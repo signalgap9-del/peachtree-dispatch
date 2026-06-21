@@ -1,4 +1,5 @@
 import json
+from collections.abc import Iterable
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -42,6 +43,21 @@ def national_alerts() -> list[RiskAlert]:
 def national_alerts_result() -> tuple[list[RiskAlert], str]:
     features, status = _nws_alerts_result("status=actual&message_type=alert")
     return [_alert(feature) for feature in features], status
+
+
+def alerts_for_route_samples(
+    samples: Iterable[tuple[int, float, float]],
+) -> tuple[list[list[RiskAlert]], str]:
+    alerts, status = national_alerts_result()
+    sample_points = list(samples)
+    return [
+        [
+            alert
+            for alert in alerts
+            if alert.geometry and _geometry_contains(alert.geometry, longitude, latitude)
+        ]
+        for _, longitude, latitude in sample_points
+    ], status
 
 
 def classify_event(event: str) -> str:
@@ -113,3 +129,37 @@ def _centroid(geometry: dict | None) -> tuple[float | None, float | None]:
         sum(point[0] for point in points) / len(points),
         sum(point[1] for point in points) / len(points),
     )
+
+
+def _geometry_contains(geometry: dict, longitude: float, latitude: float) -> bool:
+    if geometry.get("type") == "Polygon":
+        return _polygon_contains(geometry.get("coordinates", []), longitude, latitude)
+    if geometry.get("type") == "MultiPolygon":
+        return any(
+            _polygon_contains(polygon, longitude, latitude)
+            for polygon in geometry.get("coordinates", [])
+        )
+    return False
+
+
+def _polygon_contains(rings: list, longitude: float, latitude: float) -> bool:
+    if not rings or not _ring_contains(rings[0], longitude, latitude):
+        return False
+    return not any(_ring_contains(hole, longitude, latitude) for hole in rings[1:])
+
+
+def _ring_contains(ring: list, longitude: float, latitude: float) -> bool:
+    inside = False
+    if len(ring) < 3:
+        return False
+    previous = ring[-1]
+    for current in ring:
+        x1, y1 = previous[:2]
+        x2, y2 = current[:2]
+        intersects = (y1 > latitude) != (y2 > latitude)
+        if intersects:
+            edge_longitude = (x2 - x1) * (latitude - y1) / (y2 - y1) + x1
+            if longitude < edge_longitude:
+                inside = not inside
+        previous = current
+    return inside

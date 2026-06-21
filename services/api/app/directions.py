@@ -1,11 +1,10 @@
 import json
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from .hazards import USER_AGENT, alerts_for_point_result
+from .hazards import USER_AGENT, alerts_for_route_samples
 from .models import (
     DirectionsPlan,
     DirectionsRequest,
@@ -146,12 +145,8 @@ def _score_candidate(
     profile = VEHICLE_PROFILES[command.vehicle_type]
     samples = _sample_geometry(geometry, 8)
     weather = fetch_route_weather(samples)
-    with ThreadPoolExecutor(max_workers=min(8, len(samples))) as executor:
-        alert_results = list(
-            executor.map(lambda sample: alerts_for_point_result(sample[2], sample[1]), samples)
-        )
-    alerts_by_sample = [result[0] for result in alert_results]
-    live_alert_samples = sum(result[1] == "LIVE" for result in alert_results)
+    alerts_by_sample, alert_status = alerts_for_route_samples(samples)
+    live_alert_samples = len(samples) if alert_status == "LIVE" else 0
     live_weather = [item for item in weather if item.data_status == "LIVE"]
     weather_score = round(sum(item.risk_score for item in live_weather) / len(live_weather)) if live_weather else 0
     unique_alerts = {alert.alert_id: alert for alerts in alerts_by_sample for alert in alerts}
