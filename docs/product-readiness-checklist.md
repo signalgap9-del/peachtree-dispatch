@@ -11,6 +11,10 @@
 - Google OAuth 진입점, Cognito 연동 구조, 이메일 로그인 fallback
 - Playwright E2E로 핵심 사용자 플로우와 degraded 상태 검증
 - GitHub Actions CI, Terraform validate/plan, container build, security scan
+- CloudFront CSP, HSTS, frame deny, referrer policy, permissions policy
+- S3 public access block, versioning, and server-side encryption for web/weather buckets
+- Frontend marker rendering avoids `innerHTML` for provider-controlled text
+- npm audit and axe-based accessibility checks in the web quality gate
 
 ## 상용앱 대비 부족한 것
 
@@ -22,8 +26,8 @@
 - Risk model governance: score weights, versioning, calibration, explainability 문서와 테스트 부족
 - Saved UX: 장소 추가/삭제/route 저장의 서버 동기화와 optimistic UI 부족
 - Observability: CloudWatch dashboard, structured logs, alarms, synthetic checks, error budget 미완성
-- Security hardening: WAF/rate limiting, CSP, security headers, abuse prevention, secret rotation 점검 필요
-- Accessibility: keyboard navigation, focus order, contrast, screen-reader QA가 자동화 수준까지는 부족함
+- Security hardening: WAF, request abuse prevention, secret rotation, live security header smoke test 필요
+- Accessibility: axe critical checks는 추가됐지만 keyboard navigation, focus order, contrast QA는 부족함
 - Performance: map chunk는 lazy-loaded지만 MapLibre 자체 용량이 크고 route-level performance budget이 없음
 - Product polish: loading skeleton, empty states, onboarding, pricing/cost safety messaging, support/contact flow 부족
 - Release process: staging/prod promotion checklist, rollback drill, smoke test evidence 자동 첨부 필요

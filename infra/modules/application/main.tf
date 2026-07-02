@@ -325,6 +325,16 @@ resource "aws_s3_bucket_public_access_block" "weather" {
   restrict_public_buckets = true
 }
 
+resource "aws_s3_bucket_server_side_encryption_configuration" "weather" {
+  bucket = aws_s3_bucket.weather.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
 resource "aws_s3_bucket_lifecycle_configuration" "weather" {
   bucket = aws_s3_bucket.weather.id
 
@@ -357,6 +367,16 @@ resource "aws_s3_bucket_versioning" "web" {
   }
 }
 
+resource "aws_s3_bucket_server_side_encryption_configuration" "web" {
+  bucket = aws_s3_bucket.web.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
 resource "aws_cloudfront_origin_access_control" "web" {
   name                              = "${local.name}-web"
   origin_access_control_origin_type = "s3"
@@ -368,6 +388,10 @@ resource "aws_cloudfront_response_headers_policy" "security" {
   name = "${local.name}-security-headers"
 
   security_headers_config {
+    content_security_policy {
+      content_security_policy = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://basemaps.cartocdn.com; connect-src 'self' https://basemaps.cartocdn.com https://*.auth.us-east-1.amazoncognito.com; form-action 'self' https://*.auth.us-east-1.amazoncognito.com; upgrade-insecure-requests"
+      override                = true
+    }
     content_type_options { override = true }
     frame_options {
       frame_option = "DENY"
@@ -387,6 +411,14 @@ resource "aws_cloudfront_response_headers_policy" "security" {
       mode_block = true
       protection = true
       override   = true
+    }
+  }
+
+  custom_headers_config {
+    items {
+      header   = "Permissions-Policy"
+      override = true
+      value    = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
     }
   }
 }
@@ -528,8 +560,9 @@ resource "aws_cloudfront_distribution" "web" {
       viewer_protocol_policy   = "https-only"
       allowed_methods          = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
       cached_methods           = ["GET", "HEAD"]
-      cache_policy_id          = aws_cloudfront_cache_policy.api_disabled.id
-      origin_request_policy_id = aws_cloudfront_origin_request_policy.api.id
+      cache_policy_id            = aws_cloudfront_cache_policy.api_disabled.id
+      origin_request_policy_id   = aws_cloudfront_origin_request_policy.api.id
+      response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
 
       function_association {
         event_type   = "viewer-request"
