@@ -9,14 +9,13 @@ import {
   Map,
   ShieldAlert,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { api } from "./api";
 import { authConfigured, completeLogin, currentUser, googleAuthConfigured, login, loginWithGoogle, logout, type AuthUser } from "./auth";
 import { useI18n } from "./i18n";
 import { LanguageToggle } from "./LanguageToggle";
-import { MapPage } from "./MapPage";
 import { AlertsPage, DashboardPage, HomePage, PlaceDetailPage, SavedPage } from "./ProductPages";
 import type { NationalRiskOverview, NationalWeatherSnapshot, WeatherRasterManifest } from "./types";
 import { notify } from "./ui";
@@ -32,6 +31,8 @@ const navItems = [
   { path: "/saved", labelKey: "nav.saved", icon: Bookmark },
   { path: "/alerts", labelKey: "nav.alerts", icon: ShieldAlert },
 ] as const;
+
+const MapPage = lazy(() => import("./MapPage").then((module) => ({ default: module.MapPage })));
 
 function App() {
   const { t } = useI18n();
@@ -89,7 +90,11 @@ function App() {
       {path === "/saved" && <SavedPage navigate={navigate} weatherSnapshot={weatherSnapshot} dataStatus={dataStatus} />}
       {path === "/alerts" && <AlertsPage navigate={navigate} national={nationalRisk} dataStatus={dataStatus} />}
       {path.startsWith("/locations/") && <PlaceDetailPage navigate={navigate} slug={path.split("/").pop() ?? "miami"} />}
-      {(path === "/map" || path === "/directions") && <MapPage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} />}
+      {(path === "/map" || path === "/directions") && (
+        <Suspense fallback={<main className="map-loading-shell">Loading live map...</main>}>
+          <MapPage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} />
+        </Suspense>
+      )}
       {!["/", "/dashboard", "/saved", "/alerts", "/map", "/directions"].includes(path) && !path.startsWith("/locations/") && (
         <NotFound navigate={navigate} />
       )}
@@ -122,7 +127,7 @@ function AppHeader({ path, navigate, user, onUserChange, national, weatherSnapsh
       </nav>
       <div className="header-tools">
         <LanguageToggle />
-        {!user && <button className="google-auth-button" onClick={() => {
+        {!user && <button className="google-auth-button" aria-label={t("header.googleSignUp")} onClick={() => {
           if (googleAuthConfigured()) {
             void loginWithGoogle();
           } else {

@@ -12,7 +12,7 @@ interface Props {
   recenterToken: number;
 }
 
-const style = {
+const productionStyle = {
   version: 8 as const,
   sources: {
     osm: {
@@ -24,6 +24,18 @@ const style = {
   },
   layers: [{ id: "osm", type: "raster" as const, source: "osm" }],
 };
+
+const testStyle = {
+  version: 8 as const,
+  sources: {},
+  layers: [{
+    id: "test-background",
+    type: "background" as const,
+    paint: { "background-color": "#eef3f8" },
+  }],
+};
+
+const style = import.meta.env.MODE === "test" ? testStyle : productionStyle;
 
 export function NetworkMap({ plan, risk, weatherSnapshot, weatherRaster, showRisk, recenterToken }: Props) {
   const container = useRef<HTMLDivElement>(null);
@@ -138,7 +150,7 @@ export function NetworkMap({ plan, risk, weatherSnapshot, weatherRaster, showRis
     const render = () => {
       if (map.getLayer("weather-raster")) map.removeLayer("weather-raster");
       if (map.getSource("weather-raster")) map.removeSource("weather-raster");
-      if (!weatherRaster) return;
+      if (!weatherRaster?.url || weatherRaster.bounds.length < 2) return;
       const [[west, south], [east, north]] = weatherRaster.bounds;
       map.addSource("weather-raster", {
         type: "image",

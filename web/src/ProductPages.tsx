@@ -77,7 +77,7 @@ export function HomePage({
       <section className="home-grid">
         <div className="surface outlook-card">
           <SectionHeader title={t("home.nationalOutlook")} meta={national ? `Updated ${formatTime(national.generated_at)}` : "Waiting for NWS"} action={t("home.viewMap")} onAction={() => navigate("/map")} />
-          <RiskMapVisual national={national} />
+          <RiskMapVisual national={national} weatherSnapshot={weatherSnapshot} />
         </div>
         <div className="surface matters-card">
           <SectionHeader title={t("home.activeHazards")} action={t("home.viewAlerts")} onAction={() => navigate("/alerts")} />
@@ -85,7 +85,7 @@ export function HomePage({
         </div>
       </section>
       <section className="surface live-priority">
-        <SectionHeader title={t("home.highestRisk")} meta={`${weatherSnapshot?.points.length ?? 0} nationwide samples`} action={t("home.openDashboard")} onAction={() => navigate("/dashboard")} />
+        <SectionHeader title={t("home.highestRisk")} meta={`${weatherSnapshot?.points.length ?? 0} live monitored points`} action={t("home.openDashboard")} onAction={() => navigate("/dashboard")} />
         <div className="recent-grid">
           {highRisk.length ? highRisk.map((point) => (
             <button key={point.id} onClick={() => navigate(`/map?search=${encodeURIComponent(point.city)}`)}>
@@ -129,11 +129,11 @@ export function DashboardPage({
               <i>{Math.round(point.temperature_f)}°</i>
             </button>
           ))}
-          {!rows.length && <EmptyState title="No weather samples available" detail="The dashboard does not substitute demo scores when the live pipeline is unavailable." />}
+          {!rows.length && <EmptyState title="No weather points available" detail="The dashboard does not substitute fabricated scores when the live pipeline is unavailable." />}
         </div>
         <div className="surface dashboard-map">
           <SectionHeader title="National outlook" action="Open full map" onAction={() => navigate("/map")} />
-          <RiskMapVisual national={national} compact />
+          <RiskMapVisual national={national} weatherSnapshot={weatherSnapshot} compact />
         </div>
       </section>
       <section className="dashboard-bottom">
@@ -249,7 +249,7 @@ export function AlertsPage({ navigate, national, dataStatus }: LiveProps) {
           <div className="alerts-list">
             <strong>{alerts.length} active alerts</strong>
             {alerts.map((alert) => <button className={selected?.alert_id === alert.alert_id ? "selected" : ""} key={alert.alert_id} onClick={() => setSelectedId(alert.alert_id)}><AlertTriangle size={18} /><span><strong>{alert.event}</strong><small>{alert.area || "Affected U.S. region"}</small><em>NWS live alert</em></span><i className={riskClass(alert.severity)}>{alert.severity}</i><ChevronRight size={15} /></button>)}
-            {!alerts.length && <EmptyState title="No live alert records available" detail="This page intentionally stays empty instead of displaying sample warnings." />}
+            {!alerts.length && <EmptyState title="No live alert records available" detail="This page intentionally stays empty instead of displaying fabricated warnings." />}
           </div>
           <div className="alerts-map"><RiskMapVisual national={national} regional /></div>
         </div>
@@ -298,11 +298,11 @@ export function PlaceDetailPage({ navigate, slug }: { navigate: Navigate; slug: 
       </section>
       {!risk && <DataNotice status={loading ? "loading" : "degraded"} hasData={false} />}
       <section className="place-top">
-        <div className="surface place-map"><RiskMapVisual regional />{risk && <Timeline score={risk.score} />}</div>
+        <div className="surface place-map"><RiskMapVisual locationRisk={risk} regional />{risk && <Timeline score={risk.score} />}</div>
         <div className="surface why-risk">
           <SectionHeader title="Risk factors" meta={risk?.model_version} />
           {reasons.map(({ name, contribution, icon: Icon }) => <div className="risk-reason" key={name}><Icon size={22} /><span><strong>{name}</strong><small>Live composite contribution</small></span><em className={riskLevel(contribution)}>{riskLevelLabel(contribution)}</em><b>{contribution}<small>/100</small></b></div>)}
-          {!reasons.length && <EmptyState title="Risk factors unavailable" detail="No placeholder factor values are shown." />}
+          {!reasons.length && <EmptyState title="Risk factors unavailable" detail="No fallback factor values are shown." />}
         </div>
       </section>
       <section className="place-bottom">
@@ -339,8 +339,50 @@ function QuickAction({ icon, title, subtitle, onClick }: { icon: React.ReactNode
   return <button className="quick-action" onClick={onClick}><i>{icon}</i><span><strong>{title}</strong><small>{subtitle}</small></span></button>;
 }
 
-function RiskMapVisual({ national, compact, regional }: { national?: NationalRiskOverview | null; compact?: boolean; regional?: boolean }) {
-  return <div className={`risk-map-visual ${compact ? "compact" : ""} ${regional ? "regional" : ""}`}><div className="weather-field field-one" /><div className="weather-field field-two" /><div className="weather-field field-three" /><span className="map-city city-one">Seattle</span><span className="map-city city-two">Atlanta</span><span className="map-city city-three">Miami</span><div className="risk-legend"><strong>Risk level</strong><i /><span>Low</span><span>Extreme</span></div>{national && <small className="map-status">{national.active_alerts} active alerts · {national.severe_alerts} severe</small>}</div>;
+function RiskMapVisual({
+  national,
+  weatherSnapshot,
+  locationRisk,
+  compact,
+  regional,
+}: {
+  national?: NationalRiskOverview | null;
+  weatherSnapshot?: NationalWeatherSnapshot | null;
+  locationRisk?: LocationRisk | null;
+  compact?: boolean;
+  regional?: boolean;
+}) {
+  const weatherPoints = locationRisk ? [locationRisk.weather] : topWeatherPoints(weatherSnapshot ?? null, compact ? 5 : 12);
+  const alertPoints = locationRisk ? locationRisk.alerts : national?.alerts ?? [];
+  const hasLiveData = weatherPoints.length > 0 || alertPoints.some((alert) => alert.longitude != null && alert.latitude != null);
+  return (
+    <div className={`risk-map-visual ${compact ? "compact" : ""} ${regional ? "regional" : ""}`}>
+      {weatherPoints.map((point) => {
+        const position = projectPoint(point.longitude, point.latitude);
+        const level = riskLevel(point.risk_score);
+        return (
+          <div key={point.id} className={`live-risk-point ${level}`} style={{ left: `${position.x}%`, top: `${position.y}%` }}>
+            <b className={level}>{point.risk_score}</b>
+            <span>{point.city}</span>
+            <small>{Math.round(point.precipitation_probability)}% rain · {Math.round(point.wind_speed_mph)} mph</small>
+          </div>
+        );
+      })}
+      {weatherPoints.map((point) => {
+        const position = projectPoint(point.longitude, point.latitude);
+        const size = compact ? 60 : 95;
+        return <i key={`${point.id}-field`} className={`live-risk-blob ${riskLevel(point.risk_score)}`} style={{ left: `${position.x}%`, top: `${position.y}%`, width: size, height: size }} />;
+      })}
+      {alertPoints.filter((alert) => alert.longitude != null && alert.latitude != null).map((alert) => {
+        const position = projectPoint(alert.longitude as number, alert.latitude as number);
+        return <span key={alert.alert_id} className="live-alert-point" style={{ left: `${position.x}%`, top: `${position.y}%` }} title={alert.event} />;
+      })}
+      {!hasLiveData && <div className="risk-map-empty"><EmptyState title="Live outlook unavailable" detail="No hardcoded cities or fabricated weather are shown when live feeds are unavailable." /></div>}
+      <div className="risk-legend"><strong>Risk level</strong><i /><span>Low</span><span>Extreme</span></div>
+      {national && <small className="map-status">{national.active_alerts} active alerts · {national.severe_alerts} severe</small>}
+      {locationRisk && <small className="map-status">{locationRisk.place.city}, {locationRisk.place.state} · risk {locationRisk.score}</small>}
+    </div>
+  );
 }
 
 function InterestGridPanel({ snapshot, navigate, compact }: { snapshot: NationalWeatherSnapshot | null; navigate: Navigate; compact?: boolean }) {
@@ -394,6 +436,21 @@ function riskClass(level?: string) {
 function formatTime(value?: string) {
   if (!value) return "not available";
   return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(new Date(value));
+}
+
+function projectPoint(longitude: number, latitude: number) {
+  const west = -125;
+  const east = -66;
+  const north = 49;
+  const south = 24;
+  return {
+    x: clamp(((longitude - west) / (east - west)) * 100, 6, 94),
+    y: clamp(((north - latitude) / (north - south)) * 100, 8, 92),
+  };
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function savePlace(place: (typeof places)[string], score?: number) {

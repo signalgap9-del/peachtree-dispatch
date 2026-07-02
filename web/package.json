@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "design:lint": "designmd lint ../DESIGN.md",
     "preview": "vite preview",
-    "test:e2e": "playwright test"
+    "test:e2e": "vite build --mode test && playwright test"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.5.2",
