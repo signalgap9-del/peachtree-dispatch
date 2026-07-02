@@ -19,3 +19,15 @@ variable "enable_relational_store" {
   type        = bool
   default     = false
 }
+
+variable "google_oauth_client_id" {
+  type      = string
+  default   = ""
+  sensitive = true
+}
+
+variable "google_oauth_client_secret" {
+  type      = string
+  default   = ""
+  sensitive = true
+}

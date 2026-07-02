@@ -55,6 +55,9 @@ jobs:
           echo "platform_uri=$PLATFORM_REPOSITORY:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
       - name: Deploy application
         working-directory: infra/environments/dev
+        env:
+          TF_VAR_google_oauth_client_id: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          TF_VAR_google_oauth_client_secret: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
         run: >-
           terraform apply -auto-approve -input=false
           -var="enable_relational_store=false"

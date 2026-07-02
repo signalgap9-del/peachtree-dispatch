@@ -57,6 +57,20 @@ variable "lambda_reserved_concurrency" {
   default     = null
 }
 
+variable "google_oauth_client_id" {
+  description = "Optional Google OAuth client ID for Cognito social sign-in."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "google_oauth_client_secret" {
+  description = "Optional Google OAuth client secret for Cognito social sign-in."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "enable_relational_store" {
   description = "Provision the optional Aurora PostgreSQL Serverless v2 + PostGIS relational store."
   type        = bool

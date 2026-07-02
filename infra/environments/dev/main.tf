@@ -8,6 +8,8 @@ module "application" {
   log_retention_days         = 14
   enable_deletion_protection = false
   enable_relational_store    = var.enable_relational_store
+  google_oauth_client_id     = var.google_oauth_client_id
+  google_oauth_client_secret = var.google_oauth_client_secret
 }
 
 output "api_ecr_repository_url" {
