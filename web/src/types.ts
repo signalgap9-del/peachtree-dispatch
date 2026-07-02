@@ -54,6 +54,21 @@ export interface SavedPlaceRecord {
   currentRiskScore: number | null;
 }
 
+export interface SavedRouteRecord {
+  savedItemId: string;
+  userId: string;
+  name: string;
+  originName: string;
+  destinationName: string;
+  vehicleType: VehicleType;
+  distanceMiles: number;
+  durationMinutes: number;
+  climateDelayMinutes: number;
+  riskScore: number;
+  coordinates: number[][];
+  generatedAt: string | null;
+}
+
 export interface DirectionsPlan {
   generated_at: string;
   origin: Place;

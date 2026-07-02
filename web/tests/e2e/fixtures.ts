@@ -7,6 +7,7 @@ import type {
   NationalWeatherSnapshot,
   Place,
   SavedPlaceRecord,
+  SavedRouteRecord,
   WeatherRasterManifest,
 } from "../../src/types";
 
@@ -156,6 +157,27 @@ export const savedPlaces: SavedPlaceRecord[] = [
   },
 ];
 
+export const savedRoutes: SavedRouteRecord[] = [
+  {
+    savedItemId: "saved-route-seattle-miami",
+    userId: "user-fixture",
+    name: "Seattle to Miami Beach",
+    originName: "Seattle, WA, United States",
+    destinationName: "Miami Beach, FL, United States",
+    vehicleType: "CAR",
+    distanceMiles: 3127,
+    durationMinutes: 2910,
+    climateDelayMinutes: 28,
+    riskScore: 34,
+    coordinates: [
+      [seattle.longitude, seattle.latitude],
+      [-106.65, 35.08],
+      [miami.longitude, miami.latitude],
+    ],
+    generatedAt: "2026-06-21T12:00:00Z",
+  },
+];
+
 export const locationRisk: LocationRisk = {
   generated_at: "2026-06-21T12:00:00Z",
   place: miami,
@@ -270,7 +292,26 @@ export async function installApiMocks(page: Page) {
   await page.route("**/risk/weather-snapshot", (route) => route.fulfill({ json: weatherSnapshot }));
   await page.route("**/risk/weather-raster", (route) => route.fulfill({ json: weatherRaster }));
   await page.route("**/risk/location", (route) => route.fulfill({ json: locationRisk }));
-  await page.route("**/me/saved/places", (route) => route.fulfill({ json: savedPlaces }));
+  await page.route("**/me/saved/places**", (route) => {
+    if (route.request().method() === "DELETE") return route.fulfill({ status: 204 });
+    if (route.request().method() === "POST") return route.fulfill({ status: 201, json: savedPlaces[0] });
+    return route.fulfill({ json: savedPlaces });
+  });
+  await page.route("**/me/saved/routes**", (route) => {
+    if (route.request().method() === "DELETE") return route.fulfill({ status: 204 });
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON() as Partial<SavedRouteRecord>;
+      return route.fulfill({
+        status: 201,
+        json: {
+          savedItemId: "saved-route-created",
+          userId: "user-fixture",
+          ...body,
+        },
+      });
+    }
+    return route.fulfill({ json: savedRoutes });
+  });
   await page.route("**/places/search**", (route) => route.fulfill({ json: placeSearchResults(route) }));
   await page.route("**/directions", (route) => route.fulfill({ json: directionsPlan }));
 }

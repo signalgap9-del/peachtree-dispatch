@@ -38,6 +38,33 @@ class RdsDataSavedPlaceRepositoryTests {
     }
 
     @Test
+    void writesARouteUsingPostgisLineStringAndMetadata() {
+        when(client.executeStatement(any(ExecuteStatementRequest.class)))
+                .thenReturn(ExecuteStatementResponse.builder().build());
+        var route = new SavedRoute(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "Seattle to Miami Beach",
+                "Seattle, WA",
+                "Miami Beach, FL",
+                "CAR",
+                3127,
+                2910,
+                28,
+                34,
+                List.of(List.of(-122.3321, 47.6062), List.of(-80.13, 25.7907)),
+                "2026-06-21T12:00:00Z");
+
+        repository.saveRoute(route);
+
+        var request = captureRequest();
+        assertThat(request.sql()).contains("'ROUTE'", "ST_GeogFromText", "CAST(:metadata AS jsonb)");
+        assertThat(request.parameters()).hasSize(6);
+        assertThat(request.parameters().stream().filter(parameter -> parameter.name().equals("path_wkt")).findFirst()
+                .orElseThrow().value().stringValue()).isEqualTo("LINESTRING(-122.3321 47.6062, -80.13 25.7907)");
+    }
+
+    @Test
     void projectsAuthenticatedUserByImmutableSubject() {
         var userId = UUID.randomUUID();
         when(client.executeStatement(any(ExecuteStatementRequest.class))).thenReturn(
@@ -66,6 +93,29 @@ class RdsDataSavedPlaceRepositoryTests {
 
         assertThat(results).containsExactly(new SavedPlace(savedItemId, userId, "Atlanta", -84.388, 33.749, 42));
         assertThat(captureRequest().sql()).contains("ST_DWithin", "LIMIT 50");
+    }
+
+    @Test
+    void mapsSavedRoutesFromPostgisResults() {
+        var savedItemId = UUID.randomUUID();
+        var userId = UUID.randomUUID();
+        when(client.executeStatement(any(ExecuteStatementRequest.class))).thenReturn(
+                ExecuteStatementResponse.builder()
+                        .records(List.of(List.of(
+                                string(savedItemId.toString()),
+                                string(userId.toString()),
+                                string("Seattle to Miami Beach"),
+                                string("{\"type\":\"LineString\",\"coordinates\":[[-122.3321,47.6062],[-80.13,25.7907]]}"),
+                                string("{\"originName\":\"Seattle, WA\",\"destinationName\":\"Miami Beach, FL\",\"vehicleType\":\"CAR\",\"distanceMiles\":3127,\"durationMinutes\":2910,\"climateDelayMinutes\":28,\"generatedAt\":\"2026-06-21T12:00:00Z\"}"),
+                                Field.builder().longValue(34L).build())))
+                        .build());
+
+        var results = repository.findRoutes(userId);
+
+        assertThat(results).containsExactly(new SavedRoute(savedItemId, userId, "Seattle to Miami Beach",
+                "Seattle, WA", "Miami Beach, FL", "CAR", 3127, 2910, 28, 34,
+                List.of(List.of(-122.3321, 47.6062), List.of(-80.13, 25.7907)), "2026-06-21T12:00:00Z"));
+        assertThat(captureRequest().sql()).contains("item_type = 'ROUTE'", "ST_AsGeoJSON");
     }
 
     private ExecuteStatementRequest captureRequest() {

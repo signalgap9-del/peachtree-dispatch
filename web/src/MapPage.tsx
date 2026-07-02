@@ -15,9 +15,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { Navigate } from "./App";
 import { api } from "./api";
+import { currentUser, login } from "./auth";
 import { NetworkMap } from "./NetworkMap";
 import type { DirectionsPlan, LocationRisk, NationalRiskOverview, NationalWeatherSnapshot, Place, RouteAlternative, VehicleType, WeatherRasterManifest } from "./types";
-import { notify, saveRoute } from "./ui";
+import { notify } from "./ui";
 
 type Field = "origin" | "destination";
 type Alternative = "fastest" | "lower" | "balanced";
@@ -118,6 +119,25 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
     void api.locationRisk(place).then(setSelectedRisk).catch(() => setSelectedRisk(null));
   }
 
+  async function saveSelectedTrip() {
+    if (!displayedPlan) {
+      notify("Choose an origin and destination first.");
+      return;
+    }
+    if (!currentUser()) {
+      notify("Sign in to save this route to your account.");
+      void login();
+      return;
+    }
+    try {
+      await api.saveRoute(displayedPlan);
+      notify("Route saved to your account.");
+      navigate("/saved");
+    } catch {
+      notify("This route could not be saved.");
+    }
+  }
+
   return (
     <main className="map-page">
       <NetworkMap plan={showWeather ? displayedPlan : displayedPlan && { ...displayedPlan, weather: [] }} risk={national} weatherSnapshot={showWeather ? weatherSnapshot : null} weatherRaster={showWeather ? weatherRaster : null} showRisk={showRisk} recenterToken={recenterToken} />
@@ -148,11 +168,7 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
                 <span className="alternative-note">{alternative.hazards.length ? alternative.hazards.map((hazard) => hazard.category.replaceAll("_", " ")).join(" / ") : "No active route hazard alerts"}</span>
               </button>
             ))}
-            <button className="text-action" onClick={() => {
-              if (!displayedPlan) return notify("Choose an origin and destination first.");
-              saveRoute(displayedPlan);
-              navigate("/saved");
-            }}>Save this trip</button>
+            <button className="text-action" onClick={() => void saveSelectedTrip()}>Save this trip</button>
           </section>
         )}
         {loading && <div className="route-loading">Calculating nationwide route...</div>}

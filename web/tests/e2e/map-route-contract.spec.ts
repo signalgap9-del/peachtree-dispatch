@@ -1,12 +1,21 @@
 import { expect, test } from "@playwright/test";
 
-import { installApiMocks } from "./fixtures";
+import { installApiMocks, seedSignedInUser } from "./fixtures";
 
 test.beforeEach(async ({ page }) => {
   await installApiMocks(page);
 });
 
 test("map search calculates route alternatives and saves the selected route", async ({ page }) => {
+  await seedSignedInUser(page);
+  const savedRouteRequests: unknown[] = [];
+  await page.route("**/me/saved/routes**", (route) => {
+    if (route.request().method() === "POST") {
+      savedRouteRequests.push(route.request().postDataJSON());
+    }
+    return route.fallback();
+  });
+
   await page.goto("/map?search=Miami");
 
   await expect(page.getByPlaceholder("Choose destination")).toHaveValue("Miami");
@@ -30,7 +39,15 @@ test("map search calculates route alternatives and saves the selected route", as
 
   await page.getByRole("button", { name: "Save this trip" }).click();
   await expect(page).toHaveURL(/\/saved$/);
-  await expect(page.evaluate(() => JSON.parse(localStorage.getItem("atmospath:saved-routes") ?? "[]"))).resolves.toHaveLength(1);
+  expect(savedRouteRequests).toEqual([
+    expect.objectContaining({
+      name: "Seattle to Miami Beach",
+      originName: "Seattle, WA, United States",
+      destinationName: "Miami Beach, FL, United States",
+      vehicleType: "CAR",
+      riskScore: 62,
+    }),
+  ]);
 });
 
 test("map controls toggle weather and risk layers without leaving the page", async ({ page }) => {

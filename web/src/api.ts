@@ -6,6 +6,7 @@ import type {
   WeatherRasterManifest,
   Place,
   SavedPlaceRecord,
+  SavedRouteRecord,
   VehicleType,
 } from "./types";
 import { accessToken } from "./auth";
@@ -22,6 +23,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     const body = await response.json().catch(() => ({ detail: response.statusText }));
     throw new Error(body.detail ?? "Request failed");
   }
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -38,6 +40,7 @@ export const api = {
   locationRisk: (place: Place) =>
     request<LocationRisk>("/risk/location", { method: "POST", body: JSON.stringify(place) }),
   savedPlaces: () => request<SavedPlaceRecord[]>("/me/saved/places"),
+  savedRoutes: () => request<SavedRouteRecord[]>("/me/saved/routes"),
   savePlace: (place: Place, currentRiskScore?: number) =>
     request<SavedPlaceRecord>("/me/saved/places", {
       method: "POST",
@@ -48,6 +51,24 @@ export const api = {
         currentRiskScore,
       }),
     }),
+  saveRoute: (plan: DirectionsPlan) =>
+    request<SavedRouteRecord>("/me/saved/routes", {
+      method: "POST",
+      body: JSON.stringify({
+        name: plan.summary,
+        originName: plan.origin.display_name,
+        destinationName: plan.destination.display_name,
+        vehicleType: plan.vehicle_type,
+        distanceMiles: plan.distance_miles,
+        durationMinutes: plan.duration_minutes,
+        climateDelayMinutes: plan.climate_delay_minutes,
+        riskScore: plan.risk_score,
+        coordinates: plan.coordinates,
+        generatedAt: plan.generated_at,
+      }),
+    }),
   deleteSavedPlace: (savedItemId: string) =>
     request<void>(`/me/saved/places/${savedItemId}`, { method: "DELETE" }),
+  deleteSavedRoute: (savedItemId: string) =>
+    request<void>(`/me/saved/routes/${savedItemId}`, { method: "DELETE" }),
 };

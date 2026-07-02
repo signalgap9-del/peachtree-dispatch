@@ -17,6 +17,7 @@ cdk.out/
 
 # Dependencies and build output
 node_modules/
+.tools/
 dist/
 build/
 target/

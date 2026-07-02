@@ -3,189 +3,219 @@
 [![CI](https://github.com/signalgap9-del/peachtree-dispatch/actions/workflows/ci.yml/badge.svg)](https://github.com/signalgap9-del/peachtree-dispatch/actions/workflows/ci.yml)
 [![Deploy Dev](https://github.com/signalgap9-del/peachtree-dispatch/actions/workflows/deploy-dev.yml/badge.svg)](https://github.com/signalgap9-del/peachtree-dispatch/actions/workflows/deploy-dev.yml)
 
-**전국 단위 실시간 기상 위험을 반영해 자동차 경로를 비교하는 AWS 서버리스 내비게이션 플랫폼**
+미국 전역의 기상 위험, 공식 경보, 경로 데이터를 결합해 자동차·밴·트럭 운전자가 더 안전한 경로를 비교하도록 돕는 climate-aware navigation 플랫폼입니다.
 
-[라이브 서비스](https://d23c97ytqgl4xu.cloudfront.net/) ·
-[API Health](https://d23c97ytqgl4xu.cloudfront.net/api/health) ·
-[아키텍처 문서](docs/architecture.md) ·
-[비용 모델](docs/cost-model.md) ·
-[ADR](docs/adr/)
+- Live demo: https://d23c97ytqgl4xu.cloudfront.net/
+- API health: https://d23c97ytqgl4xu.cloudfront.net/api/health
+- Architecture: [docs/architecture.md](docs/architecture.md)
+- Cost model: [docs/cost-model.md](docs/cost-model.md)
+- ADRs: [docs/adr/](docs/adr/)
 
-> 포트폴리오 공개 환경은 미국과 대한민국에서만 접속할 수 있습니다.
+> 현재 공개 배포는 포트폴리오/early-access 용도입니다. 링크를 가진 사용자 중심으로 테스트하며, AWS 비용을 낮게 유지하기 위해 serverless-first 구조로 운영합니다.
 
-![실제 배포된 AtmosPath 경로 비교 화면](docs/screenshots/map-route-live.png)
+![AtmosPath route comparison](docs/screenshots/map-route-live.png)
 
-## 프로젝트 소개
+## 왜 만들었나
 
-AtmosPath는 단순히 가장 빠른 경로를 보여주는 서비스가 아닙니다. 경로상의 강수 확률, 풍속, 온도, NWS 경보를 샘플링하고 위험 점수를 계산해 **빠른 경로와 기상 위험이 낮은 경로를 비교**합니다.
+기존 지도 앱은 빠른 길을 잘 보여주지만, 장거리 운전이나 악천후 상황에서 “왜 이 경로가 위험한가”를 충분히 설명하지 않습니다. AtmosPath는 다음 질문에 답하는 서비스를 목표로 합니다.
 
-현재 공개 배포에서 확인할 수 있는 기능은 다음과 같습니다.
+- 같은 목적지로 가는 여러 경로 중 어떤 경로가 날씨 리스크가 낮은가?
+- 현재 NWS 경보, 강수, 바람, 폭염, 홍수 위험이 경로에 얼마나 영향을 주는가?
+- 주요 도시·고속도로·관심 지역의 위험도를 대시보드처럼 모니터링할 수 있는가?
+- 저장한 장소와 경로를 계정 단위로 다시 볼 수 있는가?
 
-- 미국 전역 도시·주소 검색
-- 자동차, 밴, 트럭 경로 탐색
-- OSRM 기반 실제 도로 geometry와 경로 대안
-- 경로별 거리, 시간, 기상 지연, 위험 점수 계산
-- 경로상의 8개 지점 날씨 샘플과 데이터 커버리지 표시
-- NOAA/NWS 기반 전국 197개 도시·고속도로 관심 지점 모니터링
-- NWS 경보 geometry와 경로 샘플의 공간 매칭
-- MapLibre 기반 전국 지도, 위험 marker, weather layer
-- Cognito 인증 사용자별 DynamoDB saved place
-- 데스크톱·모바일 반응형 UI
+## 현재 구현된 기능
 
-실데이터 공급자가 일시적으로 응답하지 않으면 샘플 경보나 임의 점수를 표시하지 않고 `UNAVAILABLE` 또는 빈 상태를 보여줍니다.
+- 미국 전역 장소 검색 및 지도 기반 route planning
+- 자동차, 밴, 트럭 프로필 선택
+- OSRM 기반 실제 route geometry 표시
+- Fastest, Lower weather risk, Balanced 세 가지 경로 대안 비교
+- 경로별 거리, 소요 시간, climate delay, risk score 계산
+- 경로 checkpoint별 weather risk와 data coverage 표시
+- NWS alert snapshot 기반 national outlook, alerts, dashboard 화면
+- NOAA/NWS 기반 주요 도시·고속도로 관심 지점 모니터링
+- MapLibre GL 기반 지도, weather/risk layer toggle
+- Cognito/JWT 기반 사용자 인증 준비
+- DynamoDB 기반 saved places 및 saved routes API
+- Saved 화면에서 계정의 저장 장소·경로 조회 및 삭제
+- 한국어/영어 언어 토글
+- 모바일/데스크톱 반응형 UI
+- 접근성, 보안, route contract를 검증하는 Playwright E2E 테스트
 
-## 실제 화면
+데이터 공급자가 일시적으로 실패하면 fake alert나 fake score를 보여주지 않고 `UNAVAILABLE` 또는 degraded 상태를 명시합니다.
 
-| 전국 위험 홈 | 실시간 대시보드 |
+## Screenshots
+
+| Home | Dashboard |
 | --- | --- |
 | ![AtmosPath home](docs/screenshots/home-live.png) | ![AtmosPath dashboard](docs/screenshots/dashboard-live.png) |
 
-| 실제 경로 비교 | 모바일 |
+| Route comparison | Mobile |
 | --- | --- |
 | ![AtmosPath live route](docs/screenshots/map-route-live.png) | ![AtmosPath mobile](docs/screenshots/home-mobile-live.png) |
 
-## 시스템 아키텍처
+## Architecture
 
-![AtmosPath 시스템 아키텍처](docs/architecture/atmospath-system-architecture.png)
+![AtmosPath system architecture](docs/architecture/atmospath-system-architecture.png)
 
-### 요청 흐름
+### Request flow
 
-1. React 애플리케이션을 private S3 origin과 CloudFront로 제공합니다.
-2. `/api/*` 요청은 CloudFront에서 API Gateway로 전달됩니다.
-3. Spring Boot 플랫폼 API가 인증, 사용자 데이터, API 계약을 담당합니다.
-4. Python Risk Engine Lambda가 검색, 경로 생성, 기상·경보 위험 계산을 수행합니다.
-5. 정기 weather collector가 NOAA/NWS 관심 지점 snapshot을 S3에 저장합니다.
-6. DynamoDB는 사용자 saved place와 운영 데이터를 single-table 형태로 저장합니다.
+1. React/Vite app is built as static assets and served from private S3 through CloudFront.
+2. CloudFront forwards `/api/*` to API Gateway.
+3. Spring Boot Platform API handles account-scoped resources such as saved places and saved routes.
+4. Python Risk Engine handles search, route planning, weather sampling, and risk scoring.
+5. Scheduled weather collection jobs store national weather snapshots and raster artifacts in S3.
+6. DynamoDB stores low-cost operational user data with pay-per-request billing.
+7. Optional PostgreSQL/PostGIS schema models spatial joins, route exposure, and future advanced analytics.
 
-### 현재 배포와 확장 계획
+## Tech Stack
 
-현재 배포:
-
-- Cognito authorization-code + PKCE
-- DynamoDB, S3, SQS/DLQ, CloudWatch
-- NOAA/NWS, Open-Meteo, OpenStreetMap/Nominatim, OSRM
-- 시간당 전국 weather interest-grid 수집
-
-확장 예정:
-
-- Cognito Google social IdP
-- HRRR/MRMS 전국 raster ingest 및 tile serving
-- PostGIS 기반 대규모 공간 교차 분석
-
-Google OAuth와 HRRR/MRMS는 아키텍처 확장 경로이며, 현재 공개 환경에서 활성화된 기능으로 과장하지 않습니다.
-
-## 기술 스택
-
-| 영역 | 기술 |
+| Area | Technologies |
 | --- | --- |
-| Frontend | React 19, TypeScript, Vite, MapLibre GL, Playwright |
-| Platform API | Java 21, Spring Boot 3, Spring Security, AWS SDK v2 |
-| Risk Engine | Python 3.12, FastAPI, Pydantic, OR-Tools |
-| Data | DynamoDB, S3 snapshot/raster artifacts, optional PostgreSQL/PostGIS schema |
-| AWS | CloudFront, private S3, API Gateway HTTP API, Lambda container images, Cognito, SQS, DLQ, CloudWatch, ECR |
-| IaC | Terraform dev/prod modules, remote state, resource tagging |
-| CI/CD | GitHub Actions, AWS OIDC, immutable image tags, CloudFront invalidation |
-| Security | PKCE, JWT resource server, origin verification header, geo restriction, Trivy, pip-audit, dependency updates |
+| Frontend | React 19, TypeScript, Vite, MapLibre GL, Lucide, Playwright, axe-core |
+| Platform API | Java 21, Spring Boot 3.5, Spring Security, OAuth2 Resource Server, AWS SDK v2 |
+| Risk Engine | Python 3.12, FastAPI, Pydantic, OSRM integration, route risk scoring |
+| Data | DynamoDB single-table operational store, S3 snapshots/raster artifacts, optional PostgreSQL/PostGIS |
+| AWS | CloudFront, private S3, API Gateway HTTP API, Lambda, Cognito, DynamoDB, SQS/DLQ, CloudWatch, ECR |
+| IaC | Terraform modules, environment variables, resource tagging, CloudFront response headers |
+| CI/CD | GitHub Actions, web build/lint/E2E, Maven tests, Docker builds, Terraform validation, security scans |
+| Security | PKCE-ready auth, JWT verification, CSP, HSTS, origin verification header, geo restriction, npm audit, Trivy |
 
-## 위험 점수 계산
+## Data Model
 
-경로마다 OSRM geometry를 최대 8개 지점으로 샘플링합니다.
+### DynamoDB operational store
 
-- 강수 확률
-- 풍속
-- 극단 고온·저온
-- NWS 경보 severity와 event 가중치
-- 실제 응답 지점 비율을 이용한 data coverage와 confidence
+The deployed low-cost path uses DynamoDB for account-scoped saved data.
 
-NWS 경보는 경로 지점마다 외부 API를 호출하지 않습니다. 요청당 전국 alert snapshot을 한 번 읽고 Polygon/MultiPolygon geometry를 로컬에서 매칭해 N+1 네트워크 호출을 제거했습니다.
+- `PK = USER#{userId}`, `SK = PROFILE`
+- `PK = USER#{userId}`, `SK = SAVED_PLACE#{savedItemId}`
+- `PK = USER#{userId}`, `SK = SAVED_ROUTE#{savedItemId}`
 
-## 데이터 저장
+This keeps the preview environment cheap because there is no idle database compute.
 
-### DynamoDB
+### PostgreSQL/PostGIS expansion path
 
-공개 환경의 기본 운영 저장소입니다.
+The relational schema is already modeled for advanced spatial work:
 
-- `PK = USER#{sub}`, `SK = SAVED_PLACE#{id}`: 사용자별 saved place
-- 조건부 쓰기와 owner scope
-- Lambda/API에서 pay-per-request 사용
-- idle compute 비용 없음
+- `saved_item.point` for places
+- `saved_item.path` for saved routes and corridors
+- GiST indexes for point/path spatial queries
+- `risk_exposure` for route-alert/hazard intersections
+- `route_plan` for persisted route optimization results
 
-### PostgreSQL/PostGIS
+More detail:
 
-고급 공간 질의용 schema와 CI 검증을 포함하지만, 공개 dev 환경에서는 비용 절감을 위해 비활성화되어 있습니다.
+- [docs/data-model.md](docs/data-model.md)
+- [docs/relational-data-model.md](docs/relational-data-model.md)
 
-- geometry/geography column
-- GiST spatial index
-- route exposure, hazard intersection 확장 모델
+## Risk Scoring
 
-자세한 내용은 [데이터 모델](docs/data-model.md)과 [관계형 모델](docs/relational-data-model.md)을 참고하세요.
+Each route is sampled along its geometry and scored from weather and hazard signals:
 
-## CI/CD
+- precipitation probability
+- wind speed
+- heat/extreme temperature
+- NWS alert severity, urgency, certainty, and event category
+- data coverage and provider status
+- route-specific hazard exposure
 
-Pull request마다 다음 검사를 실행합니다.
+The API returns multiple route alternatives. The frontend explains the trade-off between fastest travel time and lower weather risk rather than showing a single opaque score.
 
-- Python unit/API tests
-- Spring Boot Maven tests
-- React lint, build, Playwright E2E
-- Docker image builds
-- Terraform format/validate
-- PostgreSQL/PostGIS migration 검증
-- Trivy IaC security scan
-- `pip-audit` dependency vulnerability scan
+## Local Development
 
-`main` 병합 후:
-
-1. GitHub OIDC로 단기 AWS 자격증명을 발급합니다.
-2. Risk Engine과 Platform API Lambda 이미지를 빌드해 ECR에 immutable SHA tag로 push합니다.
-3. Terraform으로 인프라와 Lambda image URI를 적용합니다.
-4. 웹을 빌드해 S3에 업로드하고 CloudFront cache를 무효화합니다.
-5. health, Cognito, 실제 Miami → West Palm Beach directions smoke test를 실행합니다.
-6. 실패 시 최근 Lambda CloudWatch 로그를 Actions에 출력합니다.
-
-## 비용 설계
-
-소규모 포트폴리오 트래픽에서 월 5달러 이내를 목표로 설계했습니다.
-
-- Lambda/API Gateway/DynamoDB on-demand
-- CloudFront + private S3 정적 호스팅
-- 시간당 weather collection
-- Aurora, ElastiCache, Kubernetes 미사용
-- reserved concurrency와 API throttling을 통한 폭주 방지
-- 미국·대한민국 CloudFront geo restriction
-
-실제 비용 가정은 [cost model](docs/cost-model.md)에 정리되어 있습니다.
-
-## 로컬 실행
-
-요구 사항: Docker Desktop
+### Full stack with Docker
 
 ```powershell
 docker compose up --build
 ```
 
-- Web: `http://localhost:5173`
-- Risk API docs: `http://localhost:8000/docs`
-- Platform API health: `http://localhost:8080/health`
+- Web: http://localhost:5173
+- Risk API docs: http://localhost:8000/docs
+- Platform API health: http://localhost:8080/health
 
-자세한 로컬·AWS 구성 매핑은 [local development](docs/local-development.md)을 참고하세요.
+### Frontend commands
 
-## AWS 운영 원칙
+```powershell
+npm install --prefix web
+npm run lint --prefix web
+npm run build --prefix web
+npm run test:e2e --prefix web
+npm run audit --prefix web
+```
 
-- 기본 region: `us-east-1`
-- 배포 리소스는 Terraform으로 관리
-- 장기 access key를 생성하거나 저장하지 않음
-- GitHub Actions OIDC를 routine deployment 경로로 사용
-- 로컬 AWS browser login은 break-glass 용도로만 사용
-- 삭제 작업은 이 저장소가 관리하는 리소스로 제한
+### Spring Boot commands
 
-## 현재 한계
+This repository includes local Windows helpers so contributors do not need a system-wide Java/Maven install.
 
-- 외부 무료 routing/weather provider의 rate limit과 가용성에 영향을 받습니다.
-- NWS alert feed가 일시적으로 실패하면 경보 영역은 명시적으로 unavailable 상태가 됩니다.
-- Google social login은 Google OAuth client 발급 후 Cognito IdP 연결이 필요합니다.
-- HRRR/MRMS raster worker 코드는 확장 대상으로 유지하며 공개 dev 환경의 상시 pipeline으로는 아직 운영하지 않습니다.
+```powershell
+./scripts/bootstrap-java.ps1
+cd services/platform-api
+../../scripts/mvn.ps1 --batch-mode test
+```
 
-## 추가 문서
+The helper downloads Temurin JDK 21 and Apache Maven into `.tools/`, which is intentionally ignored by Git.
+
+## CI/CD
+
+Pull requests and deployment workflows are designed to check:
+
+- React lint, production build, and Playwright E2E
+- Spring Boot Maven tests
+- Python unit/API tests
+- Terraform format and validation
+- Docker image builds
+- dependency audits and IaC/security scans
+- CloudFront/S3/API smoke checks after deployment
+
+On deploy, GitHub Actions uses AWS OIDC rather than long-lived AWS keys.
+
+## Cost Strategy
+
+The dev/portfolio environment is designed for a small-user, low-cost release.
+
+- Serverless-first compute with Lambda/API Gateway
+- DynamoDB on-demand for saved data
+- CloudFront + private S3 for static hosting
+- Scheduled weather ingestion instead of always-on workers
+- No always-on Kubernetes, Aurora, or Redis in the default environment
+- CloudFront geo restriction for U.S. and Korea access
+- API throttling and reserved concurrency to reduce runaway spend
+
+See [docs/cost-model.md](docs/cost-model.md).
+
+## Release Readiness
+
+Current status: beta/portfolio release candidate.
+
+Already in place:
+
+- static web deploy through CloudFront
+- backend API routes behind `/api/*`
+- live/degraded data states
+- saved places and saved routes
+- production security headers
+- E2E coverage for navigation, map controls, auth prompts, saved records, accessibility, and marker XSS hardening
+- rollback runbook and deployment notes
+
+Remaining before accepting real external users:
+
+- configure real Google OAuth client in Cognito
+- verify deployed saved routes API after infrastructure rollout
+- add synthetic monitoring for `/`, `/map`, `/api/health`, and one route-planning request
+- confirm CloudWatch alarms for Lambda errors, DLQ depth, API 5xx, and budget alerts
+- publish polished public README screenshots from the deployed site
+- add a short demo video or GIF for resume/LinkedIn
+
+## AWS Operating Rules
+
+- Default region: `us-east-1`
+- Use Terraform/IaC for deployable resources
+- Use GitHub Actions OIDC for routine deploys
+- Do not create or commit long-lived AWS access keys
+- Tag resources with `Project=awsresumeproject`, `ManagedBy=IaC`, and environment tags
+- Require explicit confirmation before adding resources with meaningful recurring cost
+
+## Documentation
 
 - [Architecture](docs/architecture.md)
 - [Production risk routing](docs/architecture/production-risk-routing.md)
