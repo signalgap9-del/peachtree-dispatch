@@ -18,6 +18,9 @@ AtmosPath uses Cognito Hosted UI with authorization-code flow and PKCE. Email/pa
 
 Terraform creates the Cognito Google identity provider and adds `Google` to the web client only when both secrets are present. No application code change is required.
 
+The web build reads Terraform output `google_auth_enabled` and exposes it as `VITE_GOOGLE_AUTH_ENABLED`.
+When the value is false, the UI keeps the Google entry point visible but stops locally with a clear setup message instead of redirecting users into a Cognito Bad Request.
+
 ## Security notes
 
 - Never commit the Google client secret.

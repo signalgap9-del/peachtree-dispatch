@@ -23,7 +23,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { DataStatus, Navigate } from "./App";
 import { api } from "./api";
-import { currentUser, login } from "./auth";
+import { currentUser, googleAuthConfigured, login, loginWithGoogle } from "./auth";
+import { useI18n } from "./i18n";
 import { places, riskLevel } from "./mockData";
 import type {
   LocationRisk,
@@ -47,6 +48,7 @@ export function HomePage({
   weatherSnapshot,
   dataStatus,
 }: LiveProps & { weatherSnapshot: NationalWeatherSnapshot | null }) {
+  const { t } = useI18n();
   const [query, setQuery] = useState("");
   const submit = () => navigate(query.trim() ? `/map?search=${encodeURIComponent(query.trim())}` : "/directions");
   const highRisk = topWeatherPoints(weatherSnapshot, 4);
@@ -56,34 +58,34 @@ export function HomePage({
     <main className="page-shell home-page">
       <section className="welcome-row">
         <div>
-          <span className="eyebrow">Nationwide travel intelligence</span>
-          <h1>Plan around the weather <CloudSun size={28} /></h1>
-          <p>Compare routes using live hazard and forecast signals.</p>
+          <span className="eyebrow">{t("home.eyebrow")}</span>
+          <h1>{t("home.title")} <CloudSun size={28} /></h1>
+          <p>{t("home.subtitle")}</p>
         </div>
       </section>
       <section className="home-actions">
         <label className="hero-search">
           <Search size={20} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => event.key === "Enter" && submit()} placeholder="Search a city, address, highway, or route" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => event.key === "Enter" && submit()} placeholder={t("home.search")} />
           <SlidersHorizontal size={18} />
         </label>
-        <QuickAction icon={<Navigation />} title="Plan a route" subtitle="Compare alternatives" onClick={() => navigate("/directions")} />
-        <QuickAction icon={<Layers3 />} title="Explore risk" subtitle="View map layers" onClick={() => navigate("/map")} />
-        <QuickAction icon={<Bookmark />} title="Saved places" subtitle="Open your watchlist" onClick={() => navigate("/saved")} />
+        <QuickAction icon={<Navigation />} title={t("home.planRoute")} subtitle={t("home.planRouteSubtitle")} onClick={() => navigate("/directions")} />
+        <QuickAction icon={<Layers3 />} title={t("home.exploreRisk")} subtitle={t("home.exploreRiskSubtitle")} onClick={() => navigate("/map")} />
+        <QuickAction icon={<Bookmark />} title={t("home.savedPlaces")} subtitle={t("home.savedPlacesSubtitle")} onClick={() => navigate("/saved")} />
       </section>
       <DataNotice status={dataStatus} hasData={Boolean(national || weatherSnapshot)} />
       <section className="home-grid">
         <div className="surface outlook-card">
-          <SectionHeader title="National outlook" meta={national ? `Updated ${formatTime(national.generated_at)}` : "Waiting for NWS"} action="View full map" onAction={() => navigate("/map")} />
+          <SectionHeader title={t("home.nationalOutlook")} meta={national ? `Updated ${formatTime(national.generated_at)}` : "Waiting for NWS"} action={t("home.viewMap")} onAction={() => navigate("/map")} />
           <RiskMapVisual national={national} />
         </div>
         <div className="surface matters-card">
-          <SectionHeader title="Active hazards" action="View all alerts" onAction={() => navigate("/alerts")} />
+          <SectionHeader title={t("home.activeHazards")} action={t("home.viewAlerts")} onAction={() => navigate("/alerts")} />
           {alerts.length ? alerts.map((alert, index) => <AlertStory key={alert.alert_id} alert={alert} index={index} onClick={() => navigate("/alerts")} />) : <EmptyState title="No live alerts loaded" detail="The service will populate this panel from the National Weather Service feed." />}
         </div>
       </section>
       <section className="surface live-priority">
-        <SectionHeader title="Highest-risk monitored areas" meta={`${weatherSnapshot?.points.length ?? 0} nationwide samples`} action="Open dashboard" onAction={() => navigate("/dashboard")} />
+        <SectionHeader title={t("home.highestRisk")} meta={`${weatherSnapshot?.points.length ?? 0} nationwide samples`} action={t("home.openDashboard")} onAction={() => navigate("/dashboard")} />
         <div className="recent-grid">
           {highRisk.length ? highRisk.map((point) => (
             <button key={point.id} onClick={() => navigate(`/map?search=${encodeURIComponent(point.city)}`)}>
@@ -104,13 +106,14 @@ export function DashboardPage({
   weatherSnapshot,
   dataStatus,
 }: LiveProps & { weatherSnapshot: NationalWeatherSnapshot | null }) {
+  const { t } = useI18n();
   const rows = useMemo(() => topWeatherPoints(weatherSnapshot, 8), [weatherSnapshot]);
   const alerts = topAlerts(national, 5);
   return (
     <main className="page-shell dashboard-page">
-      <PageTitle title="National risk dashboard" subtitle="Live weather samples and active travel hazards">
-        <button className="button secondary" onClick={() => navigate("/saved")}>Manage saved places</button>
-        <button className="button primary" onClick={() => navigate("/directions")}>Plan a route <Plus size={16} /></button>
+      <PageTitle title={t("dashboard.title")} subtitle={t("dashboard.subtitle")}>
+        <button className="button secondary" onClick={() => navigate("/saved")}>{t("dashboard.manageSaved")}</button>
+        <button className="button primary" onClick={() => navigate("/directions")}>{t("dashboard.planRoute")} <Plus size={16} /></button>
       </PageTitle>
       <DataNotice status={dataStatus} hasData={Boolean(national || weatherSnapshot)} />
       <section className="dashboard-top">
@@ -153,6 +156,7 @@ export function SavedPage({
   weatherSnapshot,
   dataStatus,
 }: { navigate: Navigate; weatherSnapshot: NationalWeatherSnapshot | null; dataStatus: DataStatus }) {
+  const { t } = useI18n();
   const [query, setQuery] = useState("");
   const [highestRisk, setHighestRisk] = useState(false);
   const [placesState, setPlacesState] = useState<SavedPlaceRecord[]>([]);
@@ -182,12 +186,18 @@ export function SavedPage({
         </div>
       </aside>
       <section className="saved-main">
-        <PageTitle title="Saved places" subtitle="Your authenticated DynamoDB-backed watchlist">
-          <button className="button primary" onClick={() => navigate("/map")}><Plus size={16} /> Add from map</button>
+        <PageTitle title={t("saved.title")} subtitle={t("saved.subtitle")}>
+          <button className="button primary" onClick={() => navigate("/map")}><Plus size={16} /> {t("saved.addFromMap")}</button>
         </PageTitle>
         <DataNotice status={dataStatus} hasData={Boolean(weatherSnapshot)} />
         {!userEmail ? (
-          <CallToAction title="Sign in to use your watchlist" detail="Saved places are private and stored per user. Public visitors do not receive fabricated sample records." action="Sign in" onClick={() => void login()} />
+          <CallToAction title={t("saved.signInTitle")} detail={t("saved.signInDetail")} action={t("saved.signInAction")} onClick={() => void login()} secondaryAction={t("saved.googleAction")} onSecondaryClick={() => {
+            if (googleAuthConfigured()) {
+              void loginWithGoogle();
+            } else {
+              notify(t("header.googleUnavailable"));
+            }
+          }} />
         ) : loading ? (
           <EmptyState title="Loading saved places" detail="Reading your records from the platform API." />
         ) : (
@@ -221,6 +231,7 @@ export function SavedPage({
 }
 
 export function AlertsPage({ navigate, national, dataStatus }: LiveProps) {
+  const { t } = useI18n();
   const [severeOnly, setSevereOnly] = useState(false);
   const alerts = useMemo(() => {
     const live = national?.alerts ?? [];
@@ -232,7 +243,7 @@ export function AlertsPage({ navigate, national, dataStatus }: LiveProps) {
   return (
     <main className="alerts-page">
       <section className="alerts-main">
-        <PageTitle title="Live alerts" subtitle="Active National Weather Service hazards"><button className="button secondary" onClick={() => setSevereOnly((value) => !value)}><SlidersHorizontal size={16} /> {severeOnly ? "Show all" : "Severe only"}</button></PageTitle>
+        <PageTitle title={t("alerts.title")} subtitle={t("alerts.subtitle")}><button className="button secondary" onClick={() => setSevereOnly((value) => !value)}><SlidersHorizontal size={16} /> {severeOnly ? t("alerts.showAll") : t("alerts.severeOnly")}</button></PageTitle>
         <DataNotice status={dataStatus} hasData={Boolean(national)} />
         <div className="alerts-workspace">
           <div className="alerts-list">
@@ -303,16 +314,17 @@ export function PlaceDetailPage({ navigate, slug }: { navigate: Navigate; slug: 
 }
 
 function DataNotice({ status, hasData }: { status: DataStatus; hasData: boolean }) {
+  const { t } = useI18n();
   if (status === "ready") return null;
-  return <div className={`data-notice ${status}`}><Gauge size={17} /><span><strong>{status === "loading" ? "Connecting to live data" : hasData ? "Partial live-data coverage" : "Live-data service unavailable"}</strong><small>{status === "loading" ? "NOAA/NWS and platform APIs are loading." : "Unavailable values are hidden; no demo data is being substituted."}</small></span></div>;
+  return <div className={`data-notice ${status}`}><Gauge size={17} /><span><strong>{status === "loading" ? t("data.loading") : hasData ? t("data.partial") : t("data.unavailable")}</strong><small>{status === "loading" ? t("data.loadingDetail") : t("data.unavailableDetail")}</small></span></div>;
 }
 
 function EmptyState({ title, detail }: { title: string; detail: string }) {
   return <div className="inline-empty"><CloudRain size={22} /><strong>{title}</strong><small>{detail}</small></div>;
 }
 
-function CallToAction({ title, detail, action, onClick }: { title: string; detail: string; action: string; onClick: () => void }) {
-  return <div className="surface saved-empty"><Bookmark size={28} /><h2>{title}</h2><p>{detail}</p><button className="button primary" onClick={onClick}>{action}</button></div>;
+function CallToAction({ title, detail, action, onClick, secondaryAction, onSecondaryClick }: { title: string; detail: string; action: string; onClick: () => void; secondaryAction?: string; onSecondaryClick?: () => void }) {
+  return <div className="surface saved-empty"><Bookmark size={28} /><h2>{title}</h2><p>{detail}</p><div className="cta-actions"><button className="button primary" onClick={onClick}>{action}</button>{secondaryAction && onSecondaryClick && <button className="button secondary" onClick={onSecondaryClick}>{secondaryAction}</button>}</div></div>;
 }
 
 function PageTitle({ title, subtitle, children }: { title: string; subtitle: string; children?: React.ReactNode }) {

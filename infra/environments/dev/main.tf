@@ -40,6 +40,10 @@ output "cognito_domain" {
   value = module.application.cognito_domain
 }
 
+output "google_auth_enabled" {
+  value = module.application.google_auth_enabled
+}
+
 output "cloudfront_distribution_id" {
   value = module.application.cloudfront_distribution_id
 }

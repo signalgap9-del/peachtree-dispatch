@@ -91,6 +91,14 @@ test("header navigation and unavailable local auth are explicit", async ({ page 
   await page.getByRole("button", { name: "Notifications", exact: true }).click();
   await expect(page).toHaveURL(/\/alerts$/);
 
+  await page.goto("/");
+  await page.getByRole("button", { name: "KR", exact: true }).click();
+  await expect(page.getByRole("button", { name: "지도", exact: true })).toBeVisible();
+  await expect(page.getByPlaceholder("도시, 주소, 고속도로, 경로 검색")).toBeVisible();
+
+  await page.getByRole("button", { name: /Google로 계속하기/ }).click();
+  await expect(page.getByRole("status")).toContainText("OAuth 시크릿");
+
   await page.getByRole("button", { name: "IN", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("Sign-in is available");
+  await expect(page.getByRole("status")).toContainText("배포된 프리뷰");
 });

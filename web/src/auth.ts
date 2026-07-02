@@ -4,6 +4,7 @@ const tokenKey = "atmospath:id-token";
 const accessTokenKey = "atmospath:access-token";
 const verifierKey = "atmospath:pkce-verifier";
 const stateKey = "atmospath:oauth-state";
+const googleEnabled = (import.meta.env.VITE_GOOGLE_AUTH_ENABLED ?? "false").toLowerCase() === "true";
 
 export type AuthUser = {
   subject: string;
@@ -27,6 +28,10 @@ async function challenge(verifier: string) {
 
 export function authConfigured() {
   return Boolean(clientId && domain);
+}
+
+export function googleAuthConfigured() {
+  return authConfigured() && googleEnabled;
 }
 
 export function idToken() {
@@ -57,7 +62,7 @@ export function currentUser(): AuthUser | null {
   }
 }
 
-export async function login() {
+export async function login(options?: { provider?: "Google" }) {
   if (!authConfigured()) return;
   const verifier = randomValue();
   const state = randomValue();
@@ -73,7 +78,13 @@ export async function login() {
     code_challenge_method: "S256",
     code_challenge: await challenge(verifier),
   });
+  if (options?.provider === "Google") params.set("identity_provider", "Google");
   window.location.assign(`https://${domain}/oauth2/authorize?${params}`);
+}
+
+export async function loginWithGoogle() {
+  if (!googleAuthConfigured()) return;
+  await login({ provider: "Google" });
 }
 
 export async function completeLogin() {

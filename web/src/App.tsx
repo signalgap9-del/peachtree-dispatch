@@ -5,6 +5,7 @@ import {
   CloudSun,
   Home,
   LayoutDashboard,
+  LogIn,
   Map,
   ShieldAlert,
 } from "lucide-react";
@@ -12,7 +13,9 @@ import { useEffect, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { api } from "./api";
-import { authConfigured, completeLogin, currentUser, login, logout, type AuthUser } from "./auth";
+import { authConfigured, completeLogin, currentUser, googleAuthConfigured, login, loginWithGoogle, logout, type AuthUser } from "./auth";
+import { useI18n } from "./i18n";
+import { LanguageToggle } from "./LanguageToggle";
 import { MapPage } from "./MapPage";
 import { AlertsPage, DashboardPage, HomePage, PlaceDetailPage, SavedPage } from "./ProductPages";
 import type { NationalRiskOverview, NationalWeatherSnapshot, WeatherRasterManifest } from "./types";
@@ -23,14 +26,15 @@ export type Navigate = (path: string) => void;
 export type DataStatus = "loading" | "ready" | "degraded";
 
 const navItems = [
-  { path: "/", label: "Home", icon: Home },
-  { path: "/map", label: "Map", icon: Map },
-  { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { path: "/saved", label: "Saved", icon: Bookmark },
-  { path: "/alerts", label: "Alerts", icon: ShieldAlert },
-];
+  { path: "/", labelKey: "nav.home", icon: Home },
+  { path: "/map", labelKey: "nav.map", icon: Map },
+  { path: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
+  { path: "/saved", labelKey: "nav.saved", icon: Bookmark },
+  { path: "/alerts", labelKey: "nav.alerts", icon: ShieldAlert },
+] as const;
 
 function App() {
+  const { t } = useI18n();
   const [path, setPath] = useState(window.location.pathname);
   const [nationalRisk, setNationalRisk] = useState<NationalRiskOverview | null>(null);
   const [weatherSnapshot, setWeatherSnapshot] = useState<NationalWeatherSnapshot | null>(null);
@@ -42,8 +46,8 @@ function App() {
   useEffect(() => {
     void completeLogin()
       .then((completed) => { if (completed) setUser(currentUser()); })
-      .catch(() => notify("Sign-in could not be completed."));
-  }, []);
+      .catch(() => notify(t("toast.loginFailed")));
+  }, [t]);
 
   useEffect(() => {
     const onPopState = () => setPath(window.location.pathname);
@@ -95,25 +99,38 @@ function App() {
 }
 
 function AppHeader({ path, navigate, user, onUserChange, national, weatherSnapshot }: { path: string; navigate: Navigate; user: AuthUser | null; onUserChange: (user: AuthUser | null) => void; national: NationalRiskOverview | null; weatherSnapshot: NationalWeatherSnapshot | null }) {
+  const { t } = useI18n();
   const activePath = path === "/directions" || path.startsWith("/locations/") ? "/map" : path;
   const initials = user?.email?.slice(0, 2).toUpperCase() ?? "IN";
   const atlanta = weatherSnapshot?.points.find((point) => point.city.toLowerCase().includes("atlanta") && point.data_status !== "UNAVAILABLE");
   return (
     <header className="app-header">
-      <button className="wordmark" onClick={() => navigate("/")} aria-label="AtmosPath home">
+      <button className="wordmark" onClick={() => navigate("/")} aria-label={t("header.homeLabel")}>
         <span className="peach-mark"><i /><b /></span>
-        <span><strong>AtmosPath</strong><small>Weather-aware navigation</small></span>
+        <span><strong>AtmosPath</strong><small>{t("brand.tagline")}</small></span>
       </button>
       <nav className="primary-nav" aria-label="Primary navigation">
-        {navItems.map(({ path: itemPath, label, icon: Icon }) => (
-          <button key={itemPath} className={activePath === itemPath ? "active" : ""} onClick={() => navigate(itemPath)}>
-            <Icon size={18} /><span>{label}</span>{label === "Alerts" && Boolean(national?.active_alerts) && <em>{national!.active_alerts > 99 ? "99+" : national!.active_alerts}</em>}
-          </button>
-        ))}
+        {navItems.map(({ path: itemPath, labelKey, icon: Icon }) => {
+          const label = t(labelKey);
+          const isAlerts = labelKey === "nav.alerts";
+          return (
+            <button key={itemPath} className={activePath === itemPath ? "active" : ""} onClick={() => navigate(itemPath)}>
+              <Icon size={18} /><span>{label}</span>{isAlerts && Boolean(national?.active_alerts) && <em>{national!.active_alerts > 99 ? "99+" : national!.active_alerts}</em>}
+            </button>
+          );
+        })}
       </nav>
       <div className="header-tools">
+        <LanguageToggle />
+        {!user && <button className="google-auth-button" onClick={() => {
+          if (googleAuthConfigured()) {
+            void loginWithGoogle();
+          } else {
+            notify(t("header.googleUnavailable"));
+          }
+        }}><LogIn size={15} /> {t("header.googleSignUp")}</button>}
         <button className="weather-chip" onClick={() => navigate("/locations/atlanta")}><CloudSun size={20} /><span><strong>{atlanta ? `${Math.round(atlanta.temperature_f)}°F` : "--"}</strong><small>Atlanta, GA</small></span></button>
-        <button className="icon-button" aria-label="Notifications" onClick={() => navigate("/alerts")}><Bell size={19} /></button>
+        <button className="icon-button" aria-label={t("header.notifications")} onClick={() => navigate("/alerts")}><Bell size={19} /></button>
         <button className="avatar-button" title={user?.email ?? "Sign in"} onClick={() => {
           if (user) {
             logout();
@@ -121,7 +138,7 @@ function AppHeader({ path, navigate, user, onUserChange, national, weatherSnapsh
           } else if (authConfigured()) {
             void login();
           } else {
-            notify("Sign-in is available in the deployed preview.");
+            notify(t("header.authUnavailable"));
           }
         }}>{initials}</button>
         <ChevronDown size={15} />
@@ -131,12 +148,13 @@ function AppHeader({ path, navigate, user, onUserChange, national, weatherSnapsh
 }
 
 function NotFound({ navigate }: { navigate: Navigate }) {
+  const { t } = useI18n();
   return (
     <main className="page-shell empty-page">
       <Map size={36} />
-      <h1>This route is not on the map yet.</h1>
-      <p>Return home or open the live nationwide risk map.</p>
-      <div><button className="button secondary" onClick={() => navigate("/")}>Go home</button><button className="button primary" onClick={() => navigate("/map")}>Open map</button></div>
+      <h1>{t("notFound.title")}</h1>
+      <p>{t("notFound.detail")}</p>
+      <div><button className="button secondary" onClick={() => navigate("/")}>{t("notFound.home")}</button><button className="button primary" onClick={() => navigate("/map")}>{t("notFound.map")}</button></div>
     </main>
   );
 }
