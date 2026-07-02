@@ -33,4 +33,13 @@ jobs:
           -backend-config="key=peachtree-dispatch/dev/terraform.tfstate"
           -backend-config="region=us-east-1"
           -backend-config="use_lockfile=true"
-      - run: terraform plan -no-color -input=false
+      - name: Read currently deployed image URIs
+        id: images
+        run: |
+          echo "risk_uri=$(aws lambda get-function --function-name peachtree-dispatch-dev-risk-engine --query 'Code.ImageUri' --output text)" >> "$GITHUB_OUTPUT"
+          echo "platform_uri=$(aws lambda get-function --function-name peachtree-dispatch-dev-api --query 'Code.ImageUri' --output text)" >> "$GITHUB_OUTPUT"
+      - run: >-
+          terraform plan -no-color -input=false
+          -var="enable_relational_store=false"
+          -var="risk_engine_image_uri=${{ steps.images.outputs.risk_uri }}"
+          -var="platform_api_image_uri=${{ steps.images.outputs.platform_uri }}"

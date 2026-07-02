@@ -44,6 +44,10 @@ output "cognito_domain" {
   value = module.application.cognito_domain
 }
 
+output "google_auth_enabled" {
+  value = module.application.google_auth_enabled
+}
+
 output "dynamodb_table_name" {
   value = module.application.dynamodb_table_name
 }

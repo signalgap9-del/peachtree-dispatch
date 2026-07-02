@@ -26,6 +26,10 @@ output "cognito_domain" {
   value = "${aws_cognito_user_pool_domain.web.domain}.auth.us-east-1.amazoncognito.com"
 }
 
+output "google_auth_enabled" {
+  value = nonsensitive(var.google_oauth_client_id != "" && var.google_oauth_client_secret != "")
+}
+
 output "cloudfront_distribution_id" {
   value = aws_cloudfront_distribution.web.id
 }

@@ -43,6 +43,9 @@ jobs:
           -backend-config="use_lockfile=true"
       - name: Promote immutable service images
         working-directory: infra/environments/prod
+        env:
+          TF_VAR_google_oauth_client_id: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          TF_VAR_google_oauth_client_secret: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
         run: >-
           terraform apply -auto-approve -input=false
           -var="risk_engine_image_uri=${{ inputs.risk_engine_image_uri }}"
@@ -50,11 +53,14 @@ jobs:
       - name: Deploy production web
         run: |
           API_URL=$(terraform -chdir=infra/environments/prod output -raw api_url)
+          COGNITO_CLIENT_ID=$(terraform -chdir=infra/environments/prod output -raw cognito_client_id)
+          COGNITO_DOMAIN=$(terraform -chdir=infra/environments/prod output -raw cognito_domain)
+          GOOGLE_AUTH_ENABLED=$(terraform -chdir=infra/environments/prod output -raw google_auth_enabled)
           BUCKET=$(terraform -chdir=infra/environments/prod output -raw web_bucket_name)
           DISTRIBUTION=$(terraform -chdir=infra/environments/prod output -raw cloudfront_distribution_id)
           cd web
           npm ci
-          VITE_API_URL="$API_URL" npm run build
+          VITE_API_URL="$API_URL" VITE_COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" VITE_COGNITO_DOMAIN="$COGNITO_DOMAIN" VITE_GOOGLE_AUTH_ENABLED="$GOOGLE_AUTH_ENABLED" npm run build
           aws s3 sync dist "s3://$BUCKET" --delete
           aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION" --paths "/*"
       - name: Production smoke test
