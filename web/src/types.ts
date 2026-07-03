@@ -82,6 +82,8 @@ export interface DirectionsPlan {
   weather: WeatherRisk[];
   summary: string;
   alternatives: RouteAlternative[];
+  decision?: RouteDecisionContract | null;
+  segments?: RouteRiskSegmentContract[];
   model_version?: string;
 }
 
@@ -131,6 +133,29 @@ export interface RouteRiskSegment {
   riskScore: number;
   severity: "low" | "moderate" | "high" | "severe";
   primaryHazard: HazardKind;
+  coverage: number;
+  summary: string;
+}
+
+export interface RouteDecisionContract {
+  action: "TAKE_FASTEST" | "TAKE_LOWER_RISK" | "TAKE_BALANCED" | "DELAY_DEPARTURE";
+  recommended_alternative_id: string;
+  recommended_label: string;
+  summary: string;
+  primary_reason: string;
+  tradeoff: string;
+  confidence: "HIGH" | "MEDIUM" | "LOW" | "UNAVAILABLE";
+  risk_delta: number;
+  time_delta_minutes: number;
+  severity: "LOW" | "MODERATE" | "HIGH" | "SEVERE";
+}
+
+export interface RouteRiskSegmentContract {
+  segment_id: string;
+  label: string;
+  risk_score: number;
+  severity: "LOW" | "MODERATE" | "HIGH" | "SEVERE";
+  primary_hazard: "FLOOD" | "RAIN" | "WIND" | "HEAT" | "ALERT" | "UNKNOWN";
   coverage: number;
   summary: string;
 }

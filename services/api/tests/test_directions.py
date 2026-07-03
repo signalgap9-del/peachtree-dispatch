@@ -1,10 +1,12 @@
 from app.directions import (
+    _build_route_decision,
+    _build_route_segments,
     _label_alternatives,
     _sample_geometry,
     _search_open_meteo_places,
     _weather_from_payload,
 )
-from app.models import RouteAlternative
+from app.models import RouteAlternative, WeatherRisk
 
 
 def alternative(identifier: str, minutes: float, risk: int) -> RouteAlternative:
@@ -34,6 +36,58 @@ def test_labels_real_candidates_by_time_and_risk() -> None:
     assert routes[0].label == "Fastest"
     assert routes[1].label == "Lower weather risk"
     assert routes[2].label == "Balanced"
+
+
+def test_build_route_decision_recommends_lower_risk_when_tradeoff_is_worth_it() -> None:
+    routes = [
+        alternative("fast", 100, 72),
+        alternative("safe", 107, 38),
+        alternative("balanced", 104, 54),
+    ]
+    routes[0].label = "Fastest"
+    routes[1].label = "Lower weather risk"
+    routes[2].label = "Balanced"
+
+    decision = _build_route_decision(routes)
+
+    assert decision is not None
+    assert decision.action == "TAKE_LOWER_RISK"
+    assert decision.recommended_alternative_id == "safe"
+    assert decision.risk_delta == 34
+    assert decision.time_delta_minutes == 7
+
+
+def test_build_route_segments_groups_weather_samples_by_hazard() -> None:
+    weather = [
+        WeatherRisk(
+            id="rain",
+            city="Miami, FL",
+            latitude=25.7,
+            longitude=-80.1,
+            temperature_f=84,
+            precipitation_probability=82,
+            wind_speed_mph=18,
+            risk_score=76,
+            risk_level="HIGH",
+        ),
+        WeatherRisk(
+            id="wind",
+            city="Savannah, GA",
+            latitude=32.0,
+            longitude=-81.1,
+            temperature_f=78,
+            precipitation_probability=20,
+            wind_speed_mph=29,
+            risk_score=61,
+            risk_level="HIGH",
+        ),
+    ]
+
+    segments = _build_route_segments(weather)
+
+    assert segments[0].primary_hazard == "FLOOD"
+    assert segments[0].severity == "HIGH"
+    assert segments[1].primary_hazard == "WIND"
 
 
 def test_builds_weather_risk_from_live_provider_shape() -> None:

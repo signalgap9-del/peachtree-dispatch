@@ -1,6 +1,19 @@
 import type { DirectionsPlan, RouteAlternative, RouteDecision } from "./types";
 
 export function deriveRouteDecision(plan: DirectionsPlan): RouteDecision | null {
+  if (plan.decision) return {
+    action: actionFromContract(plan.decision.action),
+    recommendedAlternativeId: plan.decision.recommended_alternative_id,
+    recommendedLabel: plan.decision.recommended_label,
+    summary: plan.decision.summary,
+    primaryReason: plan.decision.primary_reason,
+    tradeoff: plan.decision.tradeoff,
+    confidence: plan.decision.confidence,
+    riskDelta: plan.decision.risk_delta,
+    timeDeltaMinutes: plan.decision.time_delta_minutes,
+    severity: plan.decision.severity.toLowerCase() as RouteDecision["severity"],
+  };
+
   const alternatives = plan.alternatives?.length ? plan.alternatives : [planAsAlternative(plan)];
   if (!alternatives.length) return null;
 
@@ -54,6 +67,13 @@ export function deriveRouteDecision(plan: DirectionsPlan): RouteDecision | null 
     riskDelta,
     timeDelta,
   });
+}
+
+function actionFromContract(action: NonNullable<DirectionsPlan["decision"]>["action"]): RouteDecision["action"] {
+  if (action === "TAKE_LOWER_RISK") return "take_lower_risk";
+  if (action === "TAKE_BALANCED") return "take_balanced";
+  if (action === "DELAY_DEPARTURE") return "delay_departure";
+  return "take_fastest";
 }
 
 function buildDecision(

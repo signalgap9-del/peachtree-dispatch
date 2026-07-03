@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { installApiMocks } from "./fixtures";
+import { installApiMocks, seedSignedInUser } from "./fixtures";
 
 test.beforeEach(async ({ page }) => {
   await installApiMocks(page);
@@ -46,6 +46,17 @@ test("alerts page filters severe events without fake fallback data", async ({ pa
   await expect(page.getByRole("button", { name: /Show all/ })).toBeVisible();
   await expect(page.getByText("Flash Flood Warning", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Severe Thunderstorm Warning", { exact: true }).first()).toBeHidden();
+});
+
+test("alerts page shows signed-in route impact", async ({ page }) => {
+  await seedSignedInUser(page);
+  await page.goto("/alerts");
+
+  await expect(page.getByText("Route impact")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Seattle to Miami Beach/ })).toBeVisible();
+
+  await page.getByRole("button", { name: /Seattle to Miami Beach/ }).click();
+  await expect(page).toHaveURL(/\/directions\?origin=/);
 });
 
 test("language toggle and unavailable auth explain themselves", async ({ page }) => {

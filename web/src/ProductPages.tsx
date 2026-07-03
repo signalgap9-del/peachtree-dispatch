@@ -286,12 +286,19 @@ export function SavedPage({
 export function AlertsPage({ navigate, national, dataStatus }: LiveProps) {
   const { t } = useI18n();
   const [severeOnly, setSevereOnly] = useState(false);
+  const [savedRoutes, setSavedRoutes] = useState<SavedRouteRecord[]>([]);
+  const userEmail = currentUser()?.email ?? null;
+  useEffect(() => {
+    if (!userEmail) return;
+    void api.savedRoutes().then(setSavedRoutes).catch(() => setSavedRoutes([]));
+  }, [userEmail]);
   const alerts = useMemo(() => {
     const live = national?.alerts ?? [];
     return severeOnly ? live.filter((alert) => ["Extreme", "Severe"].includes(alert.severity)) : live;
   }, [national, severeOnly]);
   const [selectedId, setSelectedId] = useState("");
   const selected = alerts.find((alert) => alert.alert_id === selectedId) ?? alerts[0] ?? null;
+  const impactedRoutes = useMemo(() => selected ? routeImpactsForAlert(selected, savedRoutes) : [], [savedRoutes, selected]);
 
   return (
     <main className="alerts-page">
@@ -314,6 +321,22 @@ export function AlertsPage({ navigate, national, dataStatus }: LiveProps) {
           <InspectorMetric label="Urgency" value={selected.urgency || "Unknown"} />
           <h4>What's happening</h4><p>{selected.headline}</p>
           <h4>Affected area</h4><p>{selected.area || "Area details unavailable"}</p>
+          <h4>Route impact</h4>
+          {userEmail ? (
+            impactedRoutes.length ? impactedRoutes.map((impact) => (
+              <button key={impact.route.savedItemId} className="route-impact-item" onClick={() => navigate(`/directions?origin=${encodeURIComponent(impact.route.originName)}&destination=${encodeURIComponent(impact.route.destinationName)}&vehicle=${impact.route.vehicleType.toLowerCase()}`)}>
+                <Navigation size={16} />
+                <span><strong>{impact.route.name}</strong><small>{impact.reason}</small></span>
+                <em className={riskLevel(impact.score)}>{impact.score}</em>
+              </button>
+            )) : <EmptyState title="No saved route impact" detail="Your saved routes do not currently match this alert." />
+          ) : <CallToAction title="Sign in for route impact" detail="Saved routes can be matched against active alerts and opened directly in directions." action="Sign in" onClick={() => void login()} secondaryAction="Continue with Google" onSecondaryClick={() => {
+            if (googleAuthConfigured()) {
+              void loginWithGoogle();
+            } else {
+              notify(t("header.googleUnavailable"));
+            }
+          }} />}
           {selected.instruction && <><h4>Official guidance</h4><p className="recommendation"><ShieldCheck size={18} /> {selected.instruction}</p></>}
           <button className="button primary wide" onClick={() => navigate("/directions")}>Compare route alternatives <ArrowRight size={16} /></button>
           <button className="button secondary wide" onClick={() => navigate("/map")}>Open national map</button>
@@ -469,6 +492,25 @@ function topWeatherPoints(snapshot: NationalWeatherSnapshot | null, limit: numbe
 
 function topAlerts(national: NationalRiskOverview | null, limit: number) {
   return [...(national?.alerts ?? [])].sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
+function routeImpactsForAlert(alert: RiskAlert, routes: SavedRouteRecord[]) {
+  const text = `${alert.area} ${alert.headline} ${alert.event}`.toLowerCase();
+  return routes
+    .map((route) => {
+      const routeText = `${route.name} ${route.originName} ${route.destinationName}`.toLowerCase();
+      const endpointMatch = routeText.split(/[,\s]+/).filter((token) => token.length > 3).some((token) => text.includes(token));
+      const weatherSensitive = route.riskScore >= 30 && ["FLOOD", "RAIN", "THUNDERSTORM", "WIND"].some((keyword) => alert.event.toUpperCase().includes(keyword));
+      const score = Math.min(100, Math.max(route.riskScore, endpointMatch ? alert.score : Math.round((route.riskScore + alert.score) / 2)));
+      const reason = endpointMatch
+        ? "Alert overlaps a saved route endpoint or corridor label."
+        : weatherSensitive
+          ? "Route already has elevated weather risk during this alert."
+          : "No strong route overlap detected.";
+      return { route, score, reason, included: endpointMatch || weatherSensitive };
+    })
+    .filter((impact) => impact.included)
+    .sort((a, b) => b.score - a.score);
 }
 
 function weatherSummary(point: WeatherRisk) {

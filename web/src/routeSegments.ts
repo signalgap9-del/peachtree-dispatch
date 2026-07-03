@@ -1,6 +1,18 @@
 import type { DirectionsPlan, HazardKind, RouteRiskSegment, WeatherRisk } from "./types";
 
 export function deriveRouteRiskSegments(plan: DirectionsPlan): RouteRiskSegment[] {
+  if (plan.segments?.length) {
+    return plan.segments.map((segment) => ({
+      id: segment.segment_id,
+      label: segment.label,
+      riskScore: segment.risk_score,
+      severity: segment.severity.toLowerCase() as RouteRiskSegment["severity"],
+      primaryHazard: hazardFromContract(segment.primary_hazard),
+      coverage: segment.coverage,
+      summary: segment.summary,
+    }));
+  }
+
   const liveSamples = plan.weather.filter((sample) => sample.data_status !== "UNAVAILABLE");
   const samples = liveSamples.length ? liveSamples : plan.weather;
   if (!samples.length) return [];
@@ -25,6 +37,15 @@ export function deriveRouteRiskSegments(plan: DirectionsPlan): RouteRiskSegment[
       summary: segmentSummary(primaryHazard, riskScore),
     };
   }).filter((segment) => Number.isFinite(segment.riskScore));
+}
+
+function hazardFromContract(hazard: NonNullable<DirectionsPlan["segments"]>[number]["primary_hazard"]): HazardKind {
+  if (hazard === "FLOOD") return "flood";
+  if (hazard === "RAIN") return "rain";
+  if (hazard === "WIND") return "wind";
+  if (hazard === "HEAT") return "heat";
+  if (hazard === "ALERT") return "alert";
+  return "unknown";
 }
 
 function primaryHazardFor(samples: WeatherRisk[]): HazardKind {

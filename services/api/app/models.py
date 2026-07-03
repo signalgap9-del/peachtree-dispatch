@@ -148,6 +148,29 @@ class RouteAlternative(BaseModel):
     source_status: dict[str, str] = Field(default_factory=dict)
 
 
+class RouteDecision(BaseModel):
+    action: str
+    recommended_alternative_id: str
+    recommended_label: str
+    summary: str
+    primary_reason: str
+    tradeoff: str
+    confidence: str
+    risk_delta: int
+    time_delta_minutes: int
+    severity: str
+
+
+class RouteRiskSegment(BaseModel):
+    segment_id: str
+    label: str
+    risk_score: int
+    severity: str
+    primary_hazard: str
+    coverage: float
+    summary: str
+
+
 class Place(BaseModel):
     place_id: str
     display_name: str
@@ -176,6 +199,8 @@ class DirectionsPlan(BaseModel):
     weather: list[WeatherRisk]
     summary: str
     alternatives: list[RouteAlternative] = Field(default_factory=list)
+    decision: RouteDecision | None = None
+    segments: list[RouteRiskSegment] = Field(default_factory=list)
     model_version: str = "route-risk-v0.2"
 
 
