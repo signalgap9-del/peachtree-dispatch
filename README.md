@@ -196,11 +196,13 @@ Already in place:
 - production security headers
 - E2E coverage for navigation, map controls, auth prompts, saved records, accessibility, and marker XSS hardening
 - rollback runbook and deployment notes
+- optional HRRR/MRMS raster worker image, ECR repository, scheduled Lambda wiring, logs, and alarm
 
 Remaining before accepting real external users:
 
 - configure real Google OAuth client in Cognito
 - verify deployed saved routes API after infrastructure rollout
+- enable the HRRR/MRMS raster worker once in dev and measure duration, memory, S3 artifact size, and monthly cost
 - add synthetic monitoring for `/`, `/map`, `/api/health`, and one route-planning request
 - confirm CloudWatch alarms for Lambda errors, DLQ depth, API 5xx, and budget alerts
 - publish polished public README screenshots from the deployed site

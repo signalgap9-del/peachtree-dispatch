@@ -31,7 +31,7 @@ WIDTH = 1440
 HEIGHT = 780
 
 
-def main() -> None:
+def main() -> dict:
     bucket = os.environ["WEATHER_SNAPSHOT_BUCKET"]
     scores, source = load_hrrr_risk()
     try:
@@ -68,7 +68,14 @@ def main() -> None:
         ContentType="application/json",
         CacheControl="max-age=900",
     )
-    print(json.dumps({key: manifest[key] for key in ("generated_at", "source", "coverage", "point_count")}))
+    summary = {key: manifest[key] for key in ("generated_at", "source", "coverage", "point_count")}
+    print(json.dumps(summary))
+    return summary
+
+
+def handler(event, context) -> dict:
+    """AWS Lambda entry point for the scheduled HRRR/MRMS raster refresh."""
+    return main()
 
 
 def load_hrrr_risk() -> tuple[np.ndarray, str]:

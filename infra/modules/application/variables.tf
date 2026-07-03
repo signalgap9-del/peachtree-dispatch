@@ -25,6 +25,24 @@ variable "risk_engine_image_uri" {
   default     = ""
 }
 
+variable "weather_raster_image_uri" {
+  description = "Optional immutable HRRR/MRMS raster worker image URI."
+  type        = string
+  default     = ""
+}
+
+variable "enable_hrrr_mrms_raster" {
+  description = "Opt in to the scheduled HRRR/MRMS raster worker. Keep false for the low-cost default environment."
+  type        = bool
+  default     = false
+}
+
+variable "weather_raster_schedule_expression" {
+  description = "EventBridge schedule for the optional HRRR/MRMS raster worker."
+  type        = string
+  default     = "rate(6 hours)"
+}
+
 variable "log_retention_days" {
   type    = number
   default = 14

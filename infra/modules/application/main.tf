@@ -17,6 +17,7 @@ locals {
     ? aws_secretsmanager_secret.relational_app[0].arn
     : aws_rds_cluster.relational[0].master_user_secret[0].secret_arn
   )
+  weather_raster_enabled = local.deploy_app && var.enable_hrrr_mrms_raster && var.weather_raster_image_uri != ""
 }
 
 resource "random_password" "api_origin_verify" {
@@ -66,9 +67,9 @@ resource "aws_cognito_user_pool_client" "web" {
     ["COGNITO"],
     var.google_oauth_client_id != "" && var.google_oauth_client_secret != "" ? ["Google"] : []
   )
-  callback_urls                        = ["https://${aws_cloudfront_distribution.web.domain_name}/"]
-  logout_urls                          = ["https://${aws_cloudfront_distribution.web.domain_name}/"]
-  prevent_user_existence_errors        = "ENABLED"
+  callback_urls                 = ["https://${aws_cloudfront_distribution.web.domain_name}/"]
+  logout_urls                   = ["https://${aws_cloudfront_distribution.web.domain_name}/"]
+  prevent_user_existence_errors = "ENABLED"
 
   depends_on = [aws_cognito_identity_provider.google]
 }
@@ -114,6 +115,15 @@ resource "aws_ecr_repository" "platform_api" {
   }
 }
 
+resource "aws_ecr_repository" "weather_raster" {
+  name                 = "${local.name}-weather-raster"
+  image_tag_mutability = "IMMUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
 resource "aws_ecr_lifecycle_policy" "api" {
   repository = aws_ecr_repository.api.name
   policy = jsonencode({
@@ -136,6 +146,22 @@ resource "aws_ecr_lifecycle_policy" "platform_api" {
     rules = [{
       rulePriority = 1
       description  = "Retain the latest 10 platform API images"
+      selection = {
+        tagStatus   = "any"
+        countType   = "imageCountMoreThan"
+        countNumber = 10
+      }
+      action = { type = "expire" }
+    }]
+  })
+}
+
+resource "aws_ecr_lifecycle_policy" "weather_raster" {
+  repository = aws_ecr_repository.weather_raster.name
+  policy = jsonencode({
+    rules = [{
+      rulePriority = 1
+      description  = "Retain the latest 10 HRRR/MRMS raster worker images"
       selection = {
         tagStatus   = "any"
         countType   = "imageCountMoreThan"
@@ -555,11 +581,11 @@ resource "aws_cloudfront_distribution" "web" {
   dynamic "ordered_cache_behavior" {
     for_each = local.deploy_app ? [1] : []
     content {
-      path_pattern             = "/api/*"
-      target_origin_id         = "api"
-      viewer_protocol_policy   = "https-only"
-      allowed_methods          = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
-      cached_methods           = ["GET", "HEAD"]
+      path_pattern               = "/api/*"
+      target_origin_id           = "api"
+      viewer_protocol_policy     = "https-only"
+      allowed_methods            = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+      cached_methods             = ["GET", "HEAD"]
       cache_policy_id            = aws_cloudfront_cache_policy.api_disabled.id
       origin_request_policy_id   = aws_cloudfront_origin_request_policy.api.id
       response_headers_policy_id = aws_cloudfront_response_headers_policy.security.id
@@ -820,6 +846,47 @@ resource "aws_lambda_permission" "weather_collector" {
   source_arn    = aws_cloudwatch_event_rule.weather_collector[0].arn
 }
 
+resource "aws_lambda_function" "weather_raster" {
+  count                          = local.weather_raster_enabled ? 1 : 0
+  function_name                  = "${local.name}-weather-raster"
+  role                           = aws_iam_role.worker.arn
+  package_type                   = "Image"
+  image_uri                      = var.weather_raster_image_uri
+  timeout                        = 900
+  memory_size                    = 2048
+  reserved_concurrent_executions = 1
+
+  environment {
+    variables = {
+      ENVIRONMENT             = var.environment
+      WEATHER_SNAPSHOT_BUCKET = aws_s3_bucket.weather.id
+    }
+  }
+}
+
+resource "aws_cloudwatch_event_rule" "weather_raster" {
+  count               = local.weather_raster_enabled ? 1 : 0
+  name                = "${local.name}-weather-raster"
+  description         = "Refresh the optional HRRR/MRMS national weather raster."
+  schedule_expression = var.weather_raster_schedule_expression
+}
+
+resource "aws_cloudwatch_event_target" "weather_raster" {
+  count     = local.weather_raster_enabled ? 1 : 0
+  rule      = aws_cloudwatch_event_rule.weather_raster[0].name
+  target_id = "weather-raster"
+  arn       = aws_lambda_function.weather_raster[0].arn
+}
+
+resource "aws_lambda_permission" "weather_raster" {
+  count         = local.weather_raster_enabled ? 1 : 0
+  statement_id  = "AllowEventBridgeWeatherRaster"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.weather_raster[0].function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.weather_raster[0].arn
+}
+
 resource "aws_lambda_function" "worker" {
   count                          = local.deploy_app ? 1 : 0
   function_name                  = "${local.name}-optimizer"
@@ -938,6 +1005,12 @@ resource "aws_cloudwatch_log_group" "weather_collector" {
   retention_in_days = var.log_retention_days
 }
 
+resource "aws_cloudwatch_log_group" "weather_raster" {
+  count             = local.weather_raster_enabled ? 1 : 0
+  name              = "/aws/lambda/${aws_lambda_function.weather_raster[0].function_name}"
+  retention_in_days = var.log_retention_days
+}
+
 resource "aws_cloudwatch_metric_alarm" "dlq" {
   alarm_name          = "${local.name}-optimization-dlq-visible"
   comparison_operator = "GreaterThanThreshold"
@@ -988,6 +1061,23 @@ resource "aws_cloudwatch_metric_alarm" "worker_errors" {
   }
 }
 
+resource "aws_cloudwatch_metric_alarm" "weather_raster_errors" {
+  count               = local.weather_raster_enabled ? 1 : 0
+  alarm_name          = "${local.name}-weather-raster-errors"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "Errors"
+  namespace           = "AWS/Lambda"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    FunctionName = aws_lambda_function.weather_raster[0].function_name
+  }
+}
+
 resource "aws_cloudwatch_dashboard" "operations" {
   dashboard_name = "${local.name}-operations"
   dashboard_body = jsonencode({
@@ -1019,6 +1109,17 @@ resource "aws_cloudwatch_dashboard" "operations" {
           metrics = var.enable_relational_store ? [
             ["AWS/RDS", "ServerlessDatabaseCapacity", "DBClusterIdentifier", local.relational_cluster_identifier],
             [".", "DatabaseConnections", ".", "."],
+          ] : []
+        }
+      },
+      {
+        type = "metric", x = 12, y = 6, width = 12, height = 6,
+        properties = {
+          title = "Weather raster worker", region = "us-east-1",
+          metrics = local.weather_raster_enabled ? [
+            ["AWS/Lambda", "Duration", "FunctionName", aws_lambda_function.weather_raster[0].function_name],
+            [".", "Errors", ".", "."],
+            [".", "Invocations", ".", "."],
           ] : []
         }
       }

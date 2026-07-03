@@ -6,6 +6,10 @@ output "platform_api_ecr_repository_url" {
   value = aws_ecr_repository.platform_api.repository_url
 }
 
+output "weather_raster_ecr_repository_url" {
+  value = aws_ecr_repository.weather_raster.repository_url
+}
+
 output "api_url" {
   value = local.deploy_app ? "https://${aws_cloudfront_distribution.web.domain_name}/api" : null
 }
