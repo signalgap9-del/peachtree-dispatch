@@ -125,8 +125,17 @@ export function DashboardPage({
 }: LiveProps & { weatherSnapshot: NationalWeatherSnapshot | null }) {
   const { t } = useI18n();
   const rows = useMemo(() => topWeatherPoints(weatherSnapshot, 8), [weatherSnapshot]);
-  const alerts = topAlerts(national, 5);
+  const [alertQuery, setAlertQuery] = useState("");
+  const [alertCategory, setAlertCategory] = useState<AlertCategory>("all");
+  const alerts = useMemo(() => dashboardAlertResults(national, alertQuery, alertCategory, 5), [alertCategory, alertQuery, national]);
+  const relatedWeather = useMemo(() => weatherSearchResults(weatherSnapshot, alertQuery, alertCategory).slice(0, 3), [alertCategory, alertQuery, weatherSnapshot]);
   const alertChips = alertCategoryOptions.filter((category) => category !== "all");
+  const openAlertCenter = () => {
+    const params = new URLSearchParams();
+    if (alertQuery.trim()) params.set("q", alertQuery.trim());
+    if (alertCategory !== "all") params.set("category", alertCategory);
+    navigate(`/alerts${params.toString() ? `?${params.toString()}` : ""}`);
+  };
   return (
     <main className="page-shell dashboard-page">
       <PageTitle title={t("dashboard.title")} subtitle={t("dashboard.subtitle")}>
@@ -150,17 +159,26 @@ export function DashboardPage({
           {!rows.length && <EmptyState title="No weather points available" detail="The dashboard does not substitute fabricated scores when the live pipeline is unavailable." />}
         </div>
         <div className="surface dashboard-alert-intel">
-          <SectionHeader title="Search live alerts" meta={`${national?.active_alerts ?? 0} active NWS alerts`} action="Open alert center" onAction={() => navigate("/alerts")} />
+          <SectionHeader title="Search live alerts" meta={`${national?.active_alerts ?? 0} active NWS alerts`} action="Open alert center" onAction={openAlertCenter} />
           <label className="alert-search-preview">
             <Search size={18} />
-            <input readOnly value="" placeholder="Search flood, heat, Miami, I-95..." onFocus={() => navigate("/alerts")} />
+            <input value={alertQuery} onChange={(event) => setAlertQuery(event.target.value)} onKeyDown={(event) => event.key === "Enter" && openAlertCenter()} placeholder="Search flood, heat, Miami, I-95..." />
           </label>
           <div className="alert-chip-row">
-            {alertChips.map((category) => <button key={category} onClick={() => navigate(`/alerts?category=${category}`)}>{alertCategoryLabel(category)}</button>)}
+            {alertChips.map((category) => <button key={category} className={alertCategory === category ? "active" : ""} onClick={() => setAlertCategory((current) => current === category ? "all" : category)}>{alertCategoryLabel(category)}</button>)}
           </div>
           <div className="dashboard-alert-list">
-            {alerts.map((alert) => <button key={alert.alert_id} onClick={() => navigate(`/alerts?q=${encodeURIComponent(alert.event)}`)}><AlertTriangle size={16} /><span><strong>{alert.event}</strong><small>{alert.area || "Affected U.S. region"}</small></span><em className={riskClass(alert.severity)}>{alertDriverAction(alert)}</em></button>)}
-            {!alerts.length && <EmptyState title="No active alerts loaded" detail="NWS alert records will appear here." />}
+            {alerts.map((alert) => <button key={alert.alert_id} onClick={() => navigate(`/alerts?q=${encodeURIComponent(alert.event)}${alertCategory !== "all" ? `&category=${alertCategory}` : ""}`)}><AlertTriangle size={16} /><span><strong>{alert.event}</strong><small>{alert.area || "Affected U.S. region"}</small></span><em className={riskClass(alert.severity)}>{alertDriverAction(alert)}</em></button>)}
+            {!alerts.length && <EmptyState title="No matching live alerts" detail="Try another city, county, highway, or hazard category. We do not invent warnings." />}
+          </div>
+          <div className="dashboard-alert-signals">
+            <strong>Map signals for this search</strong>
+            {relatedWeather.length ? relatedWeather.map((point) => <button key={point.id} onClick={() => navigate(`/map?search=${encodeURIComponent(point.city)}`)}><span>{point.city}</span><small>{conditionLabel(point)} / {roadImpactLabel(point)}</small><em className={riskLevel(point.risk_score)}>{point.risk_score}</em></button>) : <small>No monitored weather point matches this search yet.</small>}
+          </div>
+          <div className="roadwork-source-card">
+            <Newspaper size={17} />
+            <span><strong>Roadwork and closure feed</strong><small>Next external layer: FHWA WZDx + state 511 work-zone feeds. No air-quality filler.</small></span>
+            <button onClick={() => navigate("/alerts?q=closure")}>Track</button>
           </div>
         </div>
       </section>
@@ -427,6 +445,19 @@ export function AlertsPage({ navigate, national, weatherSnapshot = null, weather
   }, [alerts]);
   const selected = alerts.find((alert) => alert.alert_id === selectedId) ?? alerts[0] ?? null;
   const impactedRoutes = useMemo(() => selected ? routeImpactsForAlert(selected, savedRoutes) : [], [savedRoutes, selected]);
+  const hasAlertFilter = Boolean(query.trim()) || category !== "all" || severeOnly;
+  const focusedAlerts = useMemo(() => selected ? [selected] : alerts, [alerts, selected]);
+  const mapNational = useMemo(() => national ? {
+    ...national,
+    alerts: focusedAlerts,
+    active_alerts: focusedAlerts.length,
+    severe_alerts: focusedAlerts.filter((alert) => ["Extreme", "Severe"].includes(alert.severity)).length,
+    alerts_with_geometry: focusedAlerts.filter((alert) => Boolean(alert.geometry)).length,
+  } : null, [focusedAlerts, national]);
+  const mapWeatherSnapshot = useMemo(() => {
+    if (!hasAlertFilter || !weatherSnapshot) return weatherSnapshot;
+    return { ...weatherSnapshot, points: relatedWeather };
+  }, [hasAlertFilter, relatedWeather, weatherSnapshot]);
   const updateAlertSearch = (patch: { q?: string; category?: AlertCategory; severity?: "all" | "severe" }) => {
     const next = new URLSearchParams(searchParams);
     if (patch.q !== undefined) {
@@ -468,9 +499,9 @@ export function AlertsPage({ navigate, national, weatherSnapshot = null, weather
             </button>)}
             {!alerts.length && <EmptyState title="No matching active alerts" detail="Try flood, heat, wind, a city, a county, or clear filters. We do not show fabricated warnings." />}
           </div>
-          <div className="alerts-map"><RiskMapVisual national={national} weatherRaster={weatherRaster} regional />
+          <div className="alerts-map"><RiskMapVisual national={mapNational} weatherSnapshot={mapWeatherSnapshot} weatherRaster={weatherRaster} regional />
             <div className="alert-weather-results">
-              <strong>Related weather signals</strong>
+              <strong>{selected ? `Focused map: ${selected.event}` : "Related weather signals"}</strong>
               {relatedWeather.length ? relatedWeather.map((point) => <button key={point.id} onClick={() => navigate(`/map?search=${encodeURIComponent(point.city)}`)}><span>{point.city}</span><small>{conditionLabel(point)} · {windLabel(point)}</small><em className={riskLevel(point.risk_score)}>{riskLevelLabel(point.risk_score)}</em></button>) : <small>No monitored weather point matches this search.</small>}
             </div>
           </div>
@@ -674,6 +705,14 @@ function topWeatherPoints(snapshot: NationalWeatherSnapshot | null, limit: numbe
 
 function topAlerts(national: NationalRiskOverview | null, limit: number) {
   return [...(national?.alerts ?? [])].sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
+function dashboardAlertResults(national: NationalRiskOverview | null, query: string, category: AlertCategory, limit: number) {
+  return [...(national?.alerts ?? [])]
+    .filter((alert) => category === "all" || alertCategory(alert) === category)
+    .filter((alert) => alertMatchesQuery(alert, query))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
 }
 
 const alertCategoryOptions: AlertCategory[] = ["all", "flood", "heat", "storm", "wind", "winter", "fire"];

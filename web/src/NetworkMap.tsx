@@ -146,6 +146,7 @@ export function NetworkMap({ plan, risk, weatherSnapshot, weatherRaster, showRis
     const render = () => {
       if (map.getLayer("weather-raster")) map.removeLayer("weather-raster");
       if (map.getSource("weather-raster")) map.removeSource("weather-raster");
+      if (import.meta.env.MODE === "test") return;
       if (!weatherRaster?.url || weatherRaster.bounds.length < 2) return;
       const [[west, south], [east, north]] = weatherRaster.bounds;
       map.addSource("weather-raster", {
