@@ -194,7 +194,13 @@ public class RdsDataSavedPlaceRepository implements SavedPlaceRepository {
                     metadata.climateDelayMinutes(),
                     Boolean.TRUE.equals(row.get(5).isNull()) ? 0 : row.get(5).longValue().intValue(),
                     readCoordinates(row.get(3).stringValue()),
-                    metadata.generatedAt());
+                    metadata.generatedAt(),
+                    metadata.usualDepartureTime() == null ? "08:00" : metadata.usualDepartureTime(),
+                    metadata.riskThreshold() == null ? 55 : metadata.riskThreshold(),
+                    metadata.monitorEnabled() == null || metadata.monitorEnabled(),
+                    metadata.lastCheckedAt() == null ? metadata.generatedAt() : metadata.lastCheckedAt(),
+                    metadata.activeHazards() == null ? List.of() : metadata.activeHazards(),
+                    metadata.riskTrend() == null ? "STABLE" : metadata.riskTrend());
         }).toList();
     }
 
@@ -207,7 +213,13 @@ public class RdsDataSavedPlaceRepository implements SavedPlaceRepository {
                     route.distanceMiles(),
                     route.durationMinutes(),
                     route.climateDelayMinutes(),
-                    route.generatedAt()));
+                    route.generatedAt(),
+                    route.usualDepartureTime(),
+                    route.riskThreshold(),
+                    route.monitorEnabled(),
+                    route.lastCheckedAt(),
+                    route.activeHazards(),
+                    route.riskTrend()));
         } catch (JsonProcessingException exception) {
             throw new IllegalArgumentException("Route metadata could not be serialized.", exception);
         }
@@ -269,6 +281,12 @@ public class RdsDataSavedPlaceRepository implements SavedPlaceRepository {
             double distanceMiles,
             double durationMinutes,
             double climateDelayMinutes,
-            String generatedAt) {
+            String generatedAt,
+            String usualDepartureTime,
+            Integer riskThreshold,
+            Boolean monitorEnabled,
+            String lastCheckedAt,
+            List<String> activeHazards,
+            String riskTrend) {
     }
 }

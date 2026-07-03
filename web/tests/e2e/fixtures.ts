@@ -144,7 +144,7 @@ export const weatherRaster: WeatherRasterManifest = {
   expires_at: weatherSnapshot.expires_at,
   layer: "risk",
   source: "playwright",
-  url: "",
+  url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
   bounds: [[-125, 24], [-66, 49]],
   point_count: weatherSnapshot.points.length,
   coverage: weatherSnapshot.coverage,
@@ -188,6 +188,12 @@ export const savedRoutes: SavedRouteRecord[] = [
       [miami.longitude, miami.latitude],
     ],
     generatedAt: "2026-06-21T12:00:00Z",
+    usualDepartureTime: "08:00",
+    riskThreshold: 55,
+    monitorEnabled: true,
+    lastCheckedAt: "2026-06-21T12:10:00Z",
+    activeHazards: ["Scattered storms", "Moderate winds"],
+    riskTrend: "IMPROVING",
   },
 ];
 
@@ -345,6 +351,13 @@ export async function installApiMocks(page: Page) {
   await page.route("**/risk/national", (route) => route.fulfill({ json: nationalRisk }));
   await page.route("**/risk/weather-snapshot", (route) => route.fulfill({ json: weatherSnapshot }));
   await page.route("**/risk/weather-raster", (route) => route.fulfill({ json: weatherRaster }));
+  await page.route("**/risk/weather-raster.png", (route) => route.fulfill({
+    contentType: "image/png",
+    body: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+      "base64",
+    ),
+  }));
   await page.route("**/risk/location", (route) => route.fulfill({ json: locationRisk }));
   await page.route("**/me/saved/places**", (route) => {
     if (route.request().method() === "DELETE") return route.fulfill({ status: 204 });
@@ -352,7 +365,32 @@ export async function installApiMocks(page: Page) {
     return route.fulfill({ json: savedPlaces });
   });
   await page.route("**/me/saved/routes**", (route) => {
+    const url = route.request().url();
     if (route.request().method() === "DELETE") return route.fulfill({ status: 204 });
+    if (url.includes("/current-risk")) {
+      return route.fulfill({
+        json: {
+          savedItemId: savedRoutes[0].savedItemId,
+          currentRiskScore: savedRoutes[0].riskScore,
+          thresholdExceeded: false,
+          lastCheckedAt: savedRoutes[0].lastCheckedAt,
+          activeHazards: savedRoutes[0].activeHazards,
+          riskTrend: savedRoutes[0].riskTrend,
+        },
+      });
+    }
+    if (url.includes("/risk-history")) {
+      return route.fulfill({
+        json: [
+          { checkedAt: "2026-06-21T11:40:00Z", riskScore: 42, riskTrend: "WORSENING" },
+          { checkedAt: "2026-06-21T12:10:00Z", riskScore: 34, riskTrend: "IMPROVING" },
+        ],
+      });
+    }
+    if (route.request().method() === "PATCH") {
+      const body = route.request().postDataJSON() as Partial<SavedRouteRecord>;
+      return route.fulfill({ json: { ...savedRoutes[0], ...body } });
+    }
     if (route.request().method() === "POST") {
       const body = route.request().postDataJSON() as Partial<SavedRouteRecord>;
       return route.fulfill({
@@ -360,6 +398,12 @@ export async function installApiMocks(page: Page) {
         json: {
           savedItemId: "saved-route-created",
           userId: "user-fixture",
+          usualDepartureTime: "08:00",
+          riskThreshold: 55,
+          monitorEnabled: true,
+          lastCheckedAt: "2026-06-21T12:10:00Z",
+          activeHazards: [],
+          riskTrend: "STABLE",
           ...body,
         },
       });

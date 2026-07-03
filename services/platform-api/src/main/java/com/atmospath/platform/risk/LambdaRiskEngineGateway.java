@@ -3,6 +3,7 @@ package com.atmospath.platform.risk;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -35,15 +36,30 @@ public class LambdaRiskEngineGateway implements RiskEngineGateway {
     @Override
     public JsonNode get(String path) {
         URI uri = URI.create("http://risk-engine" + path);
-        return invoke("GET", uri.getPath(), query(uri), null);
+        return invokeJson("GET", uri.getPath(), query(uri), null);
+    }
+
+    @Override
+    public byte[] getBytes(String path) {
+        URI uri = URI.create("http://risk-engine" + path);
+        JsonNode response = invokeRaw("GET", uri.getPath(), query(uri), null);
+        String encoded = response.path("body_base64").asText();
+        if (encoded.isBlank()) {
+            throw new IllegalStateException("Risk engine Lambda returned no binary body for " + path);
+        }
+        return Base64.getDecoder().decode(encoded);
     }
 
     @Override
     public JsonNode post(String path, JsonNode body) {
-        return invoke("POST", path, Map.of(), body);
+        return invokeJson("POST", path, Map.of(), body);
     }
 
-    private JsonNode invoke(String method, String path, Map<String, String> query, JsonNode body) {
+    private JsonNode invokeJson(String method, String path, Map<String, String> query, JsonNode body) {
+        return invokeRaw(method, path, query, body).path("data");
+    }
+
+    private JsonNode invokeRaw(String method, String path, Map<String, String> query, JsonNode body) {
         try {
             var event = mapper.createObjectNode();
             event.put("method", method);
@@ -59,7 +75,7 @@ public class LambdaRiskEngineGateway implements RiskEngineGateway {
             if (response.functionError() != null) {
                 throw new IllegalStateException("Risk engine Lambda failed: " + response.functionError());
             }
-            return mapper.readTree(response.payload().asUtf8String()).path("data");
+            return mapper.readTree(response.payload().asUtf8String());
         } catch (Exception exception) {
             throw new IllegalStateException("Unable to invoke risk engine", exception);
         }

@@ -16,12 +16,13 @@ test("anonymous saved page asks for sign-in instead of showing sample records", 
   await expect(page.getByRole("status")).toContainText("OAuth secrets are not configured");
 });
 
-test("signed-in saved page loads private records through the platform API", async ({ page }) => {
+test("signed-in saved page supports route watchlist details and settings", async ({ page }) => {
   await seedSignedInUser(page);
 
   let placesAuthorizationHeader = "";
   let routesAuthorizationHeader = "";
   let deletedRoute = "";
+  let patchedRouteName = "";
   await page.route("**/me/saved/places**", (route) => {
     placesAuthorizationHeader = route.request().headers().authorization ?? "";
     return route.fallback();
@@ -31,6 +32,9 @@ test("signed-in saved page loads private records through the platform API", asyn
     if (route.request().method() === "DELETE") {
       deletedRoute = route.request().url();
     }
+    if (route.request().method() === "PATCH") {
+      patchedRouteName = route.request().postDataJSON().name;
+    }
     return route.fallback();
   });
 
@@ -39,7 +43,8 @@ test("signed-in saved page loads private records through the platform API", asyn
   await expect(page.getByText("Seattle to Miami Beach").first()).toBeVisible();
   await expect(page.getByText("Miami Beach, FL").first()).toBeVisible();
   await expect(page.getByText("Atlanta, GA").first()).toBeVisible();
-  await expect(page.getByText("Saved route · CAR").first()).toBeVisible();
+  await expect(page.getByText("Current risk").first()).toBeVisible();
+  await expect(page.getByText("Below threshold").first()).toBeVisible();
   await expect(page.getByText("Saved place").first()).toBeVisible();
   expect(placesAuthorizationHeader).toBe("Bearer fixture-access-token");
   expect(routesAuthorizationHeader).toBe("Bearer fixture-access-token");
@@ -48,8 +53,16 @@ test("signed-in saved page loads private records through the platform API", asyn
   await expect(page.getByText("Atlanta, GA").first()).toBeVisible();
   await expect(page.getByText("Miami Beach, FL").first()).toBeHidden();
 
-  await page.locator(".saved-grid").getByRole("button").filter({ hasText: "Atlanta, GA" }).click();
-  await expect(page).toHaveURL(/\/map\?search=Atlanta%2C%20GA$/);
+  await page.getByRole("button", { name: /^Routes/ }).click();
+  await page.getByPlaceholder("Search saved routes and places...").fill("Seattle");
+  await page.getByLabel("Route name").fill("Seattle to Miami weather watch");
+  await page.getByLabel("Risk threshold").fill("50");
+  await page.getByRole("button", { name: "Save route settings" }).click();
+  await expect(page.getByRole("status")).toContainText("Saved route settings updated.");
+  expect(patchedRouteName).toBe("Seattle to Miami weather watch");
+
+  await page.getByRole("button", { name: "Re-open route" }).click();
+  await expect(page).toHaveURL(/\/directions\?origin=Seattle/);
 
   await page.goto("/saved");
   await page.getByRole("button", { name: "Delete saved item" }).click();

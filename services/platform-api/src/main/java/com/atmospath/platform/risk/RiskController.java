@@ -5,6 +5,9 @@ import java.nio.charset.StandardCharsets;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.constraints.NotBlank;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -46,6 +49,14 @@ public class RiskController {
     @GetMapping("/risk/weather-raster")
     JsonNode weatherRaster() {
         return riskEngine.get("/risk/weather-raster");
+    }
+
+    @GetMapping(value = "/risk/weather-raster.png", produces = MediaType.IMAGE_PNG_VALUE)
+    ResponseEntity<byte[]> weatherRasterPng() {
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_PNG)
+                .cacheControl(CacheControl.noCache())
+                .body(riskEngine.getBytes("/risk/weather-raster.png"));
     }
 
     @PostMapping("/risk/location")

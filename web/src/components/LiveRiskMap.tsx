@@ -1,11 +1,12 @@
 import maplibregl, { type Map } from "maplibre-gl";
 import { useEffect, useMemo, useRef } from "react";
 
-import type { LocationRisk, NationalRiskOverview, NationalWeatherSnapshot, RiskAlert, WeatherRisk } from "../types";
+import type { LocationRisk, NationalRiskOverview, NationalWeatherSnapshot, RiskAlert, WeatherRasterManifest, WeatherRisk } from "../types";
 
 type Props = {
   national?: NationalRiskOverview | null;
   weatherSnapshot?: NationalWeatherSnapshot | null;
+  weatherRaster?: WeatherRasterManifest | null;
   locationRisk?: LocationRisk | null;
   compact?: boolean;
   regional?: boolean;
@@ -36,7 +37,7 @@ const testStyle = {
 
 const mapStyle = import.meta.env.MODE === "test" ? testStyle : productionStyle;
 
-export function LiveRiskMap({ national, weatherSnapshot, locationRisk, compact, regional }: Props) {
+export function LiveRiskMap({ national, weatherSnapshot, weatherRaster, locationRisk, compact, regional }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
   const markers = useRef<maplibregl.Marker[]>([]);
@@ -96,6 +97,7 @@ export function LiveRiskMap({ national, weatherSnapshot, locationRisk, compact, 
         .filter((alert) => alert.geometry)
         .map((alert) => ({ type: "Feature" as const, properties: { score: alert.score, event: alert.event }, geometry: alert.geometry! }));
 
+      addRasterLayer(map, weatherRaster, "mini-risk-heat");
       map.addSource("mini-risk-points", { type: "geojson", data: { type: "FeatureCollection", features: [...weatherFeatures, ...alertFeatures] } });
       map.addLayer({
         id: "mini-risk-heat",
@@ -117,7 +119,7 @@ export function LiveRiskMap({ national, weatherSnapshot, locationRisk, compact, 
     };
     if (map.loaded()) render(); else map.once("load", render);
     return () => { map.off("load", render); };
-  }, [alertPoints, compact, locationRisk, regional, weatherPoints]);
+  }, [alertPoints, compact, locationRisk, regional, weatherPoints, weatherRaster]);
 
   return (
     <div className={`risk-map-visual real-map ${compact ? "compact" : ""} ${regional ? "regional" : ""}`}>
@@ -128,6 +130,24 @@ export function LiveRiskMap({ national, weatherSnapshot, locationRisk, compact, 
       {locationRisk && <small className="map-status">{locationRisk.place.city}, {locationRisk.place.state} / risk {locationRisk.score}</small>}
     </div>
   );
+}
+
+function addRasterLayer(map: Map, weatherRaster: WeatherRasterManifest | null | undefined, beforeLayer: string) {
+  if (map.getLayer("mini-weather-raster")) map.removeLayer("mini-weather-raster");
+  if (map.getSource("mini-weather-raster")) map.removeSource("mini-weather-raster");
+  if (!weatherRaster?.url || weatherRaster.bounds.length < 2) return;
+  const [[west, south], [east, north]] = weatherRaster.bounds;
+  map.addSource("mini-weather-raster", {
+    type: "image",
+    url: weatherRaster.url,
+    coordinates: [[west, north], [east, north], [east, south], [west, south]],
+  });
+  map.addLayer({
+    id: "mini-weather-raster",
+    type: "raster",
+    source: "mini-weather-raster",
+    paint: { "raster-opacity": 0.58 },
+  }, map.getLayer(beforeLayer) ? beforeLayer : undefined);
 }
 
 function syncMarkers(map: Map, markers: maplibregl.Marker[], weatherPoints: WeatherRisk[], alertPoints: RiskAlert[]) {

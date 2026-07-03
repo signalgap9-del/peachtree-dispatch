@@ -35,7 +35,9 @@ import type {
   NationalWeatherSnapshot,
   RiskAlert,
   SavedPlaceRecord,
+  SavedRouteRisk,
   SavedRouteRecord,
+  WeatherRasterManifest,
   WeatherRisk,
 } from "./types";
 import { notify } from "./ui";
@@ -43,6 +45,7 @@ import { notify } from "./ui";
 type LiveProps = {
   navigate: Navigate;
   national: NationalRiskOverview | null;
+  weatherRaster?: WeatherRasterManifest | null;
   dataStatus: DataStatus;
 };
 
@@ -50,6 +53,7 @@ export function HomePage({
   navigate,
   national,
   weatherSnapshot,
+  weatherRaster,
   dataStatus,
 }: LiveProps & { weatherSnapshot: NationalWeatherSnapshot | null }) {
   const { t } = useI18n();
@@ -83,7 +87,7 @@ export function HomePage({
       <section className="home-grid">
         <div className="surface outlook-card">
           <SectionHeader title={t("home.nationalOutlook")} meta={national ? `Updated ${formatTime(national.generated_at)}` : "Waiting for NWS"} action={t("home.viewMap")} onAction={() => navigate("/map")} />
-          <RiskMapVisual national={national} weatherSnapshot={weatherSnapshot} />
+          <RiskMapVisual national={national} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} />
         </div>
         <div className="surface matters-card">
           <SectionHeader title={t("home.activeHazards")} action={t("home.viewAlerts")} onAction={() => navigate("/alerts")} />
@@ -114,6 +118,7 @@ export function DashboardPage({
   navigate,
   national,
   weatherSnapshot,
+  weatherRaster,
   dataStatus,
 }: LiveProps & { weatherSnapshot: NationalWeatherSnapshot | null }) {
   const { t } = useI18n();
@@ -143,7 +148,7 @@ export function DashboardPage({
         </div>
         <div className="surface dashboard-map">
           <SectionHeader title="National outlook" action="Open full map" onAction={() => navigate("/map")} />
-          <RiskMapVisual national={national} weatherSnapshot={weatherSnapshot} compact />
+          <RiskMapVisual national={national} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} compact />
         </div>
       </section>
       <section className="dashboard-bottom">
@@ -172,6 +177,12 @@ export function SavedPage({
   const [placesState, setPlacesState] = useState<SavedPlaceRecord[]>([]);
   const [routesState, setRoutesState] = useState<SavedRouteRecord[]>([]);
   const [loading, setLoading] = useState(Boolean(currentUser()));
+  const [collection, setCollection] = useState<"all" | "routes" | "places">("all");
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [routeRisk, setRouteRisk] = useState<SavedRouteRisk | null>(null);
+  const [routeHistory, setRouteHistory] = useState<Array<{ checkedAt: string | null; riskScore: number; riskTrend: string }>>([]);
+  const [routeDraft, setRouteDraft] = useState({ name: "", usualDepartureTime: "08:00", riskThreshold: 55, monitorEnabled: true });
+  const [savingRoute, setSavingRoute] = useState(false);
   const userEmail = currentUser()?.email ?? null;
 
   useEffect(() => {
@@ -186,20 +197,84 @@ export function SavedPage({
   }, [userEmail]);
 
   const filteredPlaces = useMemo(() => {
+    if (collection === "routes") return [];
     const matching = placesState.filter((place) => place.name.toLowerCase().includes(query.toLowerCase()));
     return highestRisk ? [...matching].sort((a, b) => (b.currentRiskScore ?? 0) - (a.currentRiskScore ?? 0)) : matching;
-  }, [highestRisk, placesState, query]);
+  }, [collection, highestRisk, placesState, query]);
   const filteredRoutes = useMemo(() => {
+    if (collection === "places") return [];
     const matching = routesState.filter((route) => route.name.toLowerCase().includes(query.toLowerCase())
       || route.originName.toLowerCase().includes(query.toLowerCase())
       || route.destinationName.toLowerCase().includes(query.toLowerCase()));
     return highestRisk ? [...matching].sort((a, b) => b.riskScore - a.riskScore) : matching;
-  }, [highestRisk, query, routesState]);
-  const selected = filteredRoutes[0]
-    ? ({ type: "route" as const, value: filteredRoutes[0] })
-    : filteredPlaces[0]
-      ? ({ type: "place" as const, value: filteredPlaces[0] })
-      : null;
+  }, [collection, highestRisk, query, routesState]);
+  const selectedRoute = selectedKey?.startsWith("route:")
+    ? filteredRoutes.find((route) => `route:${route.savedItemId}` === selectedKey)
+    : null;
+  const selectedPlace = selectedKey?.startsWith("place:")
+    ? filteredPlaces.find((place) => `place:${place.savedItemId}` === selectedKey)
+    : null;
+  const selected = selectedRoute
+    ? ({ type: "route" as const, value: selectedRoute })
+    : selectedPlace
+      ? ({ type: "place" as const, value: selectedPlace })
+      : filteredRoutes[0]
+        ? ({ type: "route" as const, value: filteredRoutes[0] })
+        : filteredPlaces[0]
+          ? ({ type: "place" as const, value: filteredPlaces[0] })
+          : null;
+
+  const selectedRouteId = selected?.type === "route" ? selected.value.savedItemId : null;
+  useEffect(() => {
+    if (!selectedRouteId) {
+      setRouteRisk(null);
+      setRouteHistory([]);
+      return;
+    }
+    const route = routesState.find((item) => item.savedItemId === selectedRouteId);
+    if (!route) return;
+    setRouteDraft({
+      name: route.name,
+      usualDepartureTime: route.usualDepartureTime,
+      riskThreshold: route.riskThreshold,
+      monitorEnabled: route.monitorEnabled,
+    });
+    let cancelled = false;
+    void Promise.all([
+      api.savedRouteCurrentRisk(route.savedItemId),
+      api.savedRouteRiskHistory(route.savedItemId),
+    ])
+      .then(([currentRisk, history]) => {
+        if (cancelled) return;
+        setRouteRisk(currentRisk);
+        setRouteHistory(history);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setRouteRisk(null);
+        setRouteHistory([]);
+    });
+    return () => { cancelled = true; };
+  }, [routesState, selectedRouteId]);
+
+  async function saveRouteSettings() {
+    if (selected?.type !== "route") return;
+    setSavingRoute(true);
+    try {
+      const updated = await api.updateSavedRoute(selected.value.savedItemId, {
+        name: routeDraft.name.trim() || selected.value.name,
+        usualDepartureTime: routeDraft.usualDepartureTime,
+        riskThreshold: Math.max(1, Math.min(100, Number(routeDraft.riskThreshold) || 55)),
+        monitorEnabled: routeDraft.monitorEnabled,
+      });
+      setRoutesState((items) => items.map((item) => item.savedItemId === updated.savedItemId ? updated : item));
+      notify("Saved route settings updated.");
+    } catch {
+      notify("Saved route settings could not be updated.");
+    } finally {
+      setSavingRoute(false);
+    }
+  }
 
   async function deleteSelected() {
     if (!selected) return;
@@ -221,9 +296,9 @@ export function SavedPage({
     <main className="saved-layout">
       <aside className="collections-panel">
         <h3>Collections</h3>
-        <button className="active"><Folder size={17} /><span>All saved</span><em>{placesState.length + routesState.length}</em></button>
-        <button><Navigation size={17} /><span>Routes</span><em>{routesState.length}</em></button>
-        <button><MapPin size={17} /><span>Places</span><em>{placesState.length}</em></button>
+        <button className={collection === "all" ? "active" : ""} onClick={() => setCollection("all")}><Folder size={17} /><span>All saved</span><em>{placesState.length + routesState.length}</em></button>
+        <button className={collection === "routes" ? "active" : ""} onClick={() => setCollection("routes")}><Navigation size={17} /><span>Routes</span><em>{routesState.length}</em></button>
+        <button className={collection === "places" ? "active" : ""} onClick={() => setCollection("places")}><MapPin size={17} /><span>Places</span><em>{placesState.length}</em></button>
         <div className="collection-insight">
           <strong>Account insights</strong>
           <span>High-risk places <b>{placesState.filter((place) => (place.currentRiskScore ?? 0) >= 55).length}</b></span>
@@ -254,16 +329,17 @@ export function SavedPage({
             </div>
             <div className="saved-grid">
               {filteredRoutes.map((route) => (
-                <button key={route.savedItemId} onClick={() => navigate(`/map?search=${encodeURIComponent(route.destinationName)}`)}>
+                <button key={route.savedItemId} className={selected?.type === "route" && selected.value.savedItemId === route.savedItemId ? "selected" : ""} onClick={() => setSelectedKey(`route:${route.savedItemId}`)}>
                   <MapThumb seed={route.savedItemId} />
                   <span className="saved-card-title"><Navigation size={15} /><strong>{route.name}</strong></span>
                   <span className="saved-risk"><b className={riskLevel(route.riskScore)}>{route.riskScore}</b><i>{riskLevelLabel(route.riskScore)} risk</i><small>{formatDistance(route.distanceMiles)} / {formatDuration(route.durationMinutes)}</small></span>
-                  <span className="saved-meta"><Bell size={13} /> Saved route · {route.vehicleType}</span>
+                  <span className="saved-meta"><Bell size={13} /> {route.monitorEnabled ? "Monitoring" : "Paused"} · threshold {route.riskThreshold} · {route.usualDepartureTime}</span>
+                  <span className="saved-meta"><ShieldCheck size={13} /> {route.activeHazards.length ? route.activeHazards.slice(0, 2).join(" / ") : "No active route hazards"} · {route.riskTrend.toLowerCase()}</span>
                 </button>
               ))}
               {filteredPlaces.map((place) => {
                 const score = place.currentRiskScore ?? 0;
-                return <button key={place.savedItemId} onClick={() => navigate(`/map?search=${encodeURIComponent(place.name)}`)}><MapThumb seed={place.savedItemId} /><span className="saved-card-title"><MapPin size={15} /><strong>{place.name}</strong></span><span className="saved-risk"><b className={riskLevel(score)}>{score}</b><i>{riskLevelLabel(score)} risk</i><small>Private saved place</small></span><span className="saved-meta"><Bell size={13} /> Saved place</span></button>;
+                return <button key={place.savedItemId} className={selected?.type === "place" && selected.value.savedItemId === place.savedItemId ? "selected" : ""} onClick={() => setSelectedKey(`place:${place.savedItemId}`)}><MapThumb seed={place.savedItemId} /><span className="saved-card-title"><MapPin size={15} /><strong>{place.name}</strong></span><span className="saved-risk"><b className={riskLevel(score)}>{score}</b><i>{riskLevelLabel(score)} risk</i><small>Private saved place</small></span><span className="saved-meta"><Bell size={13} /> Saved place</span></button>;
               })}
               {!filteredRoutes.length && !filteredPlaces.length && <CallToAction title="No saved items yet" detail="Search anywhere in the United States, save a place, or save a route to build your climate watchlist." action="Explore the map" onClick={() => navigate("/map")} />}
             </div>
@@ -277,9 +353,25 @@ export function SavedPage({
           <MapThumb seed={`${selected.value.savedItemId}-large`} large />
           {selected.type === "route" ? <>
             <div className="selected-risk"><b className={riskLevel(selected.value.riskScore)}>{selected.value.riskScore}</b><span><strong>{riskLevelLabel(selected.value.riskScore)} risk</strong><small>{formatDistance(selected.value.distanceMiles)} · {formatDuration(selected.value.durationMinutes)} · {selected.value.vehicleType}</small></span></div>
+            {routeRisk && <div className="route-live-risk"><strong>Current risk</strong><span><b className={riskLevel(routeRisk.currentRiskScore)}>{routeRisk.currentRiskScore}</b>{routeRisk.thresholdExceeded ? "Threshold exceeded" : "Below threshold"}</span><small>Last checked {routeRisk.lastCheckedAt ? formatTime(routeRisk.lastCheckedAt) : "not checked yet"}</small></div>}
             <InspectorMetric label="Origin" value={selected.value.originName} />
             <InspectorMetric label="Destination" value={selected.value.destinationName} />
-            <button className="button primary wide" onClick={() => navigate(`/map?search=${encodeURIComponent(selected.value.destinationName)}`)}>Open route area</button>
+            <InspectorMetric label="Monitor" value={selected.value.monitorEnabled ? `On at ${selected.value.usualDepartureTime}` : "Paused"} />
+            <InspectorMetric label="Risk threshold" value={`${selected.value.riskThreshold}`} />
+            <InspectorMetric label="Trend" value={selected.value.riskTrend} />
+            <InspectorMetric label="Active hazards" value={selected.value.activeHazards.length ? selected.value.activeHazards.join(", ") : "None"} />
+            <div className="saved-editor">
+              <label>Route name<input value={routeDraft.name} onChange={(event) => setRouteDraft((draft) => ({ ...draft, name: event.target.value }))} /></label>
+              <label>Usual departure<input type="time" value={routeDraft.usualDepartureTime} onChange={(event) => setRouteDraft((draft) => ({ ...draft, usualDepartureTime: event.target.value }))} /></label>
+              <label>Risk threshold<input type="number" min={1} max={100} value={routeDraft.riskThreshold} onChange={(event) => setRouteDraft((draft) => ({ ...draft, riskThreshold: Number(event.target.value) }))} /></label>
+              <label className="toggle-row"><input type="checkbox" checked={routeDraft.monitorEnabled} onChange={(event) => setRouteDraft((draft) => ({ ...draft, monitorEnabled: event.target.checked }))} /> Monitor this route</label>
+              <button className="button secondary wide" disabled={savingRoute} onClick={() => void saveRouteSettings()}>{savingRoute ? "Saving..." : "Save route settings"}</button>
+            </div>
+            <div className="route-history">
+              <strong>Risk trend</strong>
+              {routeHistory.length ? routeHistory.map((point) => <span key={`${point.checkedAt}-${point.riskScore}`}><i className={riskLevel(point.riskScore)} /> <b>{point.riskScore}</b> {point.riskTrend} <small>{point.checkedAt ? formatTime(point.checkedAt) : "now"}</small></span>) : <small>No route history yet.</small>}
+            </div>
+            <button className="button primary wide" onClick={() => navigate(`/directions?origin=${encodeURIComponent(selected.value.originName)}&destination=${encodeURIComponent(selected.value.destinationName)}&vehicle=${selected.value.vehicleType.toLowerCase()}`)}>Re-open route</button>
           </> : <>
             <div className="selected-risk"><b className={riskLevel(selected.value.currentRiskScore ?? 0)}>{selected.value.currentRiskScore ?? "--"}</b><span><strong>{riskLevelLabel(selected.value.currentRiskScore ?? 0)} risk</strong><small>Last stored composite score</small></span></div>
             <button className="button primary wide" onClick={() => navigate(`/map?search=${encodeURIComponent(selected.value.name)}`)}>Open on map</button>
@@ -292,7 +384,7 @@ export function SavedPage({
   );
 }
 
-export function AlertsPage({ navigate, national, dataStatus }: LiveProps) {
+export function AlertsPage({ navigate, national, weatherRaster, dataStatus }: LiveProps) {
   const { t } = useI18n();
   const [severeOnly, setSevereOnly] = useState(false);
   const [savedRoutes, setSavedRoutes] = useState<SavedRouteRecord[]>([]);
@@ -320,7 +412,7 @@ export function AlertsPage({ navigate, national, dataStatus }: LiveProps) {
             {alerts.map((alert) => <button className={selected?.alert_id === alert.alert_id ? "selected" : ""} key={alert.alert_id} onClick={() => setSelectedId(alert.alert_id)}><AlertTriangle size={18} /><span><strong>{alert.event}</strong><small>{alert.area || "Affected U.S. region"}</small><em>NWS live alert</em></span><i className={riskClass(alert.severity)}>{alert.severity}</i><ChevronRight size={15} /></button>)}
             {!alerts.length && <EmptyState title="No live alert records available" detail="This page intentionally stays empty instead of displaying fabricated warnings." />}
           </div>
-          <div className="alerts-map"><RiskMapVisual national={national} regional /></div>
+          <div className="alerts-map"><RiskMapVisual national={national} weatherRaster={weatherRaster} regional /></div>
         </div>
       </section>
       <aside className="alert-inspector">
@@ -355,7 +447,7 @@ export function AlertsPage({ navigate, national, dataStatus }: LiveProps) {
   );
 }
 
-export function PlaceDetailPage({ navigate, slug }: { navigate: Navigate; slug: string }) {
+export function PlaceDetailPage({ navigate, slug, weatherRaster }: { navigate: Navigate; slug: string; weatherRaster?: WeatherRasterManifest | null }) {
   const [risk, setRisk] = useState<LocationRisk | null>(null);
   const [loading, setLoading] = useState(true);
   const place = places[slug] ?? places.miami;
@@ -383,7 +475,7 @@ export function PlaceDetailPage({ navigate, slug }: { navigate: Navigate; slug: 
       </section>
       {!risk && <DataNotice status={loading ? "loading" : "degraded"} hasData={false} />}
       <section className="place-top">
-        <div className="surface place-map"><RiskMapVisual locationRisk={risk} regional />{risk && <Timeline score={risk.score} />}</div>
+        <div className="surface place-map"><RiskMapVisual locationRisk={risk} weatherRaster={weatherRaster} regional />{risk && <Timeline score={risk.score} />}</div>
         <div className="surface why-risk">
           <SectionHeader title="Risk factors" meta={risk?.model_version} />
           {reasons.map(({ name, contribution, icon: Icon }) => <div className="risk-reason" key={name}><Icon size={22} /><span><strong>{name}</strong><small>Live composite contribution</small></span><em className={riskLevel(contribution)}>{riskLevelLabel(contribution)}</em><b>{contribution}<small>/100</small></b></div>)}
@@ -427,17 +519,19 @@ function QuickAction({ icon, title, subtitle, onClick }: { icon: React.ReactNode
 function RiskMapVisual({
   national,
   weatherSnapshot,
+  weatherRaster,
   locationRisk,
   compact,
   regional,
 }: {
   national?: NationalRiskOverview | null;
   weatherSnapshot?: NationalWeatherSnapshot | null;
+  weatherRaster?: WeatherRasterManifest | null;
   locationRisk?: LocationRisk | null;
   compact?: boolean;
   regional?: boolean;
 }) {
-  return <LiveRiskMap national={national} weatherSnapshot={weatherSnapshot} locationRisk={locationRisk} compact={compact} regional={regional} />;
+  return <LiveRiskMap national={national} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} locationRisk={locationRisk} compact={compact} regional={regional} />;
 }
 
 function InterestGridPanel({ snapshot, navigate, compact }: { snapshot: NationalWeatherSnapshot | null; navigate: Navigate; compact?: boolean }) {

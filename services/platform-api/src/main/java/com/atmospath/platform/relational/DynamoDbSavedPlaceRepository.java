@@ -97,6 +97,12 @@ public class DynamoDbSavedPlaceRepository implements SavedPlaceRepository {
         item.put("riskScore", number(route.riskScore()));
         item.put("coordinatesJson", string(writeCoordinates(route.coordinates())));
         item.put("generatedAt", string(route.generatedAt() == null ? "" : route.generatedAt()));
+        item.put("usualDepartureTime", string(route.usualDepartureTime()));
+        item.put("riskThreshold", number(route.riskThreshold()));
+        item.put("monitorEnabled", AttributeValue.builder().bool(route.monitorEnabled()).build());
+        item.put("lastCheckedAt", string(route.lastCheckedAt() == null ? now : route.lastCheckedAt()));
+        item.put("activeHazardsJson", string(writeStringList(route.activeHazards())));
+        item.put("riskTrend", string(route.riskTrend()));
         item.put("updatedAt", string(now));
         client.putItem(PutItemRequest.builder().tableName(tableName).item(item).build());
     }
@@ -179,7 +185,13 @@ public class DynamoDbSavedPlaceRepository implements SavedPlaceRepository {
                 Double.parseDouble(item.get("climateDelayMinutes").n()),
                 Integer.parseInt(item.get("riskScore").n()),
                 readCoordinates(item.get("coordinatesJson").s()),
-                item.get("generatedAt").s());
+                item.get("generatedAt").s(),
+                stringValue(item, "usualDepartureTime", "08:00"),
+                integerValue(item, "riskThreshold", 55),
+                booleanValue(item, "monitorEnabled", true),
+                stringValue(item, "lastCheckedAt", item.get("generatedAt").s()),
+                readStringList(stringValue(item, "activeHazardsJson", "[]")),
+                stringValue(item, "riskTrend", "STABLE"));
     }
 
     private String writeCoordinates(List<List<Double>> coordinates) {
@@ -196,6 +208,38 @@ public class DynamoDbSavedPlaceRepository implements SavedPlaceRepository {
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Saved route coordinates could not be read.", exception);
         }
+    }
+
+    private String writeStringList(List<String> values) {
+        try {
+            return objectMapper.writeValueAsString(values == null ? List.of() : values);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalArgumentException("Route hazards could not be serialized.", exception);
+        }
+    }
+
+    private List<String> readStringList(String value) {
+        try {
+            return objectMapper.readValue(value, new TypeReference<List<String>>() {
+            });
+        } catch (JsonProcessingException exception) {
+            return List.of();
+        }
+    }
+
+    private static String stringValue(Map<String, AttributeValue> item, String key, String fallback) {
+        var value = item.get(key);
+        return value == null ? fallback : value.s();
+    }
+
+    private static int integerValue(Map<String, AttributeValue> item, String key, int fallback) {
+        var value = item.get(key);
+        return value == null ? fallback : Integer.parseInt(value.n());
+    }
+
+    private static boolean booleanValue(Map<String, AttributeValue> item, String key, boolean fallback) {
+        var value = item.get(key);
+        return value == null ? fallback : value.bool();
     }
 
     private static double distanceMiles(double latitudeA, double longitudeA, double latitudeB, double longitudeB) {

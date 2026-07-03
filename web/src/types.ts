@@ -67,6 +67,21 @@ export interface SavedRouteRecord {
   riskScore: number;
   coordinates: number[][];
   generatedAt: string | null;
+  usualDepartureTime: string;
+  riskThreshold: number;
+  monitorEnabled: boolean;
+  lastCheckedAt: string | null;
+  activeHazards: string[];
+  riskTrend: "IMPROVING" | "STABLE" | "WORSENING" | string;
+}
+
+export interface SavedRouteRisk {
+  savedItemId: string;
+  currentRiskScore: number;
+  thresholdExceeded: boolean;
+  lastCheckedAt: string | null;
+  activeHazards: string[];
+  riskTrend: string;
 }
 
 export interface DirectionsPlan {

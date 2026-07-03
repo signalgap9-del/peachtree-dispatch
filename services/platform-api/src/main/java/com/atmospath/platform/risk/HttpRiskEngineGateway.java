@@ -20,6 +20,11 @@ public class HttpRiskEngineGateway implements RiskEngineGateway {
     }
 
     @Override
+    public byte[] getBytes(String path) {
+        return client.get().uri(path).retrieve().body(byte[].class);
+    }
+
+    @Override
     public JsonNode post(String path, JsonNode body) {
         return client.post().uri(path).body(body).retrieve().body(JsonNode.class);
     }

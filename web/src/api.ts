@@ -6,12 +6,14 @@ import type {
   WeatherRasterManifest,
   Place,
   SavedPlaceRecord,
+  SavedRouteRisk,
   SavedRouteRecord,
   VehicleType,
 } from "./types";
 import { accessToken } from "./auth";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const weatherRasterPngUrl = `${API_URL}/risk/weather-raster.png`;
 
 export class ApiError extends Error {
   constructor(
@@ -70,11 +72,19 @@ export const api = {
     }),
   nationalRisk: () => request<NationalRiskOverview>("/risk/national"),
   weatherSnapshot: () => request<NationalWeatherSnapshot>("/risk/weather-snapshot"),
-  weatherRaster: () => request<WeatherRasterManifest>("/risk/weather-raster"),
+  weatherRaster: async () => {
+    const manifest = await request<WeatherRasterManifest>("/risk/weather-raster");
+    const url = import.meta.env.MODE === "test" && manifest.url ? manifest.url : weatherRasterPngUrl;
+    return { ...manifest, url };
+  },
   locationRisk: (place: Place) =>
     request<LocationRisk>("/risk/location", { method: "POST", body: JSON.stringify(place) }),
   savedPlaces: () => request<SavedPlaceRecord[]>("/me/saved/places"),
-  savedRoutes: () => request<SavedRouteRecord[]>("/me/saved/routes"),
+  savedRoutes: async () => (await request<SavedRouteRecord[]>("/me/saved/routes")).map(normalizeSavedRoute),
+  savedRoute: async (savedItemId: string) => normalizeSavedRoute(await request<SavedRouteRecord>(`/me/saved/routes/${savedItemId}`)),
+  savedRouteCurrentRisk: (savedItemId: string) => request<SavedRouteRisk>(`/me/saved/routes/${savedItemId}/current-risk`),
+  savedRouteRiskHistory: (savedItemId: string) =>
+    request<Array<{ checkedAt: string | null; riskScore: number; riskTrend: string }>>(`/me/saved/routes/${savedItemId}/risk-history`),
   savePlace: (place: Place, currentRiskScore?: number) =>
     request<SavedPlaceRecord>("/me/saved/places", {
       method: "POST",
@@ -99,10 +109,34 @@ export const api = {
         riskScore: plan.risk_score,
         coordinates: plan.coordinates,
         generatedAt: plan.generated_at,
+        usualDepartureTime: "08:00",
+        riskThreshold: Math.max(45, Math.min(80, plan.risk_score + 15)),
+        monitorEnabled: true,
+        activeHazards: [...new Set(plan.weather
+          .filter((point) => point.risk_score >= 55)
+          .slice(0, 4)
+          .map((point) => point.city))],
       }),
-    }),
+    }).then(normalizeSavedRoute),
+  updateSavedRoute: (savedItemId: string, payload: Partial<Pick<SavedRouteRecord, "name" | "usualDepartureTime" | "riskThreshold" | "monitorEnabled">>) =>
+    request<SavedRouteRecord>(`/me/saved/routes/${savedItemId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }).then(normalizeSavedRoute),
   deleteSavedPlace: (savedItemId: string) =>
     request<void>(`/me/saved/places/${savedItemId}`, { method: "DELETE" }),
   deleteSavedRoute: (savedItemId: string) =>
     request<void>(`/me/saved/routes/${savedItemId}`, { method: "DELETE" }),
 };
+
+function normalizeSavedRoute(route: SavedRouteRecord): SavedRouteRecord {
+  return {
+    ...route,
+    usualDepartureTime: route.usualDepartureTime ?? "08:00",
+    riskThreshold: route.riskThreshold ?? 55,
+    monitorEnabled: route.monitorEnabled ?? true,
+    lastCheckedAt: route.lastCheckedAt ?? route.generatedAt,
+    activeHazards: route.activeHazards ?? [],
+    riskTrend: route.riskTrend ?? "STABLE",
+  };
+}

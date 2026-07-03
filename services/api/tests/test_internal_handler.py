@@ -49,3 +49,12 @@ def test_internal_handler_supports_weather_snapshot(monkeypatch) -> None:
     response = handler({"method": "GET", "path": "/risk/weather-snapshot"}, None)
 
     assert response["data"]["coverage"] == 1
+
+
+def test_internal_handler_supports_weather_raster_png(monkeypatch) -> None:
+    monkeypatch.setattr("app.internal_handler.get_weather_raster_png", lambda: b"png-bytes")
+
+    response = handler({"method": "GET", "path": "/risk/weather-raster.png"}, None)
+
+    assert response["content_type"] == "image/png"
+    assert response["body_base64"] == "cG5nLWJ5dGVz"

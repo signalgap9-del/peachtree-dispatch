@@ -1,6 +1,7 @@
 package com.atmospath.platform.relational;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface SavedPlaceRepository {
@@ -13,6 +14,12 @@ public interface SavedPlaceRepository {
     List<SavedPlace> findAll(UUID userId);
 
     List<SavedRoute> findRoutes(UUID userId);
+
+    default Optional<SavedRoute> findRoute(UUID userId, UUID savedItemId) {
+        return findRoutes(userId).stream()
+                .filter(route -> route.savedItemId().equals(savedItemId))
+                .findFirst();
+    }
 
     List<SavedPlace> findNearby(UUID userId, double longitude, double latitude, double radiusMiles);
 

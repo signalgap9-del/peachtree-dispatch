@@ -89,11 +89,11 @@ function AppShell() {
     <div className={`product-app ${path === "/map" || path === "/directions" ? "map-active" : ""}`}>
       <AppHeader path={path} navigate={navigate} user={user} onUserChange={setUser} national={nationalRisk} weatherSnapshot={weatherSnapshot} />
       <Routes>
-        <Route path="/" element={<HomePage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} dataStatus={dataStatus} />} />
-        <Route path="/dashboard" element={<DashboardPage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} dataStatus={dataStatus} />} />
+        <Route path="/" element={<HomePage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} dataStatus={dataStatus} />} />
+        <Route path="/dashboard" element={<DashboardPage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} dataStatus={dataStatus} />} />
         <Route path="/saved" element={<SavedPage navigate={navigate} weatherSnapshot={weatherSnapshot} dataStatus={dataStatus} />} />
-        <Route path="/alerts" element={<AlertsPage navigate={navigate} national={nationalRisk} dataStatus={dataStatus} />} />
-        <Route path="/locations/:slug" element={<PlaceRoute navigate={navigate} />} />
+        <Route path="/alerts" element={<AlertsPage navigate={navigate} national={nationalRisk} weatherRaster={weatherRaster} dataStatus={dataStatus} />} />
+        <Route path="/locations/:slug" element={<PlaceRoute navigate={navigate} weatherRaster={weatherRaster} />} />
         <Route path="/map" element={<MapRoute navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} />} />
         <Route path="/directions" element={<MapRoute navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} />} />
         <Route path="*" element={<NotFound navigate={navigate} />} />
@@ -111,9 +111,9 @@ function MapRoute({ navigate, national, weatherSnapshot, weatherRaster }: { navi
   );
 }
 
-function PlaceRoute({ navigate }: { navigate: Navigate }) {
+function PlaceRoute({ navigate, weatherRaster }: { navigate: Navigate; weatherRaster: WeatherRasterManifest | null }) {
   const params = useParams();
-  return <PlaceDetailPage navigate={navigate} slug={params.slug ?? "miami"} />;
+  return <PlaceDetailPage navigate={navigate} slug={params.slug ?? "miami"} weatherRaster={weatherRaster} />;
 }
 
 function AppHeader({ path, navigate, user, onUserChange, national, weatherSnapshot }: { path: string; navigate: Navigate; user: AuthUser | null; onUserChange: (user: AuthUser | null) => void; national: NationalRiskOverview | null; weatherSnapshot: NationalWeatherSnapshot | null }) {
