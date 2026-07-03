@@ -23,6 +23,13 @@ test("home page renders live data and primary navigation works", async ({ page }
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole("heading", { name: "National risk dashboard" })).toBeVisible();
   await expect(page.getByText("Coverage 98%")).toBeVisible();
+  const dashboardAlertSearch = page.getByPlaceholder("Search flood, heat, Miami, I-95...");
+  await dashboardAlertSearch.fill("Miami");
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByText("Miami-Dade County")).toBeVisible();
+  await expect(page.getByText("Roadwork and closure feed")).toBeVisible();
+  await page.getByRole("button", { name: "Flood", exact: true }).click();
+  await expect(page.getByText("Avoid low roads")).toBeVisible();
 
   await page.getByRole("button", { name: /Plan route/ }).first().click();
   await expect(page).toHaveURL(/\/directions$/);
@@ -49,7 +56,7 @@ test("alerts page filters severe events without fake fallback data", async ({ pa
   await expect(page).toHaveURL(/q=Miami/);
   await expect(page.getByText("Flash Flood Warning", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Severe Thunderstorm Warning", { exact: true }).first()).toBeHidden();
-  await expect(page.getByText("Related weather signals")).toBeVisible();
+  await expect(page.getByText("Focused map: Flash Flood Warning")).toBeVisible();
 
   await page.getByPlaceholder("Search flood, heat, Miami, I-95, county...").fill("");
   await page.getByRole("button", { name: "Storm", exact: true }).click();

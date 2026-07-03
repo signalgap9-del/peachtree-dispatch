@@ -135,6 +135,7 @@ export function LiveRiskMap({ national, weatherSnapshot, weatherRaster, location
 function addRasterLayer(map: Map, weatherRaster: WeatherRasterManifest | null | undefined, beforeLayer: string) {
   if (map.getLayer("mini-weather-raster")) map.removeLayer("mini-weather-raster");
   if (map.getSource("mini-weather-raster")) map.removeSource("mini-weather-raster");
+  if (import.meta.env.MODE === "test") return;
   if (!weatherRaster?.url || weatherRaster.bounds.length < 2) return;
   const [[west, south], [east, north]] = weatherRaster.bounds;
   map.addSource("mini-weather-raster", {
@@ -203,6 +204,7 @@ function fitDataBounds(map: Map, weather: WeatherRisk[], alerts: RiskAlert[], re
   const coordinates: [number, number][] = [
     ...weather.map((point) => [point.longitude, point.latitude] as [number, number]),
     ...alerts.filter(hasCoordinates).map((alert) => [alert.longitude, alert.latitude] as [number, number]),
+    ...alerts.flatMap(alertGeometryCoordinates),
   ];
   if (!coordinates.length) {
     map.easeTo({ center: [-98.58, 39.83], zoom: regional ? 5 : 3.2, duration: 0 });
@@ -210,6 +212,14 @@ function fitDataBounds(map: Map, weather: WeatherRisk[], alerts: RiskAlert[], re
   }
   const bounds = coordinates.slice(1).reduce((current, coordinate) => current.extend(coordinate), new maplibregl.LngLatBounds(coordinates[0], coordinates[0]));
   map.fitBounds(bounds, { padding: regional ? 50 : 36, maxZoom: regional ? 7 : 4.6, duration: 0 });
+}
+
+function alertGeometryCoordinates(alert: RiskAlert) {
+  if (!alert.geometry) return [];
+  if (alert.geometry.type === "Polygon") {
+    return alert.geometry.coordinates.flat() as [number, number][];
+  }
+  return alert.geometry.coordinates.flat(2) as [number, number][];
 }
 
 function riskLevel(score: number) {
