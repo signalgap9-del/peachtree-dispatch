@@ -74,7 +74,7 @@ export const api = {
   weatherSnapshot: () => request<NationalWeatherSnapshot>("/risk/weather-snapshot"),
   weatherRaster: async () => {
     const manifest = await request<WeatherRasterManifest>("/risk/weather-raster");
-    const url = import.meta.env.MODE === "test" && manifest.url ? manifest.url : weatherRasterPngUrl;
+    const url = import.meta.env.MODE === "test" ? manifest.url : weatherRasterPngUrl;
     return { ...manifest, url };
   },
   locationRisk: (place: Place) =>

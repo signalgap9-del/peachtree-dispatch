@@ -22,6 +22,7 @@
   Wind,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import type { DataStatus, Navigate } from "./App";
 import { api } from "./api";
@@ -48,6 +49,8 @@ type LiveProps = {
   weatherRaster?: WeatherRasterManifest | null;
   dataStatus: DataStatus;
 };
+
+type AlertCategory = "all" | "flood" | "heat" | "storm" | "wind" | "winter" | "fire";
 
 export function HomePage({
   navigate,
@@ -118,12 +121,12 @@ export function DashboardPage({
   navigate,
   national,
   weatherSnapshot,
-  weatherRaster,
   dataStatus,
 }: LiveProps & { weatherSnapshot: NationalWeatherSnapshot | null }) {
   const { t } = useI18n();
   const rows = useMemo(() => topWeatherPoints(weatherSnapshot, 8), [weatherSnapshot]);
   const alerts = topAlerts(national, 5);
+  const alertChips = alertCategoryOptions.filter((category) => category !== "all");
   return (
     <main className="page-shell dashboard-page">
       <PageTitle title={t("dashboard.title")} subtitle={t("dashboard.subtitle")}>
@@ -134,21 +137,31 @@ export function DashboardPage({
       <section className="dashboard-top">
         <div className="surface risk-matrix">
           <SectionHeader title="Highest current risk" meta={`Coverage ${Math.round((weatherSnapshot?.coverage ?? 0) * 100)}%`} />
-          <div className="matrix-head"><span /><span>Risk</span><span>Rain</span><span>Wind</span><span>Temp</span></div>
+          <div className="matrix-head"><span>Area</span><span>Risk</span><span>Condition</span><span>Road impact</span><span>Wind</span></div>
           {rows.map((point) => (
             <button key={point.id} onClick={() => navigate(`/map?search=${encodeURIComponent(point.city)}`)}>
               <span><strong>{point.city}</strong><small>{point.source ?? "NOAA/NWS"}</small></span>
               <i className={riskLevel(point.risk_score)}>{point.risk_score}</i>
-              <i>{Math.round(point.precipitation_probability)}%</i>
-              <i>{Math.round(point.wind_speed_mph)}</i>
-              <i>{Math.round(point.temperature_f)}°</i>
+              <em>{conditionLabel(point)}</em>
+              <em>{roadImpactLabel(point)}</em>
+              <em>{windLabel(point)}</em>
             </button>
           ))}
           {!rows.length && <EmptyState title="No weather points available" detail="The dashboard does not substitute fabricated scores when the live pipeline is unavailable." />}
         </div>
-        <div className="surface dashboard-map">
-          <SectionHeader title="National outlook" action="Open full map" onAction={() => navigate("/map")} />
-          <RiskMapVisual national={national} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} compact />
+        <div className="surface dashboard-alert-intel">
+          <SectionHeader title="Search live alerts" meta={`${national?.active_alerts ?? 0} active NWS alerts`} action="Open alert center" onAction={() => navigate("/alerts")} />
+          <label className="alert-search-preview">
+            <Search size={18} />
+            <input readOnly value="" placeholder="Search flood, heat, Miami, I-95..." onFocus={() => navigate("/alerts")} />
+          </label>
+          <div className="alert-chip-row">
+            {alertChips.map((category) => <button key={category} onClick={() => navigate(`/alerts?category=${category}`)}>{alertCategoryLabel(category)}</button>)}
+          </div>
+          <div className="dashboard-alert-list">
+            {alerts.map((alert) => <button key={alert.alert_id} onClick={() => navigate(`/alerts?q=${encodeURIComponent(alert.event)}`)}><AlertTriangle size={16} /><span><strong>{alert.event}</strong><small>{alert.area || "Affected U.S. region"}</small></span><em className={riskClass(alert.severity)}>{alertDriverAction(alert)}</em></button>)}
+            {!alerts.length && <EmptyState title="No active alerts loaded" detail="NWS alert records will appear here." />}
+          </div>
         </div>
       </section>
       <section className="dashboard-bottom">
@@ -384,9 +397,12 @@ export function SavedPage({
   );
 }
 
-export function AlertsPage({ navigate, national, weatherRaster, dataStatus }: LiveProps) {
+export function AlertsPage({ navigate, national, weatherSnapshot = null, weatherRaster, dataStatus }: LiveProps & { weatherSnapshot?: NationalWeatherSnapshot | null }) {
   const { t } = useI18n();
-  const [severeOnly, setSevereOnly] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const query = searchParams.get("q") ?? "";
+  const category = normalizeAlertCategory(searchParams.get("category"));
+  const severeOnly = searchParams.get("severity") === "severe";
   const [savedRoutes, setSavedRoutes] = useState<SavedRouteRecord[]>([]);
   const userEmail = currentUser()?.email ?? null;
   useEffect(() => {
@@ -395,31 +411,78 @@ export function AlertsPage({ navigate, national, weatherRaster, dataStatus }: Li
   }, [userEmail]);
   const alerts = useMemo(() => {
     const live = national?.alerts ?? [];
-    return severeOnly ? live.filter((alert) => ["Extreme", "Severe"].includes(alert.severity)) : live;
-  }, [national, severeOnly]);
+    return live
+      .filter((alert) => !severeOnly || ["Extreme", "Severe"].includes(alert.severity))
+      .filter((alert) => category === "all" || alertCategory(alert) === category)
+      .filter((alert) => alertMatchesQuery(alert, query));
+  }, [category, national, query, severeOnly]);
+  const relatedWeather = useMemo(() => weatherSearchResults(weatherSnapshot, query, category), [category, query, weatherSnapshot]);
   const [selectedId, setSelectedId] = useState("");
+  useEffect(() => {
+    if (!alerts.length) {
+      setSelectedId("");
+      return;
+    }
+    setSelectedId((current) => alerts.some((alert) => alert.alert_id === current) ? current : alerts[0].alert_id);
+  }, [alerts]);
   const selected = alerts.find((alert) => alert.alert_id === selectedId) ?? alerts[0] ?? null;
   const impactedRoutes = useMemo(() => selected ? routeImpactsForAlert(selected, savedRoutes) : [], [savedRoutes, selected]);
+  const updateAlertSearch = (patch: { q?: string; category?: AlertCategory; severity?: "all" | "severe" }) => {
+    const next = new URLSearchParams(searchParams);
+    if (patch.q !== undefined) {
+      const value = patch.q.trimStart();
+      if (value) next.set("q", value); else next.delete("q");
+    }
+    if (patch.category !== undefined) {
+      if (patch.category === "all") next.delete("category"); else next.set("category", patch.category);
+    }
+    if (patch.severity !== undefined) {
+      if (patch.severity === "severe") next.set("severity", "severe"); else next.delete("severity");
+    }
+    setSearchParams(next);
+  };
 
   return (
     <main className="alerts-page">
       <section className="alerts-main">
-        <PageTitle title={t("alerts.title")} subtitle={t("alerts.subtitle")}><button className="button secondary" onClick={() => setSevereOnly((value) => !value)}><SlidersHorizontal size={16} /> {severeOnly ? t("alerts.showAll") : t("alerts.severeOnly")}</button></PageTitle>
+        <PageTitle title={t("alerts.title")} subtitle={t("alerts.subtitle")}><button className="button secondary" onClick={() => updateAlertSearch({ severity: severeOnly ? "all" : "severe" })}><SlidersHorizontal size={16} /> {severeOnly ? t("alerts.showAll") : t("alerts.severeOnly")}</button></PageTitle>
         <DataNotice status={dataStatus} hasData={Boolean(national)} />
+        <div className="alert-command-bar">
+          <label className="alert-search-field">
+            <Search size={18} />
+            <input value={query} onChange={(event) => updateAlertSearch({ q: event.target.value })} placeholder="Search flood, heat, Miami, I-95, county..." />
+          </label>
+          <div className="alert-category-tabs" aria-label="Alert categories">
+            {alertCategoryOptions.map((option) => <button key={option} className={category === option ? "active" : ""} onClick={() => updateAlertSearch({ category: option })}>{alertCategoryLabel(option)}</button>)}
+          </div>
+        </div>
         <div className="alerts-workspace">
           <div className="alerts-list">
-            <strong>{alerts.length} active alerts</strong>
-            {alerts.map((alert) => <button className={selected?.alert_id === alert.alert_id ? "selected" : ""} key={alert.alert_id} onClick={() => setSelectedId(alert.alert_id)}><AlertTriangle size={18} /><span><strong>{alert.event}</strong><small>{alert.area || "Affected U.S. region"}</small><em>NWS live alert</em></span><i className={riskClass(alert.severity)}>{alert.severity}</i><ChevronRight size={15} /></button>)}
-            {!alerts.length && <EmptyState title="No live alert records available" detail="This page intentionally stays empty instead of displaying fabricated warnings." />}
+            <strong>{alerts.length} matching active alerts</strong>
+            {alerts.map((alert) => <button className={selected?.alert_id === alert.alert_id ? "selected alert-card-rich" : "alert-card-rich"} key={alert.alert_id} onClick={() => setSelectedId(alert.alert_id)}>
+              <AlertTriangle size={18} />
+              <span><strong>{alert.event}</strong><small>{alert.area || "Affected U.S. region"}</small><em>{alertCategoryLabel(alertCategory(alert))} · {alert.urgency || "Unknown urgency"}</em></span>
+              <i className={riskClass(alert.severity)}>{alert.severity}</i>
+              <b>{alertDriverAction(alert)}</b>
+              <ChevronRight size={15} />
+            </button>)}
+            {!alerts.length && <EmptyState title="No matching active alerts" detail="Try flood, heat, wind, a city, a county, or clear filters. We do not show fabricated warnings." />}
           </div>
-          <div className="alerts-map"><RiskMapVisual national={national} weatherRaster={weatherRaster} regional /></div>
+          <div className="alerts-map"><RiskMapVisual national={national} weatherRaster={weatherRaster} regional />
+            <div className="alert-weather-results">
+              <strong>Related weather signals</strong>
+              {relatedWeather.length ? relatedWeather.map((point) => <button key={point.id} onClick={() => navigate(`/map?search=${encodeURIComponent(point.city)}`)}><span>{point.city}</span><small>{conditionLabel(point)} · {windLabel(point)}</small><em className={riskLevel(point.risk_score)}>{riskLevelLabel(point.risk_score)}</em></button>) : <small>No monitored weather point matches this search.</small>}
+            </div>
+          </div>
         </div>
       </section>
       <aside className="alert-inspector">
         {selected ? <>
           <div className="inspector-title"><AlertTriangle size={20} /><div><h2>{selected.event}</h2><span className={riskClass(selected.severity)}>{selected.severity}</span></div><Bookmark size={18} /></div>
+          <div className="alert-action-card"><strong>{alertDriverAction(selected)}</strong><span>{alertOperationalSummary(selected)}</span></div>
           <InspectorMetric label="Certainty" value={selected.certainty || "Unknown"} />
           <InspectorMetric label="Urgency" value={selected.urgency || "Unknown"} />
+          <InspectorMetric label="Category" value={alertCategoryLabel(alertCategory(selected))} />
           <h4>What's happening</h4><p>{selected.headline}</p>
           <h4>Affected area</h4><p>{selected.area || "Area details unavailable"}</p>
           <h4>Route impact</h4>
@@ -613,6 +676,80 @@ function topAlerts(national: NationalRiskOverview | null, limit: number) {
   return [...(national?.alerts ?? [])].sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
+const alertCategoryOptions: AlertCategory[] = ["all", "flood", "heat", "storm", "wind", "winter", "fire"];
+
+function normalizeAlertCategory(value: string | null): AlertCategory {
+  return alertCategoryOptions.includes(value as AlertCategory) ? value as AlertCategory : "all";
+}
+
+function alertCategory(alert: RiskAlert): AlertCategory {
+  const text = `${alert.category ?? ""} ${alert.event} ${alert.headline}`.toLowerCase();
+  if (text.includes("flood") || text.includes("coastal") || text.includes("river")) return "flood";
+  if (text.includes("heat") || text.includes("excessive")) return "heat";
+  if (text.includes("thunder") || text.includes("tornado") || text.includes("storm")) return "storm";
+  if (text.includes("wind") || text.includes("gale") || text.includes("dust")) return "wind";
+  if (text.includes("winter") || text.includes("snow") || text.includes("ice") || text.includes("blizzard")) return "winter";
+  if (text.includes("fire") || text.includes("smoke") || text.includes("red flag")) return "fire";
+  return "all";
+}
+
+function alertCategoryLabel(category: AlertCategory) {
+  const labels: Record<AlertCategory, string> = {
+    all: "All",
+    flood: "Flood",
+    heat: "Heat",
+    storm: "Storm",
+    wind: "Wind",
+    winter: "Winter",
+    fire: "Fire/smoke",
+  };
+  return labels[category];
+}
+
+function alertMatchesQuery(alert: RiskAlert, query: string) {
+  const trimmed = query.trim().toLowerCase();
+  if (!trimmed) return true;
+  return [alert.event, alert.area, alert.headline, alert.instruction ?? "", alert.severity, alert.urgency, alertCategoryLabel(alertCategory(alert))]
+    .join(" ")
+    .toLowerCase()
+    .includes(trimmed);
+}
+
+function alertDriverAction(alert: RiskAlert) {
+  const category = alertCategory(alert);
+  if (category === "flood") return "Avoid low roads";
+  if (category === "heat") return "Plan cooling stops";
+  if (category === "storm") return "Delay or reroute";
+  if (category === "wind") return "Watch crosswinds";
+  if (category === "winter") return "Avoid icy roads";
+  if (category === "fire") return "Check smoke/fire";
+  return alert.urgency === "Immediate" ? "Act now" : "Monitor";
+}
+
+function alertOperationalSummary(alert: RiskAlert) {
+  const area = alert.area || "the affected area";
+  const urgency = alert.urgency || "Unknown urgency";
+  const certainty = alert.certainty || "unknown certainty";
+  return `${urgency} alert for ${area}. Certainty: ${certainty}.`;
+}
+
+function weatherSearchResults(snapshot: NationalWeatherSnapshot | null, query: string, category: AlertCategory) {
+  const normalized = query.trim().toLowerCase();
+  return [...(snapshot?.points ?? [])]
+    .filter((point) => point.data_status !== "UNAVAILABLE")
+    .filter((point) => {
+      const cityMatch = !normalized || point.city.toLowerCase().includes(normalized);
+      if (cityMatch) return true;
+      if (category === "flood" || category === "storm") return point.precipitation_probability >= 50;
+      if (category === "heat") return point.temperature_f >= 90;
+      if (category === "wind") return point.wind_speed_mph >= 20;
+      if (category === "winter") return blackIceScore(point) >= 25;
+      return false;
+    })
+    .sort((a, b) => b.risk_score - a.risk_score)
+    .slice(0, 4);
+}
+
 function winterRoadRisks(snapshot: NationalWeatherSnapshot | null, limit: number) {
   return [...(snapshot?.points ?? [])]
     .filter((point) => point.data_status !== "UNAVAILABLE")
@@ -686,7 +823,30 @@ function routeImpactsForAlert(alert: RiskAlert, routes: SavedRouteRecord[]) {
 }
 
 function weatherSummary(point: WeatherRisk) {
-  return `${Math.round(point.temperature_f)}°F · ${Math.round(point.wind_speed_mph)} mph wind · ${Math.round(point.precipitation_probability)}% rain`;
+  return `${conditionLabel(point)} · ${windLabel(point)} · ${Math.round(point.temperature_f)}°F`;
+}
+
+function conditionLabel(point: WeatherRisk) {
+  if (point.precipitation_probability >= 80) return "Rain likely";
+  if (point.precipitation_probability >= 55) return "Rain possible";
+  if (point.precipitation_probability >= 25) return "Some moisture signal";
+  return "No rain signal";
+}
+
+function roadImpactLabel(point: WeatherRisk) {
+  if (point.risk_score >= 80) return "Avoid if possible";
+  if (point.precipitation_probability >= 80 || point.wind_speed_mph >= 25) return "High caution";
+  if (point.precipitation_probability >= 55 || point.wind_speed_mph >= 18) return "Slow down";
+  if (blackIceScore(point) >= 25) return "Ice watch";
+  return "Normal caution";
+}
+
+function windLabel(point: WeatherRisk) {
+  const wind = Math.round(point.wind_speed_mph);
+  if (wind >= 30) return `${wind} mph high wind`;
+  if (wind >= 20) return `${wind} mph gusty`;
+  if (wind >= 12) return `${wind} mph breeze`;
+  return `${wind} mph light`;
 }
 
 function formatDistance(miles: number) {

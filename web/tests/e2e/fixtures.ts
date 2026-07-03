@@ -144,12 +144,14 @@ export const weatherRaster: WeatherRasterManifest = {
   expires_at: weatherSnapshot.expires_at,
   layer: "risk",
   source: "playwright",
-  url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+  url: "",
   bounds: [[-125, 24], [-66, 49]],
   point_count: weatherSnapshot.points.length,
   coverage: weatherSnapshot.coverage,
   model_version: weatherSnapshot.model_version,
 };
+
+const mapTileSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><rect width="256" height="256" fill="#eef3f8"/><path d="M0 80h256M0 160h256M80 0v256M160 0v256" stroke="#d8e3ee" stroke-width="4"/></svg>`;
 
 export const savedPlaces: SavedPlaceRecord[] = [
   {
@@ -342,21 +344,15 @@ export async function installApiMocks(page: Page) {
     localStorage.setItem("atmospath:language", "en");
   });
   await page.route("https://basemaps.cartocdn.com/**", (route) => route.fulfill({
-    contentType: "image/png",
-    body: Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
-      "base64",
-    ),
+    contentType: "image/svg+xml",
+    body: mapTileSvg,
   }));
   await page.route("**/risk/national", (route) => route.fulfill({ json: nationalRisk }));
   await page.route("**/risk/weather-snapshot", (route) => route.fulfill({ json: weatherSnapshot }));
   await page.route("**/risk/weather-raster", (route) => route.fulfill({ json: weatherRaster }));
   await page.route("**/risk/weather-raster.png", (route) => route.fulfill({
-    contentType: "image/png",
-    body: Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
-      "base64",
-    ),
+    contentType: "image/svg+xml",
+    body: mapTileSvg,
   }));
   await page.route("**/risk/location", (route) => route.fulfill({ json: locationRisk }));
   await page.route("**/me/saved/places**", (route) => {

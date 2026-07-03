@@ -92,7 +92,7 @@ function AppShell() {
         <Route path="/" element={<HomePage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} dataStatus={dataStatus} />} />
         <Route path="/dashboard" element={<DashboardPage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} dataStatus={dataStatus} />} />
         <Route path="/saved" element={<SavedPage navigate={navigate} weatherSnapshot={weatherSnapshot} dataStatus={dataStatus} />} />
-        <Route path="/alerts" element={<AlertsPage navigate={navigate} national={nationalRisk} weatherRaster={weatherRaster} dataStatus={dataStatus} />} />
+        <Route path="/alerts" element={<AlertsPage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} dataStatus={dataStatus} />} />
         <Route path="/locations/:slug" element={<PlaceRoute navigate={navigate} weatherRaster={weatherRaster} />} />
         <Route path="/map" element={<MapRoute navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} />} />
         <Route path="/directions" element={<MapRoute navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} />} />

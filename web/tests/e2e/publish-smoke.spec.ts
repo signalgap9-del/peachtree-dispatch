@@ -45,6 +45,19 @@ test("alerts page filters severe events without fake fallback data", async ({ pa
 
   await expect(page.getByText("Flash Flood Warning", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Severe Thunderstorm Warning", { exact: true }).first()).toBeVisible();
+  await page.getByPlaceholder("Search flood, heat, Miami, I-95, county...").fill("Miami");
+  await expect(page).toHaveURL(/q=Miami/);
+  await expect(page.getByText("Flash Flood Warning", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Severe Thunderstorm Warning", { exact: true }).first()).toBeHidden();
+  await expect(page.getByText("Related weather signals")).toBeVisible();
+
+  await page.getByPlaceholder("Search flood, heat, Miami, I-95, county...").fill("");
+  await page.getByRole("button", { name: "Storm", exact: true }).click();
+  await expect(page).toHaveURL(/category=storm/);
+  await expect(page.getByText("Severe Thunderstorm Warning", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Flash Flood Warning", { exact: true }).first()).toBeHidden();
+
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page.getByRole("button", { name: /Severe only/ }).click();
 
   await expect(page.getByRole("button", { name: /Show all/ })).toBeVisible();
