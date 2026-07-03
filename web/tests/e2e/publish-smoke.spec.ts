@@ -1,104 +1,96 @@
-import { expect, test } from "@playwright/test";
+﻿import { expect, test } from "@playwright/test";
 
-const nationalRisk = {
-  generated_at: "2026-06-21T12:00:00Z",
-  score: 64,
-  level: "HIGH",
-  active_alerts: 1,
-  severe_alerts: 1,
-  alerts_with_geometry: 0,
-  by_event: { "Flash Flood Warning": 1 },
-  alerts: [{
-    alert_id: "nws-1",
-    event: "Flash Flood Warning",
-    severity: "Severe",
-    urgency: "Immediate",
-    certainty: "Observed",
-    headline: "Official test fixture for an active NWS warning.",
-    area: "Test County",
-    score: 92,
-  }],
-};
-
-const weatherSnapshot = {
-  generated_at: "2026-06-21T12:00:00Z",
-  expires_at: "2026-06-21T13:00:00Z",
-  model_version: "test-fixture",
-  refresh_minutes: 60,
-  coverage: 1,
-  source_status: { nws: "LIVE" },
-  points: [{
-    id: "miami",
-    city: "Miami, FL",
-    latitude: 25.76,
-    longitude: -80.19,
-    temperature_f: 86,
-    precipitation_probability: 78,
-    wind_speed_mph: 18,
-    risk_score: 72,
-    risk_level: "HIGH",
-    data_status: "LIVE",
-    source: "NWS test fixture",
-  }],
-};
+import { installApiMocks, seedSignedInUser } from "./fixtures";
 
 test.beforeEach(async ({ page }) => {
-  await page.route("**/risk/national", (route) => route.fulfill({ json: nationalRisk }));
-  await page.route("**/risk/weather-snapshot", (route) => route.fulfill({ json: weatherSnapshot }));
-  await page.route("**/risk/weather-raster", (route) => route.fulfill({
-    json: {
-      generated_at: weatherSnapshot.generated_at,
-      expires_at: weatherSnapshot.expires_at,
-      layer: "risk",
-      source: "test",
-      url: "",
-      bounds: [],
-      point_count: 1,
-      coverage: 1,
-      model_version: "test-fixture",
-    },
-  }));
+  await installApiMocks(page);
 });
 
-test("home uses live API values and opens map search", async ({ page }) => {
+test("home page renders live data and primary navigation works", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByText("Miami, FL", { exact: true })).toBeVisible();
-  await expect(page.getByText("Flash Flood Warning", { exact: true })).toBeVisible();
 
-  const search = page.getByPlaceholder("Search a city, address, highway, or route");
+  await expect(page.locator(".live-priority").getByText("Miami, FL", { exact: true })).toBeVisible();
+  await expect(page.getByText("Flash Flood Warning", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /Alerts\s+3/ })).toBeVisible();
+  await expect(page.locator(".outlook-card .risk-map-canvas")).toBeVisible();
+  await expect(page.locator(".outlook-card .live-risk-point")).toHaveCount(4);
+  await expect(page.locator(".outlook-card .live-alert-point")).toHaveCount(2);
+  await expect(page.getByText("Winter road risk")).toBeVisible();
+  await expect(page.locator(".winter-risk-card").getByText("Minneapolis, MN")).toBeVisible();
+  await expect(page.getByText("Operational intelligence")).toBeVisible();
+
+  await page.getByRole("button", { name: /Open dashboard/ }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByRole("heading", { name: "National risk dashboard" })).toBeVisible();
+  await expect(page.getByText("Coverage 98%")).toBeVisible();
+
+  await page.getByRole("button", { name: /Plan route/ }).first().click();
+  await expect(page).toHaveURL(/\/directions$/);
+  await expect(page.getByPlaceholder("Choose destination")).toBeVisible();
+});
+
+test("home search deep-links into the map destination field", async ({ page }) => {
+  await page.goto("/");
+
+  const search = page.getByPlaceholder("Search cities, addresses, highways, or routes");
   await search.fill("Miami");
   await search.press("Enter");
+
   await expect(page).toHaveURL(/\/map\?search=Miami$/);
   await expect(page.getByPlaceholder("Choose destination")).toHaveValue("Miami");
 });
 
-test("anonymous saved page shows an honest private-data state", async ({ page }) => {
-  await page.goto("/saved");
-  await expect(page.getByRole("heading", { name: "Sign in to use your watchlist" })).toBeVisible();
-  await expect(page.locator(".saved-grid")).toHaveCount(0);
-});
-
-test("alerts render only the live API response", async ({ page }) => {
+test("alerts page filters severe events without fake fallback data", async ({ page }) => {
   await page.goto("/alerts");
+
   await expect(page.getByText("Flash Flood Warning", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Official test fixture for an active NWS warning.")).toBeVisible();
+  await expect(page.getByText("Severe Thunderstorm Warning", { exact: true }).first()).toBeVisible();
+  await page.getByPlaceholder("Search flood, heat, Miami, I-95, county...").fill("Miami");
+  await expect(page).toHaveURL(/q=Miami/);
+  await expect(page.getByText("Flash Flood Warning", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Severe Thunderstorm Warning", { exact: true }).first()).toBeHidden();
+  await expect(page.getByText("Related weather signals")).toBeVisible();
+
+  await page.getByPlaceholder("Search flood, heat, Miami, I-95, county...").fill("");
+  await page.getByRole("button", { name: "Storm", exact: true }).click();
+  await expect(page).toHaveURL(/category=storm/);
+  await expect(page.getByText("Severe Thunderstorm Warning", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Flash Flood Warning", { exact: true }).first()).toBeHidden();
+
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await page.getByRole("button", { name: /Severe only/ }).click();
+
   await expect(page.getByRole("button", { name: /Show all/ })).toBeVisible();
+  await expect(page.getByText("Flash Flood Warning", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Severe Thunderstorm Warning", { exact: true }).first()).toBeHidden();
 });
 
-test("header navigation and unavailable local auth are explicit", async ({ page }) => {
-  await page.goto("/");
-  await page.getByRole("button", { name: "Notifications", exact: true }).click();
-  await expect(page).toHaveURL(/\/alerts$/);
+test("alerts page shows signed-in route impact", async ({ page }) => {
+  await seedSignedInUser(page);
+  await page.goto("/alerts");
 
+  await expect(page.getByText("Route impact")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Seattle to Miami Beach/ })).toBeVisible();
+
+  await page.getByRole("button", { name: /Seattle to Miami Beach/ }).click();
+  await expect(page).toHaveURL(/\/directions\?origin=/);
+});
+
+test("language toggle and unavailable auth explain themselves", async ({ page }) => {
   await page.goto("/");
+
   await page.getByRole("button", { name: "KR", exact: true }).click();
-  await expect(page.getByRole("button", { name: "지도", exact: true })).toBeVisible();
-  await expect(page.getByPlaceholder("도시, 주소, 고속도로, 경로 검색")).toBeVisible();
+  await expect(page.getByRole("button", { name: "EN", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /날씨를 고려해 경로를 계획하세요/ })).toBeVisible();
+  await expect(page.evaluate(() => localStorage.getItem("atmospath:language"))).resolves.toBe("ko");
 
-  await page.getByRole("button", { name: /Google로 계속하기/ }).click();
-  await expect(page.getByRole("status")).toContainText("OAuth 시크릿");
+  await page.getByRole("button", { name: "EN", exact: true }).click();
+  await expect(page.getByRole("heading", { name: /Plan routes around weather risk/ })).toBeVisible();
+
+  await expect(page.getByRole("button", { name: /Continue with Google/ })).toBeVisible();
+  await page.getByRole("button", { name: /Continue with Google/ }).click();
+  await expect(page.getByRole("status")).toContainText("OAuth secrets are not configured");
 
   await page.getByRole("button", { name: "IN", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("배포된 프리뷰");
+  await expect(page.getByRole("status")).toContainText("Sign-in is available in the deployed preview");
 });

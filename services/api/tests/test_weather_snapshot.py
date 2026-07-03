@@ -38,6 +38,12 @@ def test_weather_risk_score_increases_for_severe_forecast() -> None:
     assert severe > normal
 
 
+def test_weather_risk_score_increases_for_black_ice_conditions() -> None:
+    dry_freezing = weather_risk_score(30, 0, 8, ["Mostly Cloudy"])
+    freezing_rain = weather_risk_score(30, 45, 18, ["Freezing Rain"])
+    assert freezing_rain >= dry_freezing + 35
+
+
 def test_nearest_snapshot_weather_uses_cached_point(monkeypatch) -> None:
     point = WeatherRisk(
         id="atlanta",

@@ -17,26 +17,26 @@ colors:
   outline: "#DADCE0"
 typography:
   heading-lg:
-    fontFamily: Manrope
-    fontSize: 24px
+    fontFamily: Inter
+    fontSize: 32px
     fontWeight: "700"
-    lineHeight: 32px
+    lineHeight: 40px
     letterSpacing: -0.02em
   heading-sm:
-    fontFamily: Manrope
-    fontSize: 14px
+    fontFamily: Inter
+    fontSize: 18px
     fontWeight: "700"
-    lineHeight: 20px
+    lineHeight: 26px
   body-md:
-    fontFamily: Manrope
-    fontSize: 14px
+    fontFamily: Inter
+    fontSize: 15px
     fontWeight: "500"
-    lineHeight: 20px
+    lineHeight: 23px
   label-sm:
-    fontFamily: Manrope
-    fontSize: 12px
+    fontFamily: Inter
+    fontSize: 13px
     fontWeight: "700"
-    lineHeight: 16px
+    lineHeight: 18px
   data-sm:
     fontFamily: DM Mono
     fontSize: 12px
@@ -116,8 +116,9 @@ canvas; panels explain or control it without becoming a generic CRM dashboard.
 
 ## Typography
 
-Use Manrope for interface hierarchy and DM Mono only for distances, durations,
-risk scores, and algorithm metadata. Do not shrink interface text below 11px.
+Use Inter for interface hierarchy, Noto Sans KR as the Korean fallback, and
+DM Mono only for distances, durations, risk scores, and algorithm metadata.
+Do not shrink interface text below 12px on production screens.
 
 ## Layout
 

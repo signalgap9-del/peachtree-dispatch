@@ -54,6 +54,36 @@ export interface SavedPlaceRecord {
   currentRiskScore: number | null;
 }
 
+export interface SavedRouteRecord {
+  savedItemId: string;
+  userId: string;
+  name: string;
+  originName: string;
+  destinationName: string;
+  vehicleType: VehicleType;
+  distanceMiles: number;
+  durationMinutes: number;
+  climateDelayMinutes: number;
+  riskScore: number;
+  coordinates: number[][];
+  generatedAt: string | null;
+  usualDepartureTime: string;
+  riskThreshold: number;
+  monitorEnabled: boolean;
+  lastCheckedAt: string | null;
+  activeHazards: string[];
+  riskTrend: "IMPROVING" | "STABLE" | "WORSENING" | string;
+}
+
+export interface SavedRouteRisk {
+  savedItemId: string;
+  currentRiskScore: number;
+  thresholdExceeded: boolean;
+  lastCheckedAt: string | null;
+  activeHazards: string[];
+  riskTrend: string;
+}
+
 export interface DirectionsPlan {
   generated_at: string;
   origin: Place;
@@ -67,6 +97,8 @@ export interface DirectionsPlan {
   weather: WeatherRisk[];
   summary: string;
   alternatives: RouteAlternative[];
+  decision?: RouteDecisionContract | null;
+  segments?: RouteRiskSegmentContract[];
   model_version?: string;
 }
 
@@ -91,6 +123,56 @@ export interface RouteAlternative {
   data_coverage?: number;
   confidence?: "HIGH" | "MEDIUM" | "LOW" | "UNAVAILABLE";
   source_status?: Record<string, string>;
+}
+
+export type RouteDecisionAction = "take_fastest" | "take_lower_risk" | "take_balanced" | "delay_departure";
+
+export interface RouteDecision {
+  action: RouteDecisionAction;
+  recommendedAlternativeId: string;
+  recommendedLabel: string;
+  summary: string;
+  primaryReason: string;
+  tradeoff: string;
+  confidence: "HIGH" | "MEDIUM" | "LOW" | "UNAVAILABLE";
+  riskDelta: number;
+  timeDeltaMinutes: number;
+  severity: "low" | "moderate" | "high" | "severe";
+}
+
+export type HazardKind = "flood" | "rain" | "wind" | "heat" | "winter" | "alert" | "unknown";
+
+export interface RouteRiskSegment {
+  id: string;
+  label: string;
+  riskScore: number;
+  severity: "low" | "moderate" | "high" | "severe";
+  primaryHazard: HazardKind;
+  coverage: number;
+  summary: string;
+}
+
+export interface RouteDecisionContract {
+  action: "TAKE_FASTEST" | "TAKE_LOWER_RISK" | "TAKE_BALANCED" | "DELAY_DEPARTURE";
+  recommended_alternative_id: string;
+  recommended_label: string;
+  summary: string;
+  primary_reason: string;
+  tradeoff: string;
+  confidence: "HIGH" | "MEDIUM" | "LOW" | "UNAVAILABLE";
+  risk_delta: number;
+  time_delta_minutes: number;
+  severity: "LOW" | "MODERATE" | "HIGH" | "SEVERE";
+}
+
+export interface RouteRiskSegmentContract {
+  segment_id: string;
+  label: string;
+  risk_score: number;
+  severity: "LOW" | "MODERATE" | "HIGH" | "SEVERE";
+  primary_hazard: "FLOOD" | "RAIN" | "WIND" | "HEAT" | "WINTER" | "ALERT" | "UNKNOWN";
+  coverage: number;
+  summary: string;
 }
 
 export interface RiskAlert {

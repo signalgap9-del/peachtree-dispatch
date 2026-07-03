@@ -12,7 +12,7 @@ interface Props {
   recenterToken: number;
 }
 
-const style = {
+const productionStyle = {
   version: 8 as const,
   sources: {
     osm: {
@@ -24,6 +24,18 @@ const style = {
   },
   layers: [{ id: "osm", type: "raster" as const, source: "osm" }],
 };
+
+const testStyle = {
+  version: 8 as const,
+  sources: {},
+  layers: [{
+    id: "test-background",
+    type: "background" as const,
+    paint: { "background-color": "#eef3f8" },
+  }],
+};
+
+const style = import.meta.env.MODE === "test" ? testStyle : productionStyle;
 
 export function NetworkMap({ plan, risk, weatherSnapshot, weatherRaster, showRisk, recenterToken }: Props) {
   const container = useRef<HTMLDivElement>(null);
@@ -62,15 +74,11 @@ export function NetworkMap({ plan, risk, weatherSnapshot, weatherRaster, showRis
       map.addLayer({ id: "route-casing", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#ffffff", "line-width": 10, "line-opacity": 0.92 } });
       map.addLayer({ id: "route-main", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#1a73e8", "line-width": 6 } });
       [plan.origin, plan.destination].forEach((place, index) => {
-        const element = document.createElement("button");
-        element.className = `place-marker ${index ? "destination" : "origin"}`;
-        element.innerHTML = `<strong>${index ? "B" : "A"}</strong><span>${place.display_name}</span>`;
+        const element = createPlaceMarker(index ? "destination" : "origin", index ? "B" : "A", place.display_name);
         markers.current.push(new maplibregl.Marker({ element, anchor: "bottom" }).setLngLat([place.longitude, place.latitude]).addTo(map));
       });
       plan.weather.forEach((weather) => {
-        const element = document.createElement("button");
-        element.className = `weather-bubble ${weather.risk_level.toLowerCase()}`;
-        element.innerHTML = `<strong>${weather.risk_score}</strong><span>${weather.city}</span>`;
+        const element = createWeatherMarker(weather.risk_level.toLowerCase(), weather.risk_score, weather.city);
         markers.current.push(new maplibregl.Marker({ element }).setLngLat([weather.longitude, weather.latitude]).addTo(map));
       });
       if (plan.coordinates.length) {
@@ -138,7 +146,7 @@ export function NetworkMap({ plan, risk, weatherSnapshot, weatherRaster, showRis
     const render = () => {
       if (map.getLayer("weather-raster")) map.removeLayer("weather-raster");
       if (map.getSource("weather-raster")) map.removeSource("weather-raster");
-      if (!weatherRaster) return;
+      if (!weatherRaster?.url || weatherRaster.bounds.length < 2) return;
       const [[west, south], [east, north]] = weatherRaster.bounds;
       map.addSource("weather-raster", {
         type: "image",
@@ -158,4 +166,32 @@ export function NetworkMap({ plan, risk, weatherSnapshot, weatherRaster, showRis
   }, [recenterToken]);
 
   return <div className="network-map" ref={container} />;
+}
+
+function createPlaceMarker(kind: "origin" | "destination", label: string, displayName: string) {
+  const element = document.createElement("button");
+  element.className = `place-marker ${kind === "destination" ? "destination" : "origin"}`;
+  element.type = "button";
+  element.setAttribute("aria-label", `${kind === "origin" ? "Origin" : "Destination"}: ${displayName}`);
+
+  const labelNode = document.createElement("strong");
+  labelNode.textContent = label;
+  const nameNode = document.createElement("span");
+  nameNode.textContent = displayName;
+  element.append(labelNode, nameNode);
+  return element;
+}
+
+function createWeatherMarker(level: string, score: number, city: string) {
+  const element = document.createElement("button");
+  element.className = `weather-bubble ${level}`;
+  element.type = "button";
+  element.setAttribute("aria-label", `${city} weather risk ${score}`);
+
+  const scoreNode = document.createElement("strong");
+  scoreNode.textContent = String(score);
+  const cityNode = document.createElement("span");
+  cityNode.textContent = city;
+  element.append(scoreNode, cityNode);
+  return element;
 }

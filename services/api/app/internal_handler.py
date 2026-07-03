@@ -2,7 +2,9 @@ from .directions import build_directions, search_places
 from .models import DirectionsRequest, Place, VehicleType
 from .risk import location_risk, national_risk
 from .weather_snapshot import get_weather_snapshot
-from .weather_raster import get_weather_raster_manifest
+import base64
+
+from .weather_raster import get_weather_raster_manifest, get_weather_raster_png
 
 
 def handler(event: dict, context: object) -> dict:
@@ -21,6 +23,11 @@ def handler(event: dict, context: object) -> dict:
         result = get_weather_snapshot()
     elif method == "GET" and path == "/risk/weather-raster":
         result = get_weather_raster_manifest()
+    elif method == "GET" and path == "/risk/weather-raster.png":
+        return {
+            "content_type": "image/png",
+            "body_base64": base64.b64encode(get_weather_raster_png()).decode("ascii"),
+        }
     elif method == "POST" and path == "/risk/location":
         result = location_risk(Place.model_validate(body))
     elif method == "GET" and path == "/network":

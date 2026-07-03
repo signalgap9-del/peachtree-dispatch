@@ -12,4 +12,5 @@ RUN useradd --system --uid 10001 --create-home atmospath \
     && chown -R atmospath /app
 USER atmospath
 
-ENTRYPOINT ["python", "pipeline.py"]
+ENTRYPOINT ["python", "-m", "awslambdaric"]
+CMD ["pipeline.handler"]

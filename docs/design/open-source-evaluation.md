@@ -21,6 +21,7 @@ No third-party source code has been imported as part of this research phase.
 | [Valhalla](https://github.com/valhalla/valhalla) | MIT; mature | Alternative routes, costing, matrices, isochrones, map matching | Strong self-hosted routing-engine candidate |
 | [openrouteservice](https://github.com/GIScience/openrouteservice) | Verify current license and service constraints | Customizable routing API and GraphHopper-derived engine | Secondary routing candidate |
 | [awesome-maplibre](https://github.com/maplibre/awesome-maplibre) | Curated index | Discover maintained MapLibre ecosystem components | Use for discovery, not product code |
+| [Lokus](https://github.com/lokus-ai/lokus) | Fair Core License 1.0; public | Product completeness reference: docs, changelog, tests, local-first positioning, keyboard-first UX, feature surface | Reference only. Do not import code because the license is not a simple permissive fit for this portfolio app |
 
 ## Adaptation Boundaries
 
@@ -33,6 +34,9 @@ No third-party source code has been imported as part of this research phase.
   Ferrostar.
 - Routing capabilities such as alternative costing, matrices, and map matching
   from Valhalla or GraphHopper.
+- Product-readiness presentation from Lokus: clear README structure, visible
+  roadmap, release notes, privacy/security posture, and rich but organized
+  feature surfaces.
 
 ### Build For This Product
 
@@ -49,6 +53,8 @@ No third-party source code has been imported as part of this research phase.
 - Proprietary map tiles or scraped community hazard data.
 - Dependencies that materially increase recurring AWS cost without a measured
   need.
+- Fair-source or commercial-license code from projects such as Lokus unless a
+  future legal/licensing review explicitly approves it.
 
 ## Proposed Evaluation Spikes
 
@@ -63,4 +69,3 @@ Before selecting the final route stack, run three small, measurable spikes:
 
 The spikes should remain separate from production deployment and should not
 create recurring AWS resources.
-

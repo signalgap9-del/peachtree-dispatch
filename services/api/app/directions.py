@@ -11,6 +11,8 @@ from .models import (
     HazardExposure,
     Place,
     RouteAlternative,
+    RouteDecision,
+    RouteRiskSegment,
     WeatherRisk,
 )
 from .vehicle_profiles import VEHICLE_PROFILES
@@ -66,6 +68,8 @@ def build_directions(command: DirectionsRequest) -> DirectionsPlan:
         weather=primary.weather,
         summary=f"{command.origin.city or 'Origin'} to {command.destination.city or 'destination'}",
         alternatives=alternatives,
+        decision=_build_route_decision(alternatives),
+        segments=_build_route_segments(primary.weather),
     )
 
 
@@ -267,6 +271,151 @@ def _label_alternatives(alternatives: list[RouteAlternative]) -> None:
     for alternative in alternatives:
         if alternative.label == "Alternative":
             alternative.label = "Balanced"
+
+
+def _build_route_decision(alternatives: list[RouteAlternative]) -> RouteDecision | None:
+    if not alternatives:
+        return None
+    fastest = min(alternatives, key=lambda item: item.duration_minutes)
+    lowest_risk = min(alternatives, key=lambda item: (item.risk_score, item.duration_minutes))
+    balanced = next((item for item in alternatives if item.label == "Balanced"), None)
+    all_risky = all(item.risk_score >= 55 for item in alternatives)
+    relative_delay_limit = max(30, round(fastest.duration_minutes * 0.08))
+
+    if all_risky:
+        return _decision(
+            "DELAY_DEPARTURE",
+            lowest_risk,
+            fastest,
+            "Delay departure or take the least risky route",
+            "Every route is currently elevated because severe weather is touching the corridor.",
+        )
+    if fastest.risk_score < 30:
+        return _decision(
+            "TAKE_FASTEST",
+            fastest,
+            fastest,
+            "Fastest route is safe enough right now",
+            "The fastest option stays below the moderate-risk threshold with live weather coverage.",
+        )
+    if fastest.risk_score - lowest_risk.risk_score >= 20 and lowest_risk.duration_minutes - fastest.duration_minutes <= relative_delay_limit:
+        risk_delta = fastest.risk_score - lowest_risk.risk_score
+        return _decision(
+            "TAKE_LOWER_RISK",
+            lowest_risk,
+            fastest,
+            "Lower weather risk is worth the extra time",
+            f"This route lowers the composite risk by {risk_delta} points while staying within the acceptable delay window.",
+        )
+    if balanced and fastest.risk_score - balanced.risk_score >= 10 and balanced.duration_minutes - fastest.duration_minutes <= max(20, round(fastest.duration_minutes * 0.04)):
+        return _decision(
+            "TAKE_BALANCED",
+            balanced,
+            fastest,
+            "Balanced route gives the best tradeoff",
+            "The balanced option avoids a meaningful amount of weather risk without a large time penalty.",
+        )
+    return _decision(
+        "TAKE_FASTEST",
+        fastest,
+        fastest,
+        "Fastest route is the practical choice",
+        "Risk reduction from the alternatives is not large enough to justify the added travel time.",
+    )
+
+
+def _decision(
+    action: str,
+    recommended: RouteAlternative,
+    fastest: RouteAlternative,
+    summary: str,
+    primary_reason: str,
+) -> RouteDecision:
+    risk_delta = max(0, fastest.risk_score - recommended.risk_score)
+    time_delta = round(recommended.duration_minutes - fastest.duration_minutes)
+    return RouteDecision(
+        action=action,
+        recommended_alternative_id=recommended.alternative_id,
+        recommended_label=recommended.label,
+        summary=summary,
+        primary_reason=primary_reason,
+        tradeoff=f"{'-' + str(risk_delta) + ' risk' if risk_delta else 'similar risk'} / {'+' + _format_duration(time_delta) if time_delta > 0 else 'no additional time'}",
+        confidence=recommended.confidence,
+        risk_delta=risk_delta,
+        time_delta_minutes=time_delta,
+        severity=_severity(recommended.risk_score),
+    )
+
+
+def _build_route_segments(weather: list[WeatherRisk]) -> list[RouteRiskSegment]:
+    live = [item for item in weather if item.data_status == "LIVE"] or weather
+    if not live:
+        return []
+    segment_count = min(5, len(live))
+    chunk_size = max(1, -(-len(live) // segment_count))
+    segments: list[RouteRiskSegment] = []
+    for index in range(segment_count):
+        chunk = live[index * chunk_size : (index + 1) * chunk_size]
+        if not chunk:
+            continue
+        risk_score = round(sum(item.risk_score for item in chunk) / len(chunk))
+        hazard = _primary_hazard(chunk)
+        start = chunk[0]
+        end = chunk[-1]
+        label = start.city if start.id == end.id else f"{start.city} -> {end.city}"
+        severity = _severity(risk_score)
+        segments.append(
+            RouteRiskSegment(
+                segment_id=f"segment-{index + 1}",
+                label=label,
+                risk_score=risk_score,
+                severity=severity,
+                primary_hazard=hazard,
+                coverage=round(sum(1 for item in chunk if item.data_status == "LIVE") / len(chunk), 2),
+                summary=f"{severity.lower()} risk from {_hazard_label(hazard)}",
+            )
+        )
+    return segments
+
+
+def _primary_hazard(samples: list[WeatherRisk]) -> str:
+    scores = {
+        "FLOOD": sum(item.risk_score + item.precipitation_probability for item in samples if item.precipitation_probability >= 70 and item.risk_score >= 55),
+        "RAIN": sum(item.precipitation_probability for item in samples),
+        "WIND": sum(item.wind_speed_mph * 3 if item.wind_speed_mph >= 20 else item.wind_speed_mph for item in samples),
+        "HEAT": sum(max(0, item.temperature_f - 90) * 3 for item in samples),
+        "ALERT": sum(item.risk_score for item in samples if item.risk_score >= 80),
+    }
+    return max(scores.items(), key=lambda item: item[1])[0] if any(scores.values()) else "UNKNOWN"
+
+
+def _hazard_label(hazard: str) -> str:
+    return {
+        "FLOOD": "flood-sensitive rainfall",
+        "RAIN": "heavy precipitation",
+        "WIND": "crosswinds",
+        "HEAT": "heat exposure",
+        "ALERT": "active severe alerts",
+    }.get(hazard, "limited live coverage")
+
+
+def _severity(score: int) -> str:
+    if score >= 80:
+        return "SEVERE"
+    if score >= 55:
+        return "HIGH"
+    if score >= 30:
+        return "MODERATE"
+    return "LOW"
+
+
+def _format_duration(minutes: int) -> str:
+    hours, remaining = divmod(round(minutes), 60)
+    if not hours:
+        return f"{remaining} min"
+    if not remaining:
+        return f"{hours} hr"
+    return f"{hours} hr {remaining} min"
 
 
 def _place(item: dict) -> Place:

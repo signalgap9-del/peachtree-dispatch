@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.HashMap;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -38,6 +39,19 @@ class DynamoDbSavedPlaceRepositoryTests {
     }
 
     @Test
+    void writesSavedRouteUsingUserPartition() {
+        var route = savedRoute();
+
+        repository.saveRoute(route);
+
+        var captor = ArgumentCaptor.forClass(PutItemRequest.class);
+        verify(client).putItem(captor.capture());
+        assertThat(captor.getValue().item().get("PK").s()).isEqualTo("USER#" + route.userId());
+        assertThat(captor.getValue().item().get("SK").s()).isEqualTo("SAVED_ROUTE#" + route.savedItemId());
+        assertThat(captor.getValue().item().get("coordinatesJson").s()).contains("-122.3321", "-80.13");
+    }
+
+    @Test
     void queriesOnlySavedPlacesAndMapsResults() {
         var savedItemId = UUID.randomUUID();
         var userId = UUID.randomUUID();
@@ -60,6 +74,38 @@ class DynamoDbSavedPlaceRepositoryTests {
     }
 
     @Test
+    void queriesOnlySavedRoutesAndMapsResults() {
+        var savedItemId = UUID.randomUUID();
+        var userId = UUID.randomUUID();
+        var item = new HashMap<String, AttributeValue>();
+        item.put("savedItemId", string(savedItemId.toString()));
+        item.put("userId", string(userId.toString()));
+        item.put("name", string("Seattle to Miami Beach"));
+        item.put("originName", string("Seattle, WA"));
+        item.put("destinationName", string("Miami Beach, FL"));
+        item.put("vehicleType", string("CAR"));
+        item.put("distanceMiles", number("3127"));
+        item.put("durationMinutes", number("2910"));
+        item.put("climateDelayMinutes", number("28"));
+        item.put("riskScore", number("34"));
+        item.put("coordinatesJson", string("[[-122.3321,47.6062],[-80.13,25.7907]]"));
+        item.put("generatedAt", string("2026-06-21T12:00:00Z"));
+        when(client.query(any(QueryRequest.class))).thenReturn(QueryResponse.builder()
+                .items(List.of(item))
+                .build());
+
+        assertThat(repository.findRoutes(userId))
+                .containsExactly(new SavedRoute(savedItemId, userId, "Seattle to Miami Beach", "Seattle, WA",
+                        "Miami Beach, FL", "CAR", 3127, 2910, 28, 34,
+                        List.of(List.of(-122.3321, 47.6062), List.of(-80.13, 25.7907)),
+                        "2026-06-21T12:00:00Z"));
+
+        var captor = ArgumentCaptor.forClass(QueryRequest.class);
+        verify(client).query(captor.capture());
+        assertThat(captor.getValue().expressionAttributeValues().get(":prefix").s()).isEqualTo("SAVED_ROUTE#");
+    }
+
+    @Test
     void deletesOnlyTheOwnedSavedPlaceKey() {
         var userId = UUID.randomUUID();
         var savedItemId = UUID.randomUUID();
@@ -70,6 +116,35 @@ class DynamoDbSavedPlaceRepositoryTests {
         verify(client).deleteItem(captor.capture());
         assertThat(captor.getValue().key().get("PK").s()).isEqualTo("USER#" + userId);
         assertThat(captor.getValue().key().get("SK").s()).isEqualTo("SAVED_PLACE#" + savedItemId);
+    }
+
+    @Test
+    void deletesOnlyTheOwnedSavedRouteKey() {
+        var userId = UUID.randomUUID();
+        var savedItemId = UUID.randomUUID();
+
+        repository.deleteRoute(userId, savedItemId);
+
+        var captor = ArgumentCaptor.forClass(DeleteItemRequest.class);
+        verify(client).deleteItem(captor.capture());
+        assertThat(captor.getValue().key().get("PK").s()).isEqualTo("USER#" + userId);
+        assertThat(captor.getValue().key().get("SK").s()).isEqualTo("SAVED_ROUTE#" + savedItemId);
+    }
+
+    private static SavedRoute savedRoute() {
+        return new SavedRoute(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "Seattle to Miami Beach",
+                "Seattle, WA",
+                "Miami Beach, FL",
+                "CAR",
+                3127,
+                2910,
+                28,
+                34,
+                List.of(List.of(-122.3321, 47.6062), List.of(-80.13, 25.7907)),
+                "2026-06-21T12:00:00Z");
     }
 
     private static AttributeValue string(String value) {

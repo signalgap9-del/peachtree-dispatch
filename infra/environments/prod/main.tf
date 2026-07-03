@@ -5,6 +5,8 @@ module "application" {
   api_image_uri              = var.api_image_uri
   platform_api_image_uri     = var.platform_api_image_uri
   risk_engine_image_uri      = var.risk_engine_image_uri
+  weather_raster_image_uri   = var.weather_raster_image_uri
+  enable_hrrr_mrms_raster    = var.enable_hrrr_mrms_raster
   log_retention_days         = 30
   enable_deletion_protection = true
   enable_relational_store    = var.enable_relational_store
@@ -18,6 +20,10 @@ output "api_ecr_repository_url" {
 
 output "platform_api_ecr_repository_url" {
   value = module.application.platform_api_ecr_repository_url
+}
+
+output "weather_raster_ecr_repository_url" {
+  value = module.application.weather_raster_ecr_repository_url
 }
 
 output "api_url" {

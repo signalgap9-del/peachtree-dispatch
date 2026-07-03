@@ -1,15 +1,25 @@
 module "application" {
   source = "../../modules/application"
 
-  environment                = "dev"
-  api_image_uri              = var.api_image_uri
-  platform_api_image_uri     = var.platform_api_image_uri
-  risk_engine_image_uri      = var.risk_engine_image_uri
-  log_retention_days         = 14
-  enable_deletion_protection = false
-  enable_relational_store    = var.enable_relational_store
-  google_oauth_client_id     = var.google_oauth_client_id
-  google_oauth_client_secret = var.google_oauth_client_secret
+  environment                   = "dev"
+  api_image_uri                 = var.api_image_uri
+  platform_api_image_uri        = var.platform_api_image_uri
+  risk_engine_image_uri         = var.risk_engine_image_uri
+  weather_raster_image_uri      = var.weather_raster_image_uri
+  enable_hrrr_mrms_raster       = var.enable_hrrr_mrms_raster
+  log_retention_days            = 14
+  enable_deletion_protection    = false
+  enable_relational_store       = var.enable_relational_store
+  google_oauth_client_id        = var.google_oauth_client_id
+  google_oauth_client_secret    = var.google_oauth_client_secret
+  additional_auth_callback_urls = [
+    "http://localhost:5173/",
+    "http://127.0.0.1:5173/",
+  ]
+  additional_auth_logout_urls   = [
+    "http://localhost:5173/",
+    "http://127.0.0.1:5173/",
+  ]
 }
 
 output "api_ecr_repository_url" {
@@ -18,6 +28,10 @@ output "api_ecr_repository_url" {
 
 output "platform_api_ecr_repository_url" {
   value = module.application.platform_api_ecr_repository_url
+}
+
+output "weather_raster_ecr_repository_url" {
+  value = module.application.weather_raster_ecr_repository_url
 }
 
 output "api_url" {
