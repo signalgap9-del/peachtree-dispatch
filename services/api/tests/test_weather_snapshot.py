@@ -94,6 +94,13 @@ def test_interest_grid_is_large_enough_for_national_monitoring() -> None:
     assert len(INTEREST_POINTS) >= 150
 
 
+def test_interest_grid_uses_production_corridor_labels() -> None:
+    labels = [point[1] for point in INTEREST_POINTS]
+    assert all("sample" not in label.lower() for label in labels)
+    assert any(label.startswith("I-35 near") for label in labels)
+    assert any(" to " in label for label in labels)
+
+
 def test_renders_national_png() -> None:
     point = WeatherRisk(
         id="atlanta",

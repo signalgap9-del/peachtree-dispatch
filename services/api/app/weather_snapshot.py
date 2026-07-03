@@ -74,6 +74,39 @@ CORRIDORS = {
     "I-95": [(25.76, -80.19), (30.33, -81.66), (35.23, -80.84), (38.91, -77.04), (39.95, -75.17), (40.71, -74.01), (42.36, -71.06)],
 }
 
+
+def _distance_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    radius = 3958.8
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+    value = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
+    return 2 * radius * asin(sqrt(value))
+
+
+def _corridor_point_label(
+    corridor: str,
+    sample_index: int,
+    start: tuple[float, float],
+    end: tuple[float, float],
+) -> str:
+    start_name = _nearest_city_name(start)
+    end_name = _nearest_city_name(end)
+    if sample_index == 1:
+        return f"{corridor} near {start_name}"
+    if sample_index == 3:
+        return f"{corridor} near {end_name}"
+    return f"{corridor} {start_name} to {end_name}"
+
+
+def _nearest_city_name(point: tuple[float, float]) -> str:
+    latitude, longitude = point
+    _, label, *_ = min(
+        MAJOR_CITY_POINTS,
+        key=lambda city: _distance_miles(latitude, longitude, city[2], city[3]),
+    )
+    return label.split(" / ", maxsplit=1)[0]
+
+
 INTEREST_POINTS = []
 INTEREST_POINTS.extend(MAJOR_CITY_POINTS)
 for corridor, vertices in CORRIDORS.items():
@@ -85,7 +118,7 @@ for corridor, vertices in CORRIDORS.items():
             INTEREST_POINTS.append(
                 (
                     f"{corridor.lower()}-{segment_index}-{sample_index}",
-                    f"{corridor} corridor sample",
+                    _corridor_point_label(corridor, sample_index, start, end),
                     round(latitude, 4),
                     round(longitude, 4),
                 )
@@ -243,11 +276,3 @@ def _get_json(url: str) -> dict:
 def _wind_speed(value: str) -> float:
     values = [float(item) for item in re.findall(r"\d+(?:\.\d+)?", value)]
     return max(values, default=0)
-
-
-def _distance_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    radius = 3958.8
-    dlat = radians(lat2 - lat1)
-    dlon = radians(lon2 - lon1)
-    value = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
-    return 2 * radius * asin(sqrt(value))
