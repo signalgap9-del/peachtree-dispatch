@@ -26,7 +26,7 @@ test("degraded live-data state is explicit and does not show fabricated alerts",
 
   await page.goto("/alerts");
 
-  await expect(page.getByText("Live-data service unavailable")).toBeVisible();
+  await expect(page.getByText("Live data service unavailable")).toBeVisible();
   await expect(page.getByText("No live alert records available")).toBeVisible();
   await expect(page.getByText("Flash Flood Warning")).toHaveCount(0);
 });

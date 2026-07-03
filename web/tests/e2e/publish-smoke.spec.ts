@@ -12,6 +12,7 @@ test("home page renders live data and primary navigation works", async ({ page }
   await expect(page.locator(".live-priority").getByText("Miami, FL", { exact: true })).toBeVisible();
   await expect(page.getByText("Flash Flood Warning", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: /Alerts\s+3/ })).toBeVisible();
+  await expect(page.locator(".outlook-card .risk-map-canvas")).toBeVisible();
   await expect(page.locator(".outlook-card .live-risk-point")).toHaveCount(3);
   await expect(page.locator(".outlook-card .live-alert-point")).toHaveCount(2);
 
@@ -20,7 +21,7 @@ test("home page renders live data and primary navigation works", async ({ page }
   await expect(page.getByRole("heading", { name: "National risk dashboard" })).toBeVisible();
   await expect(page.getByText("Coverage 98%")).toBeVisible();
 
-  await page.getByRole("button", { name: /Plan a route/ }).first().click();
+  await page.getByRole("button", { name: /Plan route/ }).first().click();
   await expect(page).toHaveURL(/\/directions$/);
   await expect(page.getByPlaceholder("Choose destination")).toBeVisible();
 });
@@ -28,7 +29,7 @@ test("home page renders live data and primary navigation works", async ({ page }
 test("home search deep-links into the map destination field", async ({ page }) => {
   await page.goto("/");
 
-  const search = page.getByPlaceholder("Search a city, address, highway, or route");
+  const search = page.getByPlaceholder("Search cities, addresses, highways, or routes");
   await search.fill("Miami");
   await search.press("Enter");
 
@@ -64,11 +65,11 @@ test("language toggle and unavailable auth explain themselves", async ({ page })
 
   await page.getByRole("button", { name: "KR", exact: true }).click();
   await expect(page.getByRole("button", { name: "EN", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: /날씨를 피해 경로를 계획하세요/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /날씨를 고려해 경로를 계획하세요/ })).toBeVisible();
   await expect(page.evaluate(() => localStorage.getItem("atmospath:language"))).resolves.toBe("ko");
 
   await page.getByRole("button", { name: "EN", exact: true }).click();
-  await expect(page.getByRole("heading", { name: /Plan around the weather/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Plan routes around weather risk/ })).toBeVisible();
 
   await expect(page.getByRole("button", { name: /Continue with Google/ })).toBeVisible();
   await page.getByRole("button", { name: /Continue with Google/ }).click();

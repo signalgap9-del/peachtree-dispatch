@@ -18,6 +18,9 @@ locals {
     : aws_rds_cluster.relational[0].master_user_secret[0].secret_arn
   )
   weather_raster_enabled = local.deploy_app && var.enable_hrrr_mrms_raster && var.weather_raster_image_uri != ""
+  web_callback_url       = "https://${aws_cloudfront_distribution.web.domain_name}/"
+  auth_callback_urls     = distinct(concat([local.web_callback_url], var.additional_auth_callback_urls))
+  auth_logout_urls       = distinct(concat([local.web_callback_url], var.additional_auth_logout_urls))
 }
 
 resource "random_password" "api_origin_verify" {
@@ -67,8 +70,8 @@ resource "aws_cognito_user_pool_client" "web" {
     ["COGNITO"],
     var.google_oauth_client_id != "" && var.google_oauth_client_secret != "" ? ["Google"] : []
   )
-  callback_urls                 = ["https://${aws_cloudfront_distribution.web.domain_name}/"]
-  logout_urls                   = ["https://${aws_cloudfront_distribution.web.domain_name}/"]
+  callback_urls                 = local.auth_callback_urls
+  logout_urls                   = local.auth_logout_urls
   prevent_user_existence_errors = "ENABLED"
 
   depends_on = [aws_cognito_identity_provider.google]

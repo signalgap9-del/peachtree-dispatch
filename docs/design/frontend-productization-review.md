@@ -17,6 +17,9 @@ This document tracks the frontend review items from `codex_frontend_productizati
 - Route comparison cards: alternatives now show recommended status, risk/time tradeoff against fastest route, coverage, confidence, and hazard categories.
 - Route segment strip: selected route weather samples are grouped into live risk segments with hazard severity icons.
 - Route-impact alerts: signed-in users can see which saved routes are affected by the selected alert and open the impacted route in directions.
+- Live outlook maps: Home, Dashboard, Alerts, and Place outlook now use MapLibre raster basemaps, live weather heat points, and alert markers instead of CSS-only fake map backdrops.
+- I18n pass: the header language toggle now renders readable Korean and English copy for the main product pages.
+- Google auth readiness: Cognito callback/logout URLs now include deployed CloudFront and local dev origins to avoid callback mismatch Bad Request failures.
 - E2E coverage: Playwright now verifies route recommendation UI, segment strip, shareable directions URL, keyboard search, and saved route payload behavior.
 
 ## Still Open For A Production-Grade Release
@@ -27,4 +30,6 @@ This document tracks the frontend review items from `codex_frontend_productizati
 - Split the large stylesheet into route/page/component modules after the interaction model stabilizes.
 - Add a mobile map bottom sheet with snap points; the current panel is usable, but not yet native-map quality.
 - Finish full i18n coverage for MapPage/ProductPages hardcoded English strings.
+- Complete live Google OAuth smoke testing after real client ID/secret are connected.
+- Replace remaining decorative saved-card thumbnails with route/place-specific geometry thumbnails.
 - Add visual regression tests once screenshots are stable enough to avoid noisy CI failures.

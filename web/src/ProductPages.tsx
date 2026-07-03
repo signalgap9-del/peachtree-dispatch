@@ -24,6 +24,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { DataStatus, Navigate } from "./App";
 import { api } from "./api";
 import { currentUser, googleAuthConfigured, login, loginWithGoogle } from "./auth";
+import { LiveRiskMap } from "./components/LiveRiskMap";
 import { useI18n } from "./i18n";
 import { places, riskLevel } from "./mockData";
 import type {
@@ -428,37 +429,7 @@ function RiskMapVisual({
   compact?: boolean;
   regional?: boolean;
 }) {
-  const weatherPoints = locationRisk ? [locationRisk.weather] : topWeatherPoints(weatherSnapshot ?? null, compact ? 5 : 12);
-  const alertPoints = locationRisk ? locationRisk.alerts : national?.alerts ?? [];
-  const hasLiveData = weatherPoints.length > 0 || alertPoints.some((alert) => alert.longitude != null && alert.latitude != null);
-  return (
-    <div className={`risk-map-visual ${compact ? "compact" : ""} ${regional ? "regional" : ""}`}>
-      {weatherPoints.map((point) => {
-        const position = projectPoint(point.longitude, point.latitude);
-        const level = riskLevel(point.risk_score);
-        return (
-          <div key={point.id} className={`live-risk-point ${level}`} style={{ left: `${position.x}%`, top: `${position.y}%` }}>
-            <b className={level}>{point.risk_score}</b>
-            <span>{point.city}</span>
-            <small>{Math.round(point.precipitation_probability)}% rain · {Math.round(point.wind_speed_mph)} mph</small>
-          </div>
-        );
-      })}
-      {weatherPoints.map((point) => {
-        const position = projectPoint(point.longitude, point.latitude);
-        const size = compact ? 60 : 95;
-        return <i key={`${point.id}-field`} className={`live-risk-blob ${riskLevel(point.risk_score)}`} style={{ left: `${position.x}%`, top: `${position.y}%`, width: size, height: size }} />;
-      })}
-      {alertPoints.filter((alert) => alert.longitude != null && alert.latitude != null).map((alert) => {
-        const position = projectPoint(alert.longitude as number, alert.latitude as number);
-        return <span key={alert.alert_id} className="live-alert-point" style={{ left: `${position.x}%`, top: `${position.y}%` }} title={alert.event} />;
-      })}
-      {!hasLiveData && <div className="risk-map-empty"><EmptyState title="Live outlook unavailable" detail="No hardcoded cities or fabricated weather are shown when live feeds are unavailable." /></div>}
-      <div className="risk-legend"><strong>Risk level</strong><i /><span>Low</span><span>Extreme</span></div>
-      {national && <small className="map-status">{national.active_alerts} active alerts · {national.severe_alerts} severe</small>}
-      {locationRisk && <small className="map-status">{locationRisk.place.city}, {locationRisk.place.state} · risk {locationRisk.score}</small>}
-    </div>
-  );
+  return <LiveRiskMap national={national} weatherSnapshot={weatherSnapshot} locationRisk={locationRisk} compact={compact} regional={regional} />;
 }
 
 function InterestGridPanel({ snapshot, navigate, compact }: { snapshot: NationalWeatherSnapshot | null; navigate: Navigate; compact?: boolean }) {
@@ -540,21 +511,6 @@ function riskClass(level?: string) {
 function formatTime(value?: string) {
   if (!value) return "not available";
   return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(new Date(value));
-}
-
-function projectPoint(longitude: number, latitude: number) {
-  const west = -125;
-  const east = -66;
-  const north = 49;
-  const south = 24;
-  return {
-    x: clamp(((longitude - west) / (east - west)) * 100, 6, 94),
-    y: clamp(((north - latitude) / (north - south)) * 100, 8, 92),
-  };
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
 }
 
 function savePlace(place: (typeof places)[string], score?: number) {

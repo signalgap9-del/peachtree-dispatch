@@ -89,6 +89,18 @@ variable "google_oauth_client_secret" {
   sensitive   = true
 }
 
+variable "additional_auth_callback_urls" {
+  description = "Additional Cognito OAuth callback URLs, such as localhost for dev smoke tests."
+  type        = list(string)
+  default     = []
+}
+
+variable "additional_auth_logout_urls" {
+  description = "Additional Cognito OAuth logout URLs, such as localhost for dev smoke tests."
+  type        = list(string)
+  default     = []
+}
+
 variable "enable_relational_store" {
   description = "Provision the optional Aurora PostgreSQL Serverless v2 + PostGIS relational store."
   type        = bool
