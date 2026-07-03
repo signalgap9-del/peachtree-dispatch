@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { directionsPlan, installApiMocks, miami, seattle } from "./fixtures";
+import { directionsPlan, installApiMocks, miami, nationalRisk, seattle, weatherSnapshot } from "./fixtures";
 
 test.beforeEach(async ({ page }) => {
   await installApiMocks(page);
@@ -29,6 +29,48 @@ test("degraded live-data state is explicit and does not show fabricated alerts",
   await expect(page.getByText("Live data service unavailable")).toBeVisible();
   await expect(page.getByText("No matching active alerts")).toBeVisible();
   await expect(page.getByText("Flash Flood Warning")).toHaveCount(0);
+});
+
+test("alert maps treat official geometry-only alerts as live map data", async ({ page }) => {
+  await page.route("**/risk/national", (route) => route.fulfill({
+    json: {
+      ...nationalRisk,
+      active_alerts: 1,
+      severe_alerts: 1,
+      alerts_with_geometry: 1,
+      alerts: [{
+        alert_id: "nws-geometry-only",
+        event: "Geometry Flood Warning",
+        severity: "Severe",
+        urgency: "Immediate",
+        certainty: "Observed",
+        headline: "Official polygon-only fixture warning.",
+        area: "Central Plains",
+        instruction: "Avoid flooded crossings.",
+        score: 91,
+        longitude: null,
+        latitude: null,
+        geometry: {
+          type: "Polygon",
+          coordinates: [[
+            [-99.2, 38.8],
+            [-97.6, 38.8],
+            [-97.6, 39.9],
+            [-99.2, 39.9],
+            [-99.2, 38.8],
+          ]],
+        },
+      }],
+    },
+  }));
+  await page.route("**/risk/weather-snapshot", (route) => route.fulfill({
+    json: { ...weatherSnapshot, points: [] },
+  }));
+
+  await page.goto("/alerts?q=Geometry");
+
+  await expect(page.getByText("Focused map: Geometry Flood Warning")).toBeVisible();
+  await expect(page.getByText("Live outlook unavailable")).toHaveCount(0);
 });
 
 test("directions request preserves the API contract used by the risk engine", async ({ page }) => {

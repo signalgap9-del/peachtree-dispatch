@@ -46,7 +46,7 @@ export function LiveRiskMap({ national, weatherSnapshot, weatherRaster, location
     [compact, locationRisk, weatherSnapshot],
   );
   const alertPoints = useMemo(() => locationRisk ? locationRisk.alerts : national?.alerts ?? [], [locationRisk, national]);
-  const hasLiveData = weatherPoints.length > 0 || alertPoints.some((alert) => alert.longitude != null && alert.latitude != null);
+  const hasLiveData = weatherPoints.length > 0 || alertPoints.some((alert) => hasCoordinates(alert) || Boolean(alert.geometry));
 
   useEffect(() => {
     if (!container.current || mapRef.current) return;
@@ -135,7 +135,7 @@ export function LiveRiskMap({ national, weatherSnapshot, weatherRaster, location
 function addRasterLayer(map: Map, weatherRaster: WeatherRasterManifest | null | undefined, beforeLayer: string) {
   if (map.getLayer("mini-weather-raster")) map.removeLayer("mini-weather-raster");
   if (map.getSource("mini-weather-raster")) map.removeSource("mini-weather-raster");
-  if (import.meta.env.MODE === "test") return;
+  if (import.meta.env.MODE === "test" || weatherRaster?.source === "playwright") return;
   if (!weatherRaster?.url || weatherRaster.bounds.length < 2) return;
   const [[west, south], [east, north]] = weatherRaster.bounds;
   map.addSource("mini-weather-raster", {
