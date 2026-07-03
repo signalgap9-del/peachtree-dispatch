@@ -10,6 +10,7 @@ import java.util.UUID;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
@@ -32,6 +33,7 @@ public class DynamoDbSavedPlaceRepository implements SavedPlaceRepository {
     private final String tableName;
     private final ObjectMapper objectMapper;
 
+    @Autowired
     public DynamoDbSavedPlaceRepository(DynamoDbClient client, @Value("${atmospath.dynamodb-table}") String tableName) {
         this(client, tableName, new ObjectMapper());
     }

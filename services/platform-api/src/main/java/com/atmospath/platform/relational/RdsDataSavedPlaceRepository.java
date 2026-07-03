@@ -7,6 +7,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
 
@@ -93,6 +94,7 @@ public class RdsDataSavedPlaceRepository implements SavedPlaceRepository {
     private final RelationalStoreProperties properties;
     private final ObjectMapper objectMapper;
 
+    @Autowired
     public RdsDataSavedPlaceRepository(RdsDataClient client, RelationalStoreProperties properties) {
         this(client, properties, new ObjectMapper());
     }
