@@ -13,24 +13,58 @@ import { accessToken } from "./auth";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = accessToken();
-  const response = await fetch(`${API_URL}${path}`, {
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    ...options,
-  });
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(body.detail ?? "Request failed");
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly detail?: unknown,
+  ) {
+    super(message);
+    this.name = "ApiError";
   }
-  if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
+}
+
+type RequestOptions = RequestInit & {
+  timeoutMs?: number;
+};
+
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { timeoutMs = 15000, signal, headers, ...requestOptions } = options;
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  signal?.addEventListener("abort", abort, { once: true });
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  const token = accessToken();
+  const mergedHeaders = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(headers as Record<string, string> | undefined),
+  };
+  try {
+    const response = await fetch(`${API_URL}${path}`, {
+      ...requestOptions,
+      headers: mergedHeaders,
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({ detail: response.statusText }));
+      const message = typeof body.detail === "string" ? body.detail : response.statusText;
+      throw new ApiError(message || "Request failed", response.status, body);
+    }
+    if (response.status === 204) return undefined as T;
+    return response.json() as Promise<T>;
+  } finally {
+    window.clearTimeout(timeout);
+    signal?.removeEventListener("abort", abort);
+  }
 }
 
 export const api = {
-  searchPlaces: (query: string) => request<Place[]>(`/places/search?q=${encodeURIComponent(query)}`),
-  directions: (origin: Place, destination: Place, vehicleType: VehicleType) =>
+  searchPlaces: (query: string, options?: RequestOptions) =>
+    request<Place[]>(`/places/search?q=${encodeURIComponent(query)}`, options),
+  directions: (origin: Place, destination: Place, vehicleType: VehicleType, options?: RequestOptions) =>
     request<DirectionsPlan>("/directions", {
+      ...options,
       method: "POST",
       body: JSON.stringify({ origin, destination, vehicle_type: vehicleType }),
     }),

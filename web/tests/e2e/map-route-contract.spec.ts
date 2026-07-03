@@ -26,9 +26,12 @@ test("map search calculates route alternatives and saves the selected route", as
   await page.getByRole("button", { name: /Seattle/ }).click();
 
   await expect(page.getByRole("heading", { name: "Seattle to Miami Beach" })).toBeVisible();
+  await expect(page.getByLabel("Recommended route decision")).toContainText("Lower weather risk");
+  await expect(page.getByLabel("Recommended route decision")).toContainText("Risk -28");
   await expect(page.getByRole("button", { name: /Fastest/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Lower weather risk/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Balanced/ })).toBeVisible();
+  await expect(page.getByLabel("Risk by route segment")).toBeVisible();
   await expect(page.getByText("Risk by route checkpoint")).toBeVisible();
 
   await page.getByRole("button", { name: "Why these routes?" }).click();
@@ -36,6 +39,7 @@ test("map search calculates route alternatives and saves the selected route", as
 
   await page.getByRole("button", { name: /Fastest/ }).click();
   await expect(page.getByRole("heading", { name: "Fastest route" })).toBeVisible();
+  await expect(page).toHaveURL(/\/directions\?origin=/);
 
   await page.getByRole("button", { name: "Save this trip" }).click();
   await expect(page).toHaveURL(/\/saved$/);
@@ -59,4 +63,21 @@ test("map controls toggle weather and risk layers without leaving the page", asy
 
   await expect(page).toHaveURL(/\/map$/);
   await expect(page.getByText("Live U.S. risk")).toBeVisible();
+});
+
+test("directions deep link resolves places", async ({ page }) => {
+  await page.goto("/directions?origin=Seattle&destination=Miami%20Beach&vehicle=car");
+
+  await expect(page.getByRole("heading", { name: "Seattle to Miami Beach" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Calculate route" })).toBeEnabled();
+});
+
+test("place search supports keyboard selection", async ({ page }) => {
+  await page.goto("/map");
+
+  await page.getByPlaceholder("Choose destination").fill("Atlanta");
+  await expect(page.locator(".place-results").getByRole("button", { name: /Atlanta/ })).toBeVisible();
+  await page.getByPlaceholder("Choose destination").press("Enter");
+
+  await expect(page.getByPlaceholder("Choose destination")).toHaveValue("Atlanta, GA, United States");
 });

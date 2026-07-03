@@ -108,6 +108,33 @@ export interface RouteAlternative {
   source_status?: Record<string, string>;
 }
 
+export type RouteDecisionAction = "take_fastest" | "take_lower_risk" | "take_balanced" | "delay_departure";
+
+export interface RouteDecision {
+  action: RouteDecisionAction;
+  recommendedAlternativeId: string;
+  recommendedLabel: string;
+  summary: string;
+  primaryReason: string;
+  tradeoff: string;
+  confidence: "HIGH" | "MEDIUM" | "LOW" | "UNAVAILABLE";
+  riskDelta: number;
+  timeDeltaMinutes: number;
+  severity: "low" | "moderate" | "high" | "severe";
+}
+
+export type HazardKind = "flood" | "rain" | "wind" | "heat" | "alert" | "unknown";
+
+export interface RouteRiskSegment {
+  id: string;
+  label: string;
+  riskScore: number;
+  severity: "low" | "moderate" | "high" | "severe";
+  primaryHazard: HazardKind;
+  coverage: number;
+  summary: string;
+}
+
 export interface RiskAlert {
   alert_id: string;
   event: string;

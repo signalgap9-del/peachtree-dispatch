@@ -10,6 +10,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
+import { BrowserRouter, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { api } from "./api";
@@ -35,8 +36,18 @@ const navItems = [
 const MapPage = lazy(() => import("./MapPage").then((module) => ({ default: module.MapPage })));
 
 function App() {
+  return (
+    <BrowserRouter>
+      <AppShell />
+    </BrowserRouter>
+  );
+}
+
+function AppShell() {
   const { t } = useI18n();
-  const [path, setPath] = useState(window.location.pathname);
+  const location = useLocation();
+  const routerNavigate = useNavigate();
+  const path = location.pathname;
   const [nationalRisk, setNationalRisk] = useState<NationalRiskOverview | null>(null);
   const [weatherSnapshot, setWeatherSnapshot] = useState<NationalWeatherSnapshot | null>(null);
   const [weatherRaster, setWeatherRaster] = useState<WeatherRasterManifest | null>(null);
@@ -49,12 +60,6 @@ function App() {
       .then((completed) => { if (completed) setUser(currentUser()); })
       .catch(() => notify(t("toast.loginFailed")));
   }, [t]);
-
-  useEffect(() => {
-    const onPopState = () => setPath(window.location.pathname);
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, []);
 
   useEffect(() => {
     void Promise.allSettled([
@@ -76,31 +81,39 @@ function App() {
   }, []);
 
   const navigate: Navigate = (nextPath) => {
-    const nextUrl = new URL(nextPath, window.location.origin);
-    if (`${nextUrl.pathname}${nextUrl.search}` !== `${window.location.pathname}${window.location.search}`) window.history.pushState({}, "", nextUrl);
-    setPath(nextUrl.pathname);
+    routerNavigate(nextPath);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
     <div className={`product-app ${path === "/map" || path === "/directions" ? "map-active" : ""}`}>
       <AppHeader path={path} navigate={navigate} user={user} onUserChange={setUser} national={nationalRisk} weatherSnapshot={weatherSnapshot} />
-      {path === "/" && <HomePage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} dataStatus={dataStatus} />}
-      {path === "/dashboard" && <DashboardPage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} dataStatus={dataStatus} />}
-      {path === "/saved" && <SavedPage navigate={navigate} weatherSnapshot={weatherSnapshot} dataStatus={dataStatus} />}
-      {path === "/alerts" && <AlertsPage navigate={navigate} national={nationalRisk} dataStatus={dataStatus} />}
-      {path.startsWith("/locations/") && <PlaceDetailPage navigate={navigate} slug={path.split("/").pop() ?? "miami"} />}
-      {(path === "/map" || path === "/directions") && (
-        <Suspense fallback={<main className="map-loading-shell">Loading live map...</main>}>
-          <MapPage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} />
-        </Suspense>
-      )}
-      {!["/", "/dashboard", "/saved", "/alerts", "/map", "/directions"].includes(path) && !path.startsWith("/locations/") && (
-        <NotFound navigate={navigate} />
-      )}
+      <Routes>
+        <Route path="/" element={<HomePage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} dataStatus={dataStatus} />} />
+        <Route path="/dashboard" element={<DashboardPage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} dataStatus={dataStatus} />} />
+        <Route path="/saved" element={<SavedPage navigate={navigate} weatherSnapshot={weatherSnapshot} dataStatus={dataStatus} />} />
+        <Route path="/alerts" element={<AlertsPage navigate={navigate} national={nationalRisk} dataStatus={dataStatus} />} />
+        <Route path="/locations/:slug" element={<PlaceRoute navigate={navigate} />} />
+        <Route path="/map" element={<MapRoute navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} />} />
+        <Route path="/directions" element={<MapRoute navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} />} />
+        <Route path="*" element={<NotFound navigate={navigate} />} />
+      </Routes>
       {toast && <div className="app-toast" role="status">{toast}</div>}
     </div>
   );
+}
+
+function MapRoute({ navigate, national, weatherSnapshot, weatherRaster }: { navigate: Navigate; national: NationalRiskOverview | null; weatherSnapshot: NationalWeatherSnapshot | null; weatherRaster: WeatherRasterManifest | null }) {
+  return (
+    <Suspense fallback={<main className="map-loading-shell">Loading live map...</main>}>
+      <MapPage navigate={navigate} national={national} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} />
+    </Suspense>
+  );
+}
+
+function PlaceRoute({ navigate }: { navigate: Navigate }) {
+  const params = useParams();
+  return <PlaceDetailPage navigate={navigate} slug={params.slug ?? "miami"} />;
 }
 
 function AppHeader({ path, navigate, user, onUserChange, national, weatherSnapshot }: { path: string; navigate: Navigate; user: AuthUser | null; onUserChange: (user: AuthUser | null) => void; national: NationalRiskOverview | null; weatherSnapshot: NationalWeatherSnapshot | null }) {
