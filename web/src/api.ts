@@ -8,6 +8,7 @@ import type {
   SavedPlaceRecord,
   SavedRouteRisk,
   SavedRouteRecord,
+  RoadEventFeedRegistry,
   VehicleType,
 } from "./types";
 import { accessToken } from "./auth";
@@ -71,6 +72,7 @@ export const api = {
       body: JSON.stringify({ origin, destination, vehicle_type: vehicleType }),
     }),
   nationalRisk: () => request<NationalRiskOverview>("/risk/national"),
+  roadEventFeeds: () => request<RoadEventFeedRegistry>("/road-events/feeds?limit=30"),
   weatherSnapshot: () => request<NationalWeatherSnapshot>("/risk/weather-snapshot"),
   weatherRaster: async () => {
     const manifest = await request<WeatherRasterManifest>("/risk/weather-raster");

@@ -12,6 +12,7 @@ from app.models import (
     NationalRiskOverview,
     NetworkOverview,
     Place,
+    RoadEventFeedRegistry,
     VehicleType,
     WeatherRisk,
 )
@@ -190,6 +191,39 @@ def test_location_risk_scores_selected_place(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert response.json()["factors"]["precipitation"] == 70
+
+
+def test_road_event_feeds_exposes_wzdx_registry(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.main.get_road_event_feeds",
+        lambda state=None, limit=30: RoadEventFeedRegistry(
+            generated_at="2026-06-11T00:00:00Z",
+            source="USDOT WZDx Feed Registry",
+            active_feeds=1,
+            no_key_feeds=1,
+            feeds=[{
+                "feed_id": "utah:udot",
+                "state": "utah",
+                "issuing_organization": "Utah DOT",
+                "feed_name": "udot",
+                "format": "geojson",
+                "version": "4",
+                "update_frequency": "15m",
+                "active": True,
+                "requires_api_key": False,
+                "endpoint_host": "udottraffic.utah.gov",
+                "longitude": -111.88822,
+                "latitude": 40.76031,
+            }],
+            source_status={"wzdx_registry": "LIVE"},
+        ),
+    )
+
+    response = client.get("/road-events/feeds?state=utah&limit=5")
+
+    assert response.status_code == 200
+    assert response.json()["source"] == "USDOT WZDx Feed Registry"
+    assert response.json()["feeds"][0]["endpoint_host"] == "udottraffic.utah.gov"
 
 
 def test_submit_and_get_optimization_job() -> None:

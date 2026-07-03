@@ -23,13 +23,11 @@ test("home page renders live data and primary navigation works", async ({ page }
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole("heading", { name: "National risk dashboard" })).toBeVisible();
   await expect(page.getByText("Coverage 98%")).toBeVisible();
-  const dashboardAlertSearch = page.getByPlaceholder("Search flood, heat, Miami, I-95...");
-  await dashboardAlertSearch.fill("Miami");
-  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByText("Live alert briefing")).toBeVisible();
+  await expect(page.getByPlaceholder("Search flood, heat, Miami, I-95...")).toHaveCount(0);
   await expect(page.getByText("Miami-Dade County")).toBeVisible();
-  await expect(page.getByText("Roadwork and closure feed")).toBeVisible();
-  await page.getByRole("button", { name: "Flood", exact: true }).click();
-  await expect(page.getByText("Avoid low roads")).toBeVisible();
+  await expect(page.getByText("Roadwork and closure feeds")).toBeVisible();
+  await expect(page.getByText(/3 active WZDx provider feeds/)).toBeVisible();
 
   await page.getByRole("button", { name: /Plan route/ }).first().click();
   await expect(page).toHaveURL(/\/directions$/);

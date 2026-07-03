@@ -4,19 +4,21 @@ Date: 2026-07-04
 
 ## Why this change exists
 
-The dashboard previously showed a search-like control that immediately navigated
-to `/alerts` on focus. That violated the product expectation set by the UI: a
-search field should accept input, narrow nearby content, and make the resulting
-map state obvious before asking the user to leave the page.
+The dashboard previously showed a search-like control while the Alerts page also
+had a full alert search. That created two competing entry points and made the
+product feel stitched together. A production SaaS dashboard should brief the
+user and provide clear routes into the deeper workflow; the dedicated alert
+center should own search, filtering, and map focus.
 
-This slice turns the dashboard alert area into a small command surface:
+This slice makes `/alerts` the single alert command center:
 
-- type `flood`, `heat`, `Miami`, `I-95`, or a county-like term inline
-- filter by hazard category without page navigation
+- type `flood`, `heat`, `Miami`, `I-95`, or a county-like term on the Alerts page
+- filter by hazard category with URL-backed state
 - show official NWS alert matches and nearby monitored weather signals
-- navigate to the full alert center only on explicit result/open actions
 - focus the alert map on the selected/filtered alert instead of leaving the
   national map unrelated to the user's search
+- keep Dashboard as a briefing surface with chips and explicit links into
+  Alerts, not a second search UI
 
 ## References checked
 
@@ -28,6 +30,7 @@ This slice turns the dashboard alert area into a small command surface:
 | React Router `useSearchParams`, https://reactrouter.com/api/hooks/useSearchParams | Official docs. | Keep alert center query/category/severity shareable in URL state. Dashboard stays local until the user explicitly opens the full alert center. |
 | FHWA WZDx, https://ops.fhwa.dot.gov/wz/wzdx/index.htm | Official FHWA data standard. | Roadwork/closure data should be modeled as a separate external provider layer, not mixed into air-quality or generic news filler. |
 | USDOT WZDx overview, https://www.transportation.gov/av/data/wzdx | Official USDOT overview. | WZDx is the first target for road work, detours, restrictions, and temporary road events. |
+| USDOT WZDx Feed Registry, https://data.transportation.gov/Roadways-and-Bridges/Work-Zone-Data-Feed-Registry/69qe-yiui | Official public registry of WZDx feeds. | Add a backend-only registry reader that exposes provider counts and endpoint hosts without leaking raw feed URLs or embedded access tokens. |
 
 ## Decisions
 
@@ -36,9 +39,9 @@ This slice turns the dashboard alert area into a small command surface:
    search/map contract first, then migrate primitives incrementally.
 
 2. Keep React Router URL search state on the full Alerts page.
-   The dashboard command surface uses local state because typing should not
-   cause navigation or URL churn. Pressing Enter or clicking a result opens the
-   full alert center with URL-backed filters.
+   Dashboard chips and summary rows navigate into `/alerts` with URL-backed
+   filters. Search inputs should not be duplicated across pages unless they
+   share the same command model and map state.
 
 3. Do not add GraphQL yet.
    GraphQL becomes useful when the app has multiple composed resources per view:
@@ -51,6 +54,11 @@ This slice turns the dashboard alert area into a small command surface:
    Air quality is lower priority for this product. The next provider track
    should ingest FHWA WZDx/state 511 feeds, normalize them as road events, and
    expose them beside NWS alerts and route-risk segments.
+
+5. Batch deploys.
+   Small UI/API slices should land on a feature branch with local test evidence.
+   Merge/deploy only after a coherent product increment is complete or when an
+   urgent production bug requires a hotfix.
 
 ## Next implementation track
 
@@ -73,4 +81,3 @@ This slice turns the dashboard alert area into a small command surface:
   - Alert center tab: `Weather` / `Roadwork`
   - Map layer toggle: `Weather risk` / `NWS alerts` / `Roadwork & closures`
   - Saved route detail: `Road impacts on this route`
-

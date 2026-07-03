@@ -207,6 +207,30 @@ export interface NationalRiskOverview {
   source_status?: Record<string, string>;
 }
 
+export interface RoadEventFeed {
+  feed_id: string;
+  state: string;
+  issuing_organization: string;
+  feed_name: string;
+  format: string;
+  version?: string | null;
+  update_frequency?: string | null;
+  active: boolean;
+  requires_api_key: boolean;
+  endpoint_host?: string | null;
+  longitude?: number | null;
+  latitude?: number | null;
+}
+
+export interface RoadEventFeedRegistry {
+  generated_at: string;
+  source: string;
+  active_feeds: number;
+  no_key_feeds: number;
+  feeds: RoadEventFeed[];
+  source_status?: Record<string, string>;
+}
+
 export interface LocationRisk {
   generated_at: string;
   place: Place;
