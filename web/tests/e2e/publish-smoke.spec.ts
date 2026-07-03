@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+﻿import { expect, test } from "@playwright/test";
 
 import { installApiMocks, seedSignedInUser } from "./fixtures";
 
@@ -13,8 +13,11 @@ test("home page renders live data and primary navigation works", async ({ page }
   await expect(page.getByText("Flash Flood Warning", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: /Alerts\s+3/ })).toBeVisible();
   await expect(page.locator(".outlook-card .risk-map-canvas")).toBeVisible();
-  await expect(page.locator(".outlook-card .live-risk-point")).toHaveCount(3);
+  await expect(page.locator(".outlook-card .live-risk-point")).toHaveCount(4);
   await expect(page.locator(".outlook-card .live-alert-point")).toHaveCount(2);
+  await expect(page.getByText("Winter road risk")).toBeVisible();
+  await expect(page.locator(".winter-risk-card").getByText("Minneapolis, MN")).toBeVisible();
+  await expect(page.getByText("Operational intelligence")).toBeVisible();
 
   await page.getByRole("button", { name: /Open dashboard/ }).click();
   await expect(page).toHaveURL(/\/dashboard$/);

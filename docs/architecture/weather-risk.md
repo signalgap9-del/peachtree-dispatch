@@ -6,7 +6,8 @@ AtmosPath separates weather risk into three horizons:
 
 1. **Active hazards:** current NWS watches, warnings, and advisories.
 2. **Near-term driving conditions:** hourly NOAA/NWS forecasts for a curated
-   interest grid plus route-specific weather samples.
+   interest grid plus route-specific weather samples, including derived black
+   ice potential when freezing temperatures overlap precipitation.
 3. **Long-term location risk:** FEMA National Risk Index and flood-hazard data,
    planned as a separate cached layer.
 
@@ -18,8 +19,8 @@ unless an authoritative source currently reports it.
 The selected-location score is the maximum of:
 
 - the most severe active NWS alert score; and
-- a weighted near-term weather score using precipitation, wind, heat, and flood
-  alert factors.
+- a weighted near-term weather score using precipitation, wind, heat, winter
+  road conditions, and flood alert factors.
 
 Levels:
 

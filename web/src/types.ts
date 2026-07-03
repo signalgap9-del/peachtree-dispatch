@@ -125,7 +125,7 @@ export interface RouteDecision {
   severity: "low" | "moderate" | "high" | "severe";
 }
 
-export type HazardKind = "flood" | "rain" | "wind" | "heat" | "alert" | "unknown";
+export type HazardKind = "flood" | "rain" | "wind" | "heat" | "winter" | "alert" | "unknown";
 
 export interface RouteRiskSegment {
   id: string;
@@ -155,7 +155,7 @@ export interface RouteRiskSegmentContract {
   label: string;
   risk_score: number;
   severity: "LOW" | "MODERATE" | "HIGH" | "SEVERE";
-  primary_hazard: "FLOOD" | "RAIN" | "WIND" | "HEAT" | "ALERT" | "UNKNOWN";
+  primary_hazard: "FLOOD" | "RAIN" | "WIND" | "HEAT" | "WINTER" | "ALERT" | "UNKNOWN";
   coverage: number;
   summary: string;
 }

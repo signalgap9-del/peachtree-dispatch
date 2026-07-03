@@ -52,6 +52,7 @@ function hazardKinds(hazards: HazardExposure[]): HazardKind[] {
     if (category.includes("rain") || category.includes("precip")) return "rain";
     if (category.includes("wind")) return "wind";
     if (category.includes("heat")) return "heat";
+    if (category.includes("ice") || category.includes("snow") || category.includes("winter") || category.includes("freez")) return "winter";
     if (category.includes("alert") || category.includes("storm")) return "alert";
     return "unknown";
   });

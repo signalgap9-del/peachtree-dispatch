@@ -44,6 +44,7 @@ function hazardFromContract(hazard: NonNullable<DirectionsPlan["segments"]>[numb
   if (hazard === "RAIN") return "rain";
   if (hazard === "WIND") return "wind";
   if (hazard === "HEAT") return "heat";
+  if (hazard === "WINTER") return "winter";
   if (hazard === "ALERT") return "alert";
   return "unknown";
 }
@@ -54,9 +55,10 @@ function primaryHazardFor(samples: WeatherRisk[]): HazardKind {
     acc.flood += sample.precipitation_probability >= 70 && sample.risk_score >= 55 ? sample.risk_score : 0;
     acc.wind += sample.wind_speed_mph >= 20 ? sample.wind_speed_mph * 3 : sample.wind_speed_mph;
     acc.heat += sample.temperature_f >= 90 ? (sample.temperature_f - 70) * 2 : 0;
+    acc.winter += blackIceScore(sample);
     acc.alert += sample.risk_score >= 80 ? sample.risk_score : 0;
     return acc;
-  }, { flood: 0, rain: 0, wind: 0, heat: 0, alert: 0, unknown: 0 });
+  }, { flood: 0, rain: 0, wind: 0, heat: 0, winter: 0, alert: 0, unknown: 0 });
 
   return (Object.entries(totals).sort(([, a], [, b]) => b - a)[0]?.[0] as HazardKind | undefined) ?? "unknown";
 }
@@ -68,10 +70,19 @@ function segmentSummary(hazard: HazardKind, riskScore: number) {
     rain: "heavy precipitation",
     wind: "crosswinds",
     heat: "heat exposure",
+    winter: "black ice and freezing-road potential",
     alert: "active severe alerts",
     unknown: "limited live coverage",
   };
   return `${level} risk from ${hazardText[hazard]}`;
+}
+
+function blackIceScore(sample: WeatherRisk) {
+  if (sample.temperature_f > 38 || sample.precipitation_probability < 15) return 0;
+  const freezeFactor = sample.temperature_f <= 32 ? 45 : 24;
+  const moistureFactor = Math.min(45, sample.precipitation_probability * 0.45);
+  const windFactor = sample.wind_speed_mph >= 15 ? 10 : 0;
+  return Math.round(freezeFactor + moistureFactor + windFactor);
 }
 
 function severityFromScore(score: number): RouteRiskSegment["severity"] {

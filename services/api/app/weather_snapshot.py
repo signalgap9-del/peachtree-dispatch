@@ -171,7 +171,15 @@ def weather_risk_score(temperature: float, precipitation: float, wind: float, fo
     severe_bonus = 25 if any(word in text for word in ("thunderstorm", "tornado", "hurricane", "blizzard", "ice")) else 0
     heat = max(0, temperature - 95) * 2
     cold = max(0, 20 - temperature) * 1.5
-    return min(100, round(precipitation * 0.5 + wind * 1.1 + heat + cold + severe_bonus))
+    winter_terms = ("freezing", "ice", "sleet", "snow", "wintry", "blizzard")
+    freezing_moisture = temperature <= 34 and precipitation >= 15
+    winter_bonus = 0
+    if freezing_moisture or any(word in text for word in winter_terms):
+        freeze_factor = max(0, 34 - temperature) * 3.2
+        moisture_factor = precipitation * 0.45
+        wind_factor = 10 if wind >= 15 else 0
+        winter_bonus = min(45, freeze_factor + moisture_factor + wind_factor)
+    return min(100, round(precipitation * 0.5 + wind * 1.1 + heat + cold + severe_bonus + winter_bonus))
 
 
 def nearest_snapshot_weather(latitude: float, longitude: float, maximum_miles: float = 140) -> WeatherRisk | None:

@@ -1,4 +1,4 @@
-import { AlertTriangle, CloudRain, Droplets, Flame, ShieldCheck, Wind } from "lucide-react";
+import { AlertTriangle, CloudRain, Droplets, Flame, ShieldCheck, Snowflake, Wind } from "lucide-react";
 
 import type { HazardKind } from "../types";
 
@@ -16,6 +16,7 @@ function hazardIcon(hazard: HazardKind) {
   if (hazard === "rain") return CloudRain;
   if (hazard === "wind") return Wind;
   if (hazard === "heat") return Flame;
+  if (hazard === "winter") return Snowflake;
   if (hazard === "alert") return AlertTriangle;
   return ShieldCheck;
 }

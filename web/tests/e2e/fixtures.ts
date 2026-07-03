@@ -123,6 +123,19 @@ export const weatherSnapshot: NationalWeatherSnapshot = {
       data_status: "LIVE",
       source: "NOAA fixture",
     },
+    {
+      id: "minneapolis",
+      city: "Minneapolis, MN",
+      latitude: 44.9778,
+      longitude: -93.265,
+      temperature_f: 30,
+      precipitation_probability: 44,
+      wind_speed_mph: 18,
+      risk_score: 66,
+      risk_level: "HIGH",
+      data_status: "LIVE",
+      source: "NOAA fixture",
+    },
   ],
 };
 

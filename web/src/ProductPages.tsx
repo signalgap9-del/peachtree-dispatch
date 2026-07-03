@@ -1,4 +1,4 @@
-import {
+﻿import {
   AlertTriangle,
   ArrowRight,
   Bell,
@@ -12,11 +12,13 @@ import {
   Gauge,
   Layers3,
   MapPin,
+  Newspaper,
   Navigation,
   Plus,
   Search,
   ShieldCheck,
   SlidersHorizontal,
+  Snowflake,
   Wind,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -55,6 +57,8 @@ export function HomePage({
   const submit = () => navigate(query.trim() ? `/map?search=${encodeURIComponent(query.trim())}` : "/directions");
   const highRisk = topWeatherPoints(weatherSnapshot, 4);
   const alerts = topAlerts(national, 3);
+  const winterRisks = winterRoadRisks(weatherSnapshot, 4);
+  const intelligence = intelligenceItems(national, weatherSnapshot);
 
   return (
     <main className="page-shell home-page">
@@ -97,6 +101,10 @@ export function HomePage({
             </button>
           )) : <EmptyState title="Weather grid is loading" detail="Live HRRR/MRMS and NWS-derived points will appear here." />}
         </div>
+      </section>
+      <section className="home-bottom">
+        <WinterRoadRiskPanel points={winterRisks} navigate={navigate} />
+        <IntelligenceFeed items={intelligence} navigate={navigate} />
       </section>
     </main>
   );
@@ -437,6 +445,52 @@ function InterestGridPanel({ snapshot, navigate, compact }: { snapshot: National
   return <section className={`interest-grid ${compact ? "compact" : ""}`}><div>{points.map((point) => <button key={point.id} onClick={() => navigate(`/map?search=${encodeURIComponent(point.city)}`)}><span><strong>{point.city}</strong><small>{weatherSummary(point)}</small></span><i className={riskLevel(point.risk_score)}>{point.risk_score}</i></button>)}</div>{!points.length && <EmptyState title="No monitored points available" detail="Waiting for the nationwide weather snapshot." />}</section>;
 }
 
+function WinterRoadRiskPanel({ points, navigate }: { points: Array<{ point: WeatherRisk; score: number; reason: string }>; navigate: Navigate }) {
+  return (
+    <div className="surface winter-risk-card">
+      <SectionHeader title="Winter road risk" meta="Black ice model" action="Open map" onAction={() => navigate("/map")} />
+      {points.length ? (
+        <div className="winter-list">
+          {points.map(({ point, score, reason }) => (
+            <button key={point.id} onClick={() => navigate(`/map?search=${encodeURIComponent(point.city)}`)}>
+              <Snowflake size={18} />
+              <span><strong>{point.city}</strong><small>{reason}</small></span>
+              <b className={riskLevel(score)}>{score}</b>
+            </button>
+          ))}
+        </div>
+      ) : <EmptyState title="No winter road signal" detail="No monitored corridor currently combines freezing temperatures with moisture." />}
+    </div>
+  );
+}
+
+type IntelligenceItem = {
+  id: string;
+  title: string;
+  detail: string;
+  score: number;
+  kind: "official" | "winter" | "coverage";
+  tone?: string;
+  target: string;
+};
+
+function IntelligenceFeed({ items, navigate }: { items: IntelligenceItem[]; navigate: Navigate }) {
+  return (
+    <div className="surface intelligence-feed">
+      <SectionHeader title="Operational intelligence" meta="Official + derived signals" action="View alerts" onAction={() => navigate("/alerts")} />
+      <div className="intelligence-list">
+        {items.map((item) => (
+          <button key={item.id} onClick={() => navigate(item.target)}>
+            {item.kind === "winter" ? <Snowflake size={18} /> : item.kind === "official" ? <Newspaper size={18} /> : <Gauge size={18} />}
+            <span><strong>{item.title}</strong><small>{item.detail}</small></span>
+            <b className={item.tone ?? riskLevel(item.score)}>{item.score}</b>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function AlertStory({ alert, index, onClick }: { alert: RiskAlert; index: number; onClick: () => void }) {
   return <button className="alert-story" onClick={onClick}><i className={riskClass(alert.severity)}>{index + 1}</i><span><strong>{alert.event}</strong><small>{alert.area || "Affected U.S. region"}</small><p>{alert.headline}</p></span><b className={riskClass(alert.severity)}>{alert.severity}</b><ChevronRight size={16} /></button>;
 }
@@ -463,6 +517,59 @@ function topWeatherPoints(snapshot: NationalWeatherSnapshot | null, limit: numbe
 
 function topAlerts(national: NationalRiskOverview | null, limit: number) {
   return [...(national?.alerts ?? [])].sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
+function winterRoadRisks(snapshot: NationalWeatherSnapshot | null, limit: number) {
+  return [...(snapshot?.points ?? [])]
+    .filter((point) => point.data_status !== "UNAVAILABLE")
+    .map((point) => ({ point, score: blackIceScore(point), reason: blackIceReason(point) }))
+    .filter((item) => item.score >= 25)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+
+function blackIceScore(point: WeatherRisk) {
+  if (point.temperature_f > 38 || point.precipitation_probability < 15) return 0;
+  const freezeFactor = point.temperature_f <= 32 ? 45 : 24;
+  const moistureFactor = Math.min(45, point.precipitation_probability * 0.45);
+  const windFactor = point.wind_speed_mph >= 15 ? 10 : 0;
+  return Math.min(100, Math.round(freezeFactor + moistureFactor + windFactor));
+}
+
+function blackIceReason(point: WeatherRisk) {
+  const temp = Math.round(point.temperature_f);
+  const precip = Math.round(point.precipitation_probability);
+  if (point.temperature_f <= 32) return `${temp}°F with ${precip}% precipitation probability`;
+  return `Near-freezing ${temp}°F with ${precip}% moisture signal`;
+}
+
+function intelligenceItems(national: NationalRiskOverview | null, snapshot: NationalWeatherSnapshot | null): IntelligenceItem[] {
+  const official = topAlerts(national, 3).map((alert) => ({
+    id: `alert-${alert.alert_id}`,
+    title: alert.event,
+    detail: alert.headline || alert.area || "Official National Weather Service alert",
+    score: alert.score,
+    kind: "official" as const,
+    target: "/alerts",
+  }));
+  const winter = winterRoadRisks(snapshot, 2).map(({ point, score, reason }) => ({
+    id: `winter-${point.id}`,
+    title: `${point.city} black ice watch`,
+    detail: reason,
+    score,
+    kind: "winter" as const,
+    target: `/map?search=${encodeURIComponent(point.city)}`,
+  }));
+  const coverage = {
+    id: "coverage",
+    title: "Live data coverage",
+    detail: `${Math.round((snapshot?.coverage ?? 0) * 100)}% of monitored city and interstate points are live`,
+    score: Math.round((snapshot?.coverage ?? 0) * 100),
+    kind: "coverage" as const,
+    tone: (snapshot?.coverage ?? 0) >= 0.8 ? "low" : "moderate",
+    target: "/dashboard",
+  };
+  return [...official, ...winter, coverage].slice(0, 5);
 }
 
 function routeImpactsForAlert(alert: RiskAlert, routes: SavedRouteRecord[]) {
