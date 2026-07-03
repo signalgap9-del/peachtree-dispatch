@@ -1,6 +1,12 @@
 from app.models import NationalWeatherSnapshot, WeatherRisk
 from app.weather_collector import handler
-from app.weather_snapshot import INTEREST_POINTS, fetch_nws_weather, nearest_snapshot_weather, weather_risk_score
+from app.weather_snapshot import (
+    INTEREST_POINTS,
+    _normalize_snapshot_labels,
+    fetch_nws_weather,
+    nearest_snapshot_weather,
+    weather_risk_score,
+)
 from app.weather_raster import render_weather_raster
 
 
@@ -99,6 +105,30 @@ def test_interest_grid_uses_production_corridor_labels() -> None:
     assert all("sample" not in label.lower() for label in labels)
     assert any(label.startswith("I-35 near") for label in labels)
     assert any(" to " in label for label in labels)
+
+
+def test_old_snapshot_corridor_labels_are_normalized() -> None:
+    point = WeatherRisk(
+        id="i-35-1-1",
+        city="I-35 corridor sample",
+        latitude=29.6375,
+        longitude=-98.3053,
+        temperature_f=80,
+        precipitation_probability=30,
+        wind_speed_mph=10,
+        risk_score=40,
+        risk_level="ELEVATED",
+    )
+    snapshot = NationalWeatherSnapshot(
+        generated_at="2026-06-11T00:00:00Z",
+        expires_at="2026-06-11T01:15:00Z",
+        coverage=1,
+        points=[point],
+    )
+
+    normalized = _normalize_snapshot_labels(snapshot)
+
+    assert normalized.points[0].city == "I-35 near San Antonio"
 
 
 def test_renders_national_png() -> None:

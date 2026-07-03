@@ -124,15 +124,18 @@ for corridor, vertices in CORRIDORS.items():
                 )
             )
 
+INTEREST_LABEL_BY_ID = {identifier: label for identifier, label, *_ in INTEREST_POINTS}
+
 _CACHE: tuple[float, NationalWeatherSnapshot] | None = None
 
 
 def get_weather_snapshot(refresh_if_missing: bool = True) -> NationalWeatherSnapshot | None:
     global _CACHE
     if _CACHE and monotonic() - _CACHE[0] < 3300:
-        return _CACHE[1]
+        return _normalize_snapshot_labels(_CACHE[1])
     snapshot = _load_s3_snapshot()
     if snapshot:
+        snapshot = _normalize_snapshot_labels(snapshot)
         _CACHE = (monotonic(), snapshot)
         return snapshot
     if not refresh_if_missing:
@@ -265,6 +268,19 @@ def _load_s3_snapshot() -> NationalWeatherSnapshot | None:
         return NationalWeatherSnapshot.model_validate_json(body)
     except Exception:
         return None
+
+
+def _normalize_snapshot_labels(snapshot: NationalWeatherSnapshot) -> NationalWeatherSnapshot:
+    points = []
+    changed = False
+    for point in snapshot.points:
+        label = INTEREST_LABEL_BY_ID.get(point.id)
+        if label and label != point.city:
+            points.append(point.model_copy(update={"city": label}))
+            changed = True
+        else:
+            points.append(point)
+    return snapshot.model_copy(update={"points": points}) if changed else snapshot
 
 
 def _get_json(url: str) -> dict:
