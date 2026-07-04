@@ -1,5 +1,6 @@
 from app.internal_handler import handler
 from app.models import NationalWeatherSnapshot, Place, RoadEventFeedRegistry
+from app.vrp.ml.workflow import MLWorkflowStatus, TrainingReadinessCheck
 from app.vrp.models import MultiStopRoutePlan, VRPSolution
 
 
@@ -153,6 +154,23 @@ def test_internal_handler_supports_vrp_solve(monkeypatch) -> None:
     )
 
     assert response["data"]["status"] == "FEASIBLE"
+
+
+def test_internal_handler_supports_ml_workflow_status(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.internal_handler.get_ml_workflow_status",
+        lambda: MLWorkflowStatus(
+            mode="SHADOW_EVALUATING",
+            served_to_users=False,
+            active_model_version="test-shadow",
+            feature_schema_version="edge-cost-v1",
+            training_readiness=[TrainingReadinessCheck(label="backtest_gate", ready=True, detail="passed")],
+        ),
+    )
+
+    response = handler({"method": "GET", "path": "/ml/vrp/workflow/status"}, None)
+
+    assert response["data"]["mode"] == "SHADOW_EVALUATING"
 
 
 def test_internal_handler_supports_graphql_capabilities() -> None:

@@ -4,9 +4,9 @@ Date: 2026-07-04
 
 ## Decision
 
-Prioritize product completeness over additional platform expansion. GraphQL and real ML training are deferred until the REST-first app feels coherent, testable, and deployable.
+Prioritize product completeness over additional platform expansion. GraphQL is deferred until the REST-first app feels coherent, testable, and deployable. The ML workflow should continue, but only as shadow-mode training, backtesting, artifacts, and label collection until product flows are stable.
 
-This does not mean the existing GraphQL or ML scaffold must be deleted immediately. It means they are no longer on the critical path for the next release-quality portfolio increment.
+This does not mean the existing GraphQL scaffold must be deleted immediately. It means GraphQL is no longer on the critical path. ML workflow work remains valuable when it improves route-risk evidence, saved-route observations, and shadow evaluation without taking over served route cost.
 
 ## Current Focus
 
@@ -98,7 +98,6 @@ AtmosPath should first prove these user-visible flows:
 ## Deferred
 
 - GraphQL BFF.
-- Real ML trainer/model artifact loading.
 - MLflow/XGBoost/scikit production dependency stack.
 - Kubernetes, always-on Redis, Aurora-by-default.
 

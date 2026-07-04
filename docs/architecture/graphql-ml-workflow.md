@@ -2,9 +2,9 @@
 
 Date: 2026-07-04
 
-Status: Deferred. Keep the existing scaffold available for future composition,
-but do not treat GraphQL or real ML training as release blockers until the
-REST-first product flows are complete.
+Status: Split. GraphQL is deferred. ML workflow is active in shadow mode:
+dataset export, baseline training, backtesting, artifacts, and shadow
+prediction are useful before GraphQL becomes necessary.
 
 ## Why this exists
 

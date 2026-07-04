@@ -3,6 +3,9 @@ from .graphql_schema import schema as graphql_schema
 from .models import DirectionsRequest, Place, VehicleType
 from .risk import location_risk, national_risk
 from .road_events import get_road_event_feeds
+from .vrp.ml.dataset import SavedRouteTrainingExamplePayload, saved_route_examples_to_delay_dataset
+from .vrp.ml.trainer import DelayModelTrainingConfig, train_delay_model
+from .vrp.ml.workflow import get_ml_workflow_status
 from .vrp.models import MultiStopRouteRequest, VRPScenario
 from .vrp.multi_stop import multi_stop_route_service
 from .vrp.optimization_service import vrp_optimization_service
@@ -45,6 +48,12 @@ def handler(event: dict, context: object) -> dict:
         result = multi_stop_route_service.plan(command)
     elif method == "POST" and path == "/vrp/solve":
         result = vrp_optimization_service.solve(VRPScenario.model_validate(body))
+    elif method == "GET" and path == "/ml/vrp/workflow/status":
+        result = get_ml_workflow_status()
+    elif method == "POST" and path == "/ml/vrp/delay-model/backtest":
+        examples = [SavedRouteTrainingExamplePayload.model_validate(item) for item in body.get("examples", [])]
+        config = DelayModelTrainingConfig.model_validate(body.get("config", {}))
+        result = train_delay_model(saved_route_examples_to_delay_dataset(examples), config)
     elif method == "POST" and path == "/graphql":
         return {"data": _execute_graphql(body)}
     elif method == "GET" and path == "/network":

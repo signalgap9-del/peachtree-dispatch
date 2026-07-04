@@ -48,5 +48,5 @@ or platform increment.
 ## Deferred Until Completeness
 
 - GraphQL BFF work is not a release blocker.
-- ML model training is not a release blocker; shadow-disabled workflow and label collection are enough until product flows are stable.
+- ML serving is not a release blocker; shadow-mode dataset export, baseline training, backtesting, artifacts, and label collection are active work.
 - Performance tests should focus on smoke, REST route planning, read APIs, and authenticated saved routes before optional GraphQL pressure tests.

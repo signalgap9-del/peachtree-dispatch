@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from .features import FEATURE_SCHEMA_VERSION
+from .artifact import DelayModelArtifact, load_delay_model_artifact
 
 
 MLWorkflowMode = Literal["SHADOW_DISABLED", "SHADOW_LOG_ONLY", "SHADOW_EVALUATING", "SERVING_BLOCKED"]
@@ -34,36 +36,55 @@ def get_ml_workflow_status() -> MLWorkflowStatus:
     mode = os.getenv("VRP_ML_WORKFLOW_MODE", "SHADOW_DISABLED")
     if mode not in {"SHADOW_DISABLED", "SHADOW_LOG_ONLY", "SHADOW_EVALUATING", "SERVING_BLOCKED"}:
         mode = "SHADOW_DISABLED"
+    artifact = _load_configured_artifact()
     return MLWorkflowStatus(
         mode=mode,
         served_to_users=False,
-        active_model_version=os.getenv("VRP_ML_MODEL_VERSION", "none"),
+        active_model_version=artifact.model_version if artifact else os.getenv("VRP_ML_MODEL_VERSION", "none"),
         feature_schema_version=FEATURE_SCHEMA_VERSION,
         training_readiness=[
             TrainingReadinessCheck(
                 label="route_observations",
-                ready=False,
-                detail="Persist observed route outcomes before training delay/risk models.",
+                ready=True,
+                detail="Spring platform API persists saved-route planned-vs-actual observations for ML labels.",
             ),
             TrainingReadinessCheck(
-                label="weather_join",
-                ready=False,
-                detail="Join NOAA/NWS weather, flood, and winter-condition snapshots to route legs.",
+                label="baseline_trainer",
+                ready=True,
+                detail="NumPy least-squares baseline trainer can produce artifact-backed delay predictions.",
             ),
             TrainingReadinessCheck(
-                label="road_event_join",
-                ready=False,
-                detail="Join WZDx/511 construction, closure, and incident events to route geometry.",
+                label="model_artifact",
+                ready=artifact is not None,
+                detail=(
+                    f"Loaded artifact {artifact.model_version}."
+                    if artifact
+                    else "Set VRP_ML_MODEL_ARTIFACT to enable artifact-backed shadow prediction."
+                ),
             ),
             TrainingReadinessCheck(
                 label="backtest_gate",
-                ready=False,
-                detail="Require offline backtests to beat the rule-based scorer before serving predictions.",
+                ready=artifact.release_gate.passed if artifact else False,
+                detail=(
+                    "Configured artifact passed its offline release gate."
+                    if artifact and artifact.release_gate.passed
+                    else "Backtest gate must pass before any serving rollout is considered."
+                ),
             ),
         ],
         next_actions=[
-            "Add route observation persistence for planned vs. actual duration and hazard exposure.",
-            "Build an offline dataset exporter from edge-cost-v1 feature vectors.",
-            "Run ML predictions in shadow mode only until backtests pass release thresholds.",
+            "Export cross-route saved-route ML datasets from the platform API.",
+            "Join route observations to NWS alert geometry, weather raster samples, and WZDx road events.",
+            "Log observed-vs-predicted delay in shadow mode before enabling any served cost changes.",
         ],
     )
+
+
+def _load_configured_artifact() -> DelayModelArtifact | None:
+    artifact_path = os.getenv("VRP_ML_MODEL_ARTIFACT")
+    if not artifact_path:
+        return None
+    path = Path(artifact_path)
+    if not path.exists():
+        return None
+    return load_delay_model_artifact(path)

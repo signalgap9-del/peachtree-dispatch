@@ -307,6 +307,54 @@ def test_vrp_solve_endpoint_returns_vehicle_routes(monkeypatch) -> None:
     assert response.json()["routes"][0]["stops"][0]["job_id"] == "job-1"
 
 
+def test_ml_workflow_status_endpoint() -> None:
+    response = client.get("/ml/vrp/workflow/status")
+
+    assert response.status_code == 200
+    assert response.json()["feature_schema_version"] == "edge-cost-v1"
+    assert response.json()["served_to_users"] is False
+
+
+def test_delay_model_backtest_endpoint_trains_from_saved_route_examples() -> None:
+    examples = [
+        {
+            "observationId": f"obs-{index}",
+            "savedItemId": "route-miami-orlando",
+            "featureSchemaVersion": "saved-route-observation-v1",
+            "vehicleType": "CAR",
+            "distanceMiles": 200 + index,
+            "plannedDurationMinutes": 180 + index * 5,
+            "climateDelayMinutes": index,
+            "plannedRiskScore": 30 + index * 4,
+            "generatedAt": "2026-07-04T00:00:00Z",
+            "observedAt": f"2026-07-04T{index:02d}:00:00Z",
+            "actualDurationMinutes": 180 + index * 7,
+            "delayLabelMinutes": index * 2,
+            "observedRiskScore": 35 + index * 4,
+            "plannedHazards": ["Flood Watch"] if index % 2 else ["Thunderstorm"],
+            "encounteredHazards": ["Heavy rain"],
+            "weatherSummary": "rain",
+            "roadEventSummary": "none",
+            "source": "TEST_FIXTURE",
+        }
+        for index in range(1, 9)
+    ]
+
+    response = client.post(
+        "/ml/vrp/delay-model/backtest",
+        json={
+            "examples": examples,
+            "config": {"modelVersion": "api-delay-test", "minImprovementOverBaseline": -1},
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["artifact"]["model_version"] == "api-delay-test"
+    assert body["artifact"]["served_to_users"] is False
+    assert body["artifact"]["metrics"]["example_count"] == 8
+
+
 def test_submit_and_get_optimization_job() -> None:
     submitted = client.post("/optimizations")
     assert submitted.status_code == 202

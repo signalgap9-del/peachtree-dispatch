@@ -221,6 +221,7 @@ Remaining before accepting real external users:
 
 - [Architecture](docs/architecture.md)
 - [Completeness-first release plan](docs/architecture/completeness-first-release-plan.md)
+- [VRP ML workflow](docs/architecture/vrp-ml-workflow.md)
 - [Production risk routing](docs/architecture/production-risk-routing.md)
 - [Weather risk pipeline](docs/architecture/weather-risk.md)
 - [Deployment](docs/deployment.md)
