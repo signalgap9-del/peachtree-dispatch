@@ -1,5 +1,6 @@
 from app.internal_handler import handler
 from app.models import NationalWeatherSnapshot, Place, RoadEventFeedRegistry
+from app.vrp.models import MultiStopRoutePlan, VRPSolution
 
 
 def test_internal_handler_dispatches_place_search(monkeypatch) -> None:
@@ -88,3 +89,67 @@ def test_internal_handler_supports_road_event_feeds(monkeypatch) -> None:
     )
 
     assert response["data"]["feeds"][0]["state"] == "oklahoma"
+
+
+def test_internal_handler_supports_multi_stop_route(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.internal_handler.multi_stop_route_service.plan",
+        lambda command: MultiStopRoutePlan(
+            mode=command.mode,
+            vehicle_type=command.vehicle_type,
+            submitted_sequence=[stop.stop_id for stop in command.stops],
+            optimized_sequence=None,
+            sequence_changed=False,
+            total_distance_miles=12,
+            total_duration_minutes=18,
+            risk_adjusted_duration_minutes=22,
+            route_risk_score=20,
+            legs=[],
+        ),
+    )
+
+    response = handler(
+        {
+            "method": "POST",
+            "path": "/routes/multi-stop",
+            "body": {
+                "mode": "MANUAL_ORDER",
+                "vehicleType": "CAR",
+                "stops": [
+                    {"stopId": "A", "kind": "DEPOT", "name": "Atlanta", "latitude": 33.749, "longitude": -84.388},
+                    {"stopId": "B", "kind": "FINAL", "name": "Macon", "latitude": 32.8407, "longitude": -83.6324},
+                ],
+            },
+        },
+        None,
+    )
+
+    assert response["data"]["submitted_sequence"] == ["A", "B"]
+
+
+def test_internal_handler_supports_vrp_solve(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.internal_handler.vrp_optimization_service.solve",
+        lambda scenario: VRPSolution(
+            solver=scenario.solver,
+            status="FEASIBLE",
+            objective_value=10,
+            solve_time_ms=2,
+            routes=[],
+        ),
+    )
+
+    response = handler(
+        {
+            "method": "POST",
+            "path": "/vrp/solve",
+            "body": {
+                "depot": {"name": "Atlanta depot", "location": {"latitude": 33.749, "longitude": -84.388}},
+                "vehicles": [{"vehicleId": "van-1", "capacityUnits": 2, "startLocation": {"latitude": 33.749, "longitude": -84.388}}],
+                "jobs": [{"jobId": "job-1", "name": "Macon", "location": {"latitude": 32.8407, "longitude": -83.6324}}],
+            },
+        },
+        None,
+    )
+
+    assert response["data"]["status"] == "FEASIBLE"

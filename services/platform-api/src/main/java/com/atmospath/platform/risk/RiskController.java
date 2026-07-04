@@ -36,6 +36,21 @@ public class RiskController {
         return riskEngine.post("/directions", request);
     }
 
+    @PostMapping("/routes/multi-stop")
+    JsonNode multiStopRoute(@RequestBody JsonNode request) {
+        return riskEngine.post("/routes/multi-stop", request);
+    }
+
+    @PostMapping("/routes/multi-stop/optimize")
+    JsonNode optimizeMultiStopRoute(@RequestBody JsonNode request) {
+        return riskEngine.post("/routes/multi-stop/optimize", request);
+    }
+
+    @PostMapping("/vrp/solve")
+    JsonNode solveVrp(@RequestBody JsonNode request) {
+        return riskEngine.post("/vrp/solve", request);
+    }
+
     @GetMapping("/risk/national")
     JsonNode nationalRisk() {
         return riskEngine.get("/risk/national");

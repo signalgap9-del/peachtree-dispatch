@@ -1,6 +1,8 @@
 import type {
   DirectionsPlan,
   LocationRisk,
+  MultiStopRoutePlan,
+  MultiStopRouteRequest,
   NationalRiskOverview,
   NationalWeatherSnapshot,
   WeatherRasterManifest,
@@ -9,6 +11,8 @@ import type {
   SavedRouteRisk,
   SavedRouteRecord,
   RoadEventFeedRegistry,
+  VRPScenario,
+  VRPSolution,
   VehicleType,
 } from "./types";
 import { accessToken } from "./auth";
@@ -70,6 +74,24 @@ export const api = {
       ...options,
       method: "POST",
       body: JSON.stringify({ origin, destination, vehicle_type: vehicleType }),
+    }),
+  multiStopRoute: (payload: MultiStopRouteRequest, options?: RequestOptions) =>
+    request<MultiStopRoutePlan>("/routes/multi-stop", {
+      ...options,
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  optimizeMultiStopRoute: (payload: MultiStopRouteRequest, options?: RequestOptions) =>
+    request<MultiStopRoutePlan>("/routes/multi-stop/optimize", {
+      ...options,
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  solveVrp: (payload: VRPScenario, options?: RequestOptions) =>
+    request<VRPSolution>("/vrp/solve", {
+      ...options,
+      method: "POST",
+      body: JSON.stringify(payload),
     }),
   nationalRisk: () => request<NationalRiskOverview>("/risk/national"),
   roadEventFeeds: () => request<RoadEventFeedRegistry>("/road-events/feeds?limit=30"),

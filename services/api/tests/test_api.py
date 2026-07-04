@@ -16,6 +16,7 @@ from app.models import (
     VehicleType,
     WeatherRisk,
 )
+from app.vrp.models import MultiStopRoutePlan, VRPSolution
 
 
 client = TestClient(app)
@@ -224,6 +225,86 @@ def test_road_event_feeds_exposes_wzdx_registry(monkeypatch) -> None:
     assert response.status_code == 200
     assert response.json()["source"] == "USDOT WZDx Feed Registry"
     assert response.json()["feeds"][0]["endpoint_host"] == "udottraffic.utah.gov"
+
+
+def test_multi_stop_endpoint_returns_leg_by_leg_plan(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.vrp.routes.multi_stop_route_service.plan",
+        lambda command: MultiStopRoutePlan(
+            mode=command.mode,
+            vehicle_type=command.vehicle_type,
+            submitted_sequence=[stop.stop_id for stop in command.stops],
+            optimized_sequence=None,
+            sequence_changed=False,
+            explanation=["Submitted stop order was preserved."],
+            total_distance_miles=20,
+            total_duration_minutes=24,
+            risk_adjusted_duration_minutes=31,
+            route_risk_score=35,
+            legs=[
+                {
+                    "from_stop_id": "A",
+                    "to_stop_id": "B",
+                    "sequence": 1,
+                    "distance_miles": 20,
+                    "duration_minutes": 24,
+                    "risk_adjusted_duration_minutes": 31,
+                    "risk_score": 35,
+                    "primary_hazard": "Rain",
+                    "geometry": {"type": "LineString", "coordinates": [[-84, 33], [-83, 32]]},
+                    "explanation": [],
+                }
+            ],
+            source_status={"routing_matrix": "LIVE"},
+        ),
+    )
+
+    response = client.post(
+        "/routes/multi-stop",
+        json={
+            "mode": "MANUAL_ORDER",
+            "vehicleType": "VAN",
+            "stops": [
+                {"stopId": "A", "kind": "DEPOT", "name": "Atlanta", "latitude": 33.749, "longitude": -84.388},
+                {"stopId": "B", "kind": "FINAL", "name": "Macon", "latitude": 32.8407, "longitude": -83.6324},
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["submitted_sequence"] == ["A", "B"]
+    assert response.json()["legs"][0]["risk_score"] == 35
+
+
+def test_vrp_solve_endpoint_returns_vehicle_routes(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.vrp.routes.vrp_optimization_service.solve",
+        lambda scenario: VRPSolution(
+            solver=scenario.solver,
+            status="FEASIBLE",
+            objective_value=100,
+            solve_time_ms=5,
+            routes=[{
+                "vehicle_id": scenario.vehicles[0].vehicle_id,
+                "vehicle_type": scenario.vehicles[0].vehicle_type,
+                "stops": [{"job_id": scenario.jobs[0].job_id, "sequence": 1}],
+            }],
+            source_status={"solver": "LIVE"},
+        ),
+    )
+
+    response = client.post(
+        "/vrp/solve",
+        json={
+            "depot": {"name": "Atlanta depot", "location": {"latitude": 33.749, "longitude": -84.388}},
+            "vehicles": [{"vehicleId": "van-1", "capacityUnits": 2, "startLocation": {"latitude": 33.749, "longitude": -84.388}}],
+            "jobs": [{"jobId": "job-1", "name": "Macon", "location": {"latitude": 32.8407, "longitude": -83.6324}}],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["routes"][0]["vehicle_id"] == "van-1"
+    assert response.json()["routes"][0]["stops"][0]["job_id"] == "job-1"
 
 
 def test_submit_and_get_optimization_job() -> None:

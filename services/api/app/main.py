@@ -30,6 +30,7 @@ from .risk import location_risk, national_risk
 from .weather_snapshot import get_weather_snapshot
 from .weather_raster import get_weather_raster_manifest, get_weather_raster_png
 from .road_events import get_road_event_feeds
+from .vrp.routes import router as route_engine_router
 from .network import build_network
 from .repository_contract import DuplicateEventError
 from .repository_factory import create_repository
@@ -51,6 +52,7 @@ app.add_middleware(
 repository = create_repository()
 repository.seed()
 optimization_service = OptimizationService()
+app.include_router(route_engine_router)
 
 
 @app.get("/health")
