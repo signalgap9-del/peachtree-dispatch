@@ -20,6 +20,7 @@ from .models import (
     WeatherRasterManifest,
     NetworkOverview,
     Place,
+    RoadEventFeedRegistry,
     VehicleType,
     OptimizationJob,
     RecordEvent,
@@ -28,6 +29,7 @@ from .directions import build_directions, search_places
 from .risk import location_risk, national_risk
 from .weather_snapshot import get_weather_snapshot
 from .weather_raster import get_weather_raster_manifest, get_weather_raster_png
+from .road_events import get_road_event_feeds
 from .network import build_network
 from .repository_contract import DuplicateEventError
 from .repository_factory import create_repository
@@ -126,6 +128,14 @@ def risk_weather_raster_png() -> Response:
 @app.post("/risk/location", response_model=LocationRisk)
 def risk_location(place: Place) -> LocationRisk:
     return location_risk(place)
+
+
+@app.get("/road-events/feeds", response_model=RoadEventFeedRegistry)
+def road_event_feeds(
+    state: str | None = Query(None, min_length=2, max_length=40),
+    limit: int = Query(30, ge=1, le=100),
+) -> RoadEventFeedRegistry:
+    return get_road_event_feeds(state=state, limit=limit)
 
 
 @app.post(

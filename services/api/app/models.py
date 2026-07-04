@@ -232,6 +232,30 @@ class NationalRiskOverview(BaseModel):
     source_status: dict[str, str] = Field(default_factory=dict)
 
 
+class RoadEventFeed(BaseModel):
+    feed_id: str
+    state: str
+    issuing_organization: str
+    feed_name: str
+    format: str
+    version: str | None = None
+    update_frequency: str | None = None
+    active: bool
+    requires_api_key: bool
+    endpoint_host: str | None = None
+    longitude: float | None = None
+    latitude: float | None = None
+
+
+class RoadEventFeedRegistry(BaseModel):
+    generated_at: datetime
+    source: str
+    active_feeds: int
+    no_key_feeds: int
+    feeds: list[RoadEventFeed]
+    source_status: dict[str, str] = Field(default_factory=dict)
+
+
 class LocationRisk(BaseModel):
     generated_at: datetime
     place: Place

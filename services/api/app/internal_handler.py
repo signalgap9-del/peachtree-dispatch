@@ -1,6 +1,7 @@
 from .directions import build_directions, search_places
 from .models import DirectionsRequest, Place, VehicleType
 from .risk import location_risk, national_risk
+from .road_events import get_road_event_feeds
 from .vrp.models import MultiStopRouteRequest, VRPScenario
 from .vrp.multi_stop import multi_stop_route_service
 from .vrp.optimization_service import vrp_optimization_service
@@ -33,6 +34,9 @@ def handler(event: dict, context: object) -> dict:
         }
     elif method == "POST" and path == "/risk/location":
         result = location_risk(Place.model_validate(body))
+    elif method == "GET" and path == "/road-events/feeds":
+        limit = int(query.get("limit", 30))
+        result = get_road_event_feeds(state=query.get("state"), limit=limit)
     elif method == "POST" and path == "/routes/multi-stop":
         result = multi_stop_route_service.plan(MultiStopRouteRequest.model_validate(body))
     elif method == "POST" and path == "/routes/multi-stop/optimize":

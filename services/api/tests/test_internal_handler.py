@@ -1,5 +1,5 @@
 from app.internal_handler import handler
-from app.models import NationalWeatherSnapshot, Place
+from app.models import NationalWeatherSnapshot, Place, RoadEventFeedRegistry
 from app.vrp.models import MultiStopRoutePlan, VRPSolution
 
 
@@ -59,6 +59,38 @@ def test_internal_handler_supports_weather_raster_png(monkeypatch) -> None:
 
     assert response["content_type"] == "image/png"
     assert response["body_base64"] == "cG5nLWJ5dGVz"
+
+
+def test_internal_handler_supports_road_event_feeds(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.internal_handler.get_road_event_feeds",
+        lambda state=None, limit=30: RoadEventFeedRegistry(
+            generated_at="2026-06-11T00:00:00Z",
+            source="USDOT WZDx Feed Registry",
+            active_feeds=1,
+            no_key_feeds=1,
+            feeds=[
+                {
+                    "feed_id": "oklahoma:odot",
+                    "state": "oklahoma",
+                    "issuing_organization": "Oklahoma DOT",
+                    "feed_name": "odot",
+                    "format": "geojson",
+                    "active": True,
+                    "requires_api_key": False,
+                    "endpoint_host": "oktraffic.org",
+                }
+            ],
+            source_status={"wzdx_registry": "LIVE"},
+        ),
+    )
+
+    response = handler(
+        {"method": "GET", "path": "/road-events/feeds", "query": {"state": "oklahoma", "limit": "5"}},
+        None,
+    )
+
+    assert response["data"]["feeds"][0]["state"] == "oklahoma"
 
 
 def test_internal_handler_supports_multi_stop_route(monkeypatch) -> None:
