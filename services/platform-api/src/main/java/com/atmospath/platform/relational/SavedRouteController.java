@@ -1,5 +1,6 @@
 package com.atmospath.platform.relational;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -113,7 +114,76 @@ public class SavedRouteController {
     @GetMapping("/{savedItemId}/risk-history")
     List<SavedRouteRiskPoint> riskHistory(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID savedItemId) {
         var route = findOwnedRoute(jwt, savedItemId);
-        return List.of(new SavedRouteRiskPoint(route.lastCheckedAt(), route.riskScore(), route.riskTrend()));
+        var history = new java.util.ArrayList<SavedRouteRiskPoint>();
+        history.add(new SavedRouteRiskPoint(route.lastCheckedAt(), route.riskScore(), route.riskTrend()));
+        repository.findRouteObservations(route.userId(), savedItemId).stream()
+                .map(observation -> new SavedRouteRiskPoint(
+                        observation.observedAt(),
+                        observation.observedRiskScore(),
+                        trend(route.riskScore(), observation.observedRiskScore())))
+                .forEach(history::add);
+        return history;
+    }
+
+    @GetMapping("/{savedItemId}/observations")
+    List<SavedRouteObservation> observations(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID savedItemId) {
+        var route = findOwnedRoute(jwt, savedItemId);
+        return repository.findRouteObservations(route.userId(), savedItemId);
+    }
+
+    @PostMapping("/{savedItemId}/observations")
+    @ResponseStatus(HttpStatus.CREATED)
+    SavedRouteObservation createObservation(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID savedItemId,
+            @Valid @RequestBody CreateRouteObservation request) {
+        var route = findOwnedRoute(jwt, savedItemId);
+        var plannedDuration = request.plannedDurationMinutes() == null
+                ? route.durationMinutes()
+                : request.plannedDurationMinutes();
+        var observation = new SavedRouteObservation(
+                UUID.randomUUID(),
+                route.savedItemId(),
+                route.userId(),
+                request.observedAt() == null ? Instant.now().toString() : request.observedAt(),
+                plannedDuration,
+                request.actualDurationMinutes(),
+                Math.round((request.actualDurationMinutes() - plannedDuration) * 10.0) / 10.0,
+                request.observedRiskScore(),
+                request.encounteredHazards() == null ? List.of() : request.encounteredHazards(),
+                emptyToNull(request.weatherSummary()),
+                emptyToNull(request.roadEventSummary()),
+                request.source() == null || request.source().isBlank() ? "USER_REPORTED" : request.source(),
+                emptyToNull(request.notes()),
+                "saved-route-observation-v1");
+        repository.saveRouteObservation(observation);
+        return observation;
+    }
+
+    @GetMapping("/{savedItemId}/ml-dataset")
+    List<SavedRouteTrainingExample> mlDataset(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID savedItemId) {
+        var route = findOwnedRoute(jwt, savedItemId);
+        return repository.findRouteObservations(route.userId(), savedItemId).stream()
+                .map(observation -> new SavedRouteTrainingExample(
+                        observation.observationId(),
+                        route.savedItemId(),
+                        observation.featureSchemaVersion(),
+                        route.vehicleType(),
+                        route.distanceMiles(),
+                        observation.plannedDurationMinutes(),
+                        route.climateDelayMinutes(),
+                        route.riskScore(),
+                        route.generatedAt(),
+                        observation.observedAt(),
+                        observation.actualDurationMinutes(),
+                        observation.delayMinutes(),
+                        observation.observedRiskScore(),
+                        route.activeHazards(),
+                        observation.encounteredHazards(),
+                        observation.weatherSummary(),
+                        observation.roadEventSummary(),
+                        observation.source()))
+                .toList();
     }
 
     @DeleteMapping("/{savedItemId}")
@@ -155,6 +225,18 @@ public class SavedRouteController {
             Boolean monitorEnabled) {
     }
 
+    record CreateRouteObservation(
+            @Size(max = 64) String observedAt,
+            @DecimalMin("0.1") @DecimalMax("30000") double actualDurationMinutes,
+            @DecimalMin("0.1") @DecimalMax("30000") Double plannedDurationMinutes,
+            @Min(0) @Max(100) int observedRiskScore,
+            @Size(max = 12) List<@Size(max = 80) String> encounteredHazards,
+            @Size(max = 240) String weatherSummary,
+            @Size(max = 240) String roadEventSummary,
+            @Size(max = 64) String source,
+            @Size(max = 500) String notes) {
+    }
+
     record SavedRouteRisk(
             UUID savedItemId,
             int currentRiskScore,
@@ -168,5 +250,15 @@ public class SavedRouteController {
             String checkedAt,
             int riskScore,
             String riskTrend) {
+    }
+
+    private static String trend(int baseline, int observed) {
+        if (observed >= baseline + 10) return "WORSENING";
+        if (observed <= baseline - 10) return "IMPROVING";
+        return "STABLE";
+    }
+
+    private static String emptyToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 }

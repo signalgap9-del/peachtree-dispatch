@@ -131,6 +131,50 @@ class DynamoDbSavedPlaceRepositoryTests {
         assertThat(captor.getValue().key().get("SK").s()).isEqualTo("SAVED_ROUTE#" + savedItemId);
     }
 
+    @Test
+    void writesRouteObservationUnderTheSavedRoutePrefix() {
+        var observation = routeObservation();
+
+        repository.saveRouteObservation(observation);
+
+        var captor = ArgumentCaptor.forClass(PutItemRequest.class);
+        verify(client).putItem(captor.capture());
+        assertThat(captor.getValue().item().get("PK").s()).isEqualTo("USER#" + observation.userId());
+        assertThat(captor.getValue().item().get("SK").s())
+                .startsWith("ROUTE_OBSERVATION#" + observation.savedItemId() + "#2026-07-04T13:00:00Z#");
+        assertThat(captor.getValue().item().get("delayMinutes").n()).isEqualTo("13.0");
+        assertThat(captor.getValue().item().get("encounteredHazardsJson").s()).contains("Flash Flood Warning");
+    }
+
+    @Test
+    void queriesRouteObservationsAndMapsResults() {
+        var observation = routeObservation();
+        var item = new HashMap<String, AttributeValue>();
+        item.put("observationId", string(observation.observationId().toString()));
+        item.put("savedItemId", string(observation.savedItemId().toString()));
+        item.put("userId", string(observation.userId().toString()));
+        item.put("observedAt", string(observation.observedAt()));
+        item.put("plannedDurationMinutes", number("132.0"));
+        item.put("actualDurationMinutes", number("145.0"));
+        item.put("delayMinutes", number("13.0"));
+        item.put("observedRiskScore", number("63"));
+        item.put("encounteredHazardsJson", string("[\"Flash Flood Warning\"]"));
+        item.put("weatherSummary", string("Heavy rain."));
+        item.put("roadEventSummary", string("Lane closure."));
+        item.put("source", string("USER_REPORTED"));
+        item.put("notes", string("Slow traffic."));
+        item.put("featureSchemaVersion", string("saved-route-observation-v1"));
+        when(client.query(any(QueryRequest.class))).thenReturn(QueryResponse.builder().items(List.of(item)).build());
+
+        assertThat(repository.findRouteObservations(observation.userId(), observation.savedItemId()))
+                .containsExactly(observation);
+
+        var captor = ArgumentCaptor.forClass(QueryRequest.class);
+        verify(client).query(captor.capture());
+        assertThat(captor.getValue().expressionAttributeValues().get(":prefix").s())
+                .isEqualTo("ROUTE_OBSERVATION#" + observation.savedItemId() + "#");
+    }
+
     private static SavedRoute savedRoute() {
         return new SavedRoute(
                 UUID.randomUUID(),
@@ -145,6 +189,26 @@ class DynamoDbSavedPlaceRepositoryTests {
                 34,
                 List.of(List.of(-122.3321, 47.6062), List.of(-80.13, 25.7907)),
                 "2026-06-21T12:00:00Z");
+    }
+
+    private static SavedRouteObservation routeObservation() {
+        var savedItemId = UUID.randomUUID();
+        var userId = UUID.randomUUID();
+        return new SavedRouteObservation(
+                UUID.randomUUID(),
+                savedItemId,
+                userId,
+                "2026-07-04T13:00:00Z",
+                132.0,
+                145.0,
+                13.0,
+                63,
+                List.of("Flash Flood Warning"),
+                "Heavy rain.",
+                "Lane closure.",
+                "USER_REPORTED",
+                "Slow traffic.",
+                "saved-route-observation-v1");
     }
 
     private static AttributeValue string(String value) {

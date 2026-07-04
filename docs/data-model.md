@@ -19,6 +19,8 @@ PostgreSQL/PostGIS remains the future path for complex spatial relationships.
 | AP7 | Find failed asynchronous work | SQS DLQ, not a table scan |
 | AP8 | List one user's saved places | `PK=USER#<userId>`, `SK begins_with SAVED_PLACE#` |
 | AP9 | Create or delete one saved place | `PK=USER#<userId>`, `SK=SAVED_PLACE#<savedItemId>` |
+| AP10 | List one user's saved routes | `PK=USER#<userId>`, `SK begins_with SAVED_ROUTE#` |
+| AP11 | Record/list saved-route observations | `PK=USER#<userId>`, `SK begins_with ROUTE_OBSERVATION#<savedItemId>#` |
 
 ## Representative Items
 
@@ -57,4 +59,6 @@ removed only through a separately reviewed, non-destructive migration.
 - Large weather objects and rasters live in S3, never DynamoDB.
 - Job failures and replay are handled through SQS/DLQ.
 - Saved places live in DynamoDB for the low-traffic preview.
+- Saved route observations are small, user-owned label records and can live in
+  the same single-table partition during preview.
 - Complex route-history and spatial relationship queries belong in optional PostgreSQL/PostGIS.

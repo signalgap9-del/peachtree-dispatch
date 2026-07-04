@@ -15,6 +15,7 @@ idempotency, deduplication, and current snapshot metadata.
 | `alert_subscription` | Risk and hazard notification preferences | Owner/item FKs; enabled index |
 | `route_plan` | Persisted route request/result and selected path | Owner/time and selected-path indexes |
 | `risk_exposure` | Explainable hazard evidence for a route or saved item | Score checks; source/time provenance; GiST indexes |
+| `route_observation` | User-owned planned-vs-actual route outcomes for ML labels | Owner/item/time indexes; duration/risk checks |
 
 ## Relationship Diagram
 
@@ -28,6 +29,7 @@ erDiagram
     SAVED_ITEM ||--o{ SAVED_COLLECTION_ITEM : belongs_to
     SAVED_ITEM ||--o{ ALERT_SUBSCRIPTION : monitors
     SAVED_ITEM ||--o{ RISK_EXPOSURE : has
+    SAVED_ITEM ||--o{ ROUTE_OBSERVATION : records
     ROUTE_PLAN ||--o{ RISK_EXPOSURE : explains
 ```
 
@@ -49,6 +51,11 @@ hazard footprint.
 `risk_exposure` records the hazard category, source event, geometry, overlap,
 score, source, model version, timestamps, and provider-specific metadata.
 This prevents a route score from becoming an unexplained number.
+
+`route_observation` records planned duration, actual duration, delay label,
+observed risk score, encountered hazards, and route-context metadata. This is
+the first production-shaped label source for the ML workflow; predictions stay
+shadow-only until observation-backed backtests beat the rule-based scorer.
 
 ## Authentication Boundary
 

@@ -2,11 +2,13 @@ package com.atmospath.platform.relational;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Component;
 
 import software.amazon.awssdk.services.rdsdata.RdsDataClient;
@@ -25,7 +27,15 @@ public class RelationalSchemaInitializer implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) throws IOException {
-        var resource = new ClassPathResource("db/migration/V001__identity_saved_items_postgis.sql");
+        var resolver = new PathMatchingResourcePatternResolver();
+        var resources = resolver.getResources("classpath:db/migration/*.sql");
+        Arrays.sort(resources, java.util.Comparator.comparing(Resource::getFilename));
+        for (Resource resource : resources) {
+            runMigration(resource);
+        }
+    }
+
+    private void runMigration(Resource resource) throws IOException {
         var sql = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         for (String statement : sql.split("(?m)^-- statement\\s*$")) {
             if (!statement.isBlank()) {

@@ -86,6 +86,56 @@ export interface SavedRouteRisk {
   riskTrend: string;
 }
 
+export interface SavedRouteObservation {
+  observationId: string;
+  savedItemId: string;
+  userId: string;
+  observedAt: string;
+  plannedDurationMinutes: number;
+  actualDurationMinutes: number;
+  delayMinutes: number;
+  observedRiskScore: number;
+  encounteredHazards: string[];
+  weatherSummary?: string | null;
+  roadEventSummary?: string | null;
+  source: string;
+  notes?: string | null;
+  featureSchemaVersion: string;
+}
+
+export interface CreateSavedRouteObservation {
+  observedAt?: string | null;
+  actualDurationMinutes: number;
+  plannedDurationMinutes?: number | null;
+  observedRiskScore: number;
+  encounteredHazards?: string[];
+  weatherSummary?: string | null;
+  roadEventSummary?: string | null;
+  source?: string | null;
+  notes?: string | null;
+}
+
+export interface SavedRouteTrainingExample {
+  observationId: string;
+  savedItemId: string;
+  featureSchemaVersion: string;
+  vehicleType: VehicleType;
+  distanceMiles: number;
+  plannedDurationMinutes: number;
+  climateDelayMinutes: number;
+  plannedRiskScore: number;
+  generatedAt: string | null;
+  observedAt: string;
+  actualDurationMinutes: number;
+  delayLabelMinutes: number;
+  observedRiskScore: number;
+  plannedHazards: string[];
+  encounteredHazards: string[];
+  weatherSummary?: string | null;
+  roadEventSummary?: string | null;
+  source: string;
+}
+
 export interface DirectionsPlan {
   generated_at: string;
   origin: Place;

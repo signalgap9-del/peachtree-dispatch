@@ -26,6 +26,10 @@ endpoints that already work.
 - `POST /graphql` on the FastAPI risk engine.
 - `POST /api/v1/graphql` through the Spring platform API proxy.
 - Lambda internal risk-engine mode can execute the same GraphQL schema.
+- Saved route observations can be persisted through the Spring platform API:
+  - `POST /api/v1/me/saved/routes/{savedItemId}/observations`
+  - `GET /api/v1/me/saved/routes/{savedItemId}/observations`
+  - `GET /api/v1/me/saved/routes/{savedItemId}/ml-dataset`
 - GraphQL mutations:
   - `planMultiStopRoute(input: MultiStopRouteInput!)`
   - `optimizeMultiStopRoute(input: MultiStopRouteInput!)`
@@ -41,9 +45,12 @@ endpoints that already work.
 The ML workflow is deliberately shadow-first:
 
 1. Rule-based route risk remains authoritative.
-2. `edge-cost-v1` feature vectors define the stable training contract.
-3. Shadow predictions must not affect served cost until offline backtests pass.
-4. Route observations, weather joins, road-event joins, and backtest gates must
+2. `edge-cost-v1` feature vectors define the route-engine cost contract.
+3. `saved-route-observation-v1` records route-level labels: planned duration,
+   actual duration, delay label, observed risk, encountered hazards, weather
+   summary, and road-event summary.
+4. Shadow predictions must not affect served cost until offline backtests pass.
+5. Weather joins, road-event joins, and backtest gates must
    be implemented before a model can serve users.
 
 ## Estimated LOC by track
@@ -64,10 +71,8 @@ implemented. LOC should be a byproduct of product depth, not padding.
 
 ## Next slices
 
-1. Persist route observations for planned vs. actual duration and hazard
-   exposure.
-2. Add `GET /road-events` normalized events from no-key WZDx/511 feeds.
-3. Add GraphQL query composition for saved route detail:
+1. Add `GET /road-events` normalized events from no-key WZDx/511 feeds.
+2. Add GraphQL query composition for saved route detail:
    saved route + current risk + alert overlap + road events + risk history.
-4. Add offline dataset export and baseline trainer.
-5. Add backtest thresholds and shadow-model release gates.
+3. Add offline dataset export beyond per-route rows and baseline trainer.
+4. Add backtest thresholds and shadow-model release gates.

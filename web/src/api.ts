@@ -1,6 +1,7 @@
 import type {
   DirectionsPlan,
   LocationRisk,
+  CreateSavedRouteObservation,
   MultiStopRoutePlan,
   MultiStopRouteRequest,
   NationalRiskOverview,
@@ -8,8 +9,10 @@ import type {
   WeatherRasterManifest,
   Place,
   SavedPlaceRecord,
+  SavedRouteObservation,
   SavedRouteRisk,
   SavedRouteRecord,
+  SavedRouteTrainingExample,
   RoadEventFeedRegistry,
   VRPScenario,
   VRPSolution,
@@ -109,6 +112,15 @@ export const api = {
   savedRouteCurrentRisk: (savedItemId: string) => request<SavedRouteRisk>(`/me/saved/routes/${savedItemId}/current-risk`),
   savedRouteRiskHistory: (savedItemId: string) =>
     request<Array<{ checkedAt: string | null; riskScore: number; riskTrend: string }>>(`/me/saved/routes/${savedItemId}/risk-history`),
+  savedRouteObservations: (savedItemId: string) =>
+    request<SavedRouteObservation[]>(`/me/saved/routes/${savedItemId}/observations`),
+  recordSavedRouteObservation: (savedItemId: string, payload: CreateSavedRouteObservation) =>
+    request<SavedRouteObservation>(`/me/saved/routes/${savedItemId}/observations`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  savedRouteMlDataset: (savedItemId: string) =>
+    request<SavedRouteTrainingExample[]>(`/me/saved/routes/${savedItemId}/ml-dataset`),
   savePlace: (place: Place, currentRiskScore?: number) =>
     request<SavedPlaceRecord>("/me/saved/places", {
       method: "POST",
