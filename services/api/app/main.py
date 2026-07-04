@@ -32,6 +32,7 @@ from .network import build_network
 from .repository_contract import DuplicateEventError
 from .repository_factory import create_repository
 from .optimization_service import OptimizationService
+from .vrp.routes import router as route_engine_router
 
 app = FastAPI(title="AtmosPath Internal Risk Engine", version="0.2.0")
 cors_origins = os.getenv(
@@ -49,6 +50,7 @@ app.add_middleware(
 repository = create_repository()
 repository.seed()
 optimization_service = OptimizationService()
+app.include_router(route_engine_router)
 
 
 @app.get("/health")
