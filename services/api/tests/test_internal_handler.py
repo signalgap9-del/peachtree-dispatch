@@ -155,3 +155,49 @@ def test_internal_handler_supports_vrp_solve(monkeypatch) -> None:
     )
 
     assert response["data"]["status"] == "FEASIBLE"
+
+
+def test_internal_handler_supports_ml_workflow_status() -> None:
+    response = handler({"method": "GET", "path": "/ml/vrp/workflow/status"}, None)
+
+    assert response["data"]["feature_schema_version"] == "edge-cost-v1"
+    assert response["data"]["served_to_users"] is False
+
+
+def test_internal_handler_supports_delay_model_backtest() -> None:
+    examples = [
+        {
+            "observationId": f"obs-{index}",
+            "savedItemId": "route-atl-sav",
+            "featureSchemaVersion": "saved-route-observation-v1",
+            "vehicleType": "VAN",
+            "distanceMiles": 220 + index,
+            "plannedDurationMinutes": 210 + index * 4,
+            "climateDelayMinutes": index,
+            "plannedRiskScore": 20 + index * 5,
+            "generatedAt": "2026-07-04T00:00:00Z",
+            "observedAt": f"2026-07-04T{index:02d}:00:00Z",
+            "actualDurationMinutes": 210 + index * 6,
+            "delayLabelMinutes": index * 2,
+            "observedRiskScore": 25 + index * 5,
+            "plannedHazards": ["Thunderstorm"],
+            "encounteredHazards": ["Heavy rain"],
+            "source": "TEST_FIXTURE",
+        }
+        for index in range(1, 8)
+    ]
+
+    response = handler(
+        {
+            "method": "POST",
+            "path": "/ml/vrp/delay-model/backtest",
+            "body": {
+                "examples": examples,
+                "config": {"modelVersion": "internal-delay-test", "minImprovementOverBaseline": -1},
+            },
+        },
+        None,
+    )
+
+    assert response["data"]["artifact"]["model_version"] == "internal-delay-test"
+    assert response["data"]["artifact"]["trainer_backend"] == "scikit-learn"

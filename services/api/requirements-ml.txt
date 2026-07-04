@@ -1,0 +1,6 @@
+-r requirements.txt
+
+# Offline research/training dependencies. Keep these out of the default Lambda
+# runtime unless the deployment artifact is explicitly sized for them.
+mlflow>=3.0,<4.0
+xgboost>=3.0,<4.0

@@ -34,6 +34,7 @@ from .network import build_network
 from .repository_contract import DuplicateEventError
 from .repository_factory import create_repository
 from .optimization_service import OptimizationService
+from .vrp.ml.routes import router as ml_workflow_router
 from .vrp.routes import router as route_engine_router
 
 app = FastAPI(title="AtmosPath Internal Risk Engine", version="0.2.0")
@@ -53,6 +54,7 @@ repository = create_repository()
 repository.seed()
 optimization_service = OptimizationService()
 app.include_router(route_engine_router)
+app.include_router(ml_workflow_router)
 
 
 @app.get("/health")
