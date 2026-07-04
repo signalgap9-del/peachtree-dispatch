@@ -1,0 +1,82 @@
+[
+  {
+    "place_id": "atlanta-ga",
+    "display_name": "Atlanta, GA",
+    "city": "Atlanta",
+    "state": "GA",
+    "latitude": 33.749,
+    "longitude": -84.388
+  },
+  {
+    "place_id": "savannah-ga",
+    "display_name": "Savannah, GA",
+    "city": "Savannah",
+    "state": "GA",
+    "latitude": 32.0809,
+    "longitude": -81.0912
+  },
+  {
+    "place_id": "miami-fl",
+    "display_name": "Miami, FL",
+    "city": "Miami",
+    "state": "FL",
+    "latitude": 25.7617,
+    "longitude": -80.1918
+  },
+  {
+    "place_id": "west-palm-beach-fl",
+    "display_name": "West Palm Beach, FL",
+    "city": "West Palm Beach",
+    "state": "FL",
+    "latitude": 26.7153,
+    "longitude": -80.0534
+  },
+  {
+    "place_id": "dallas-tx",
+    "display_name": "Dallas, TX",
+    "city": "Dallas",
+    "state": "TX",
+    "latitude": 32.7767,
+    "longitude": -96.797
+  },
+  {
+    "place_id": "houston-tx",
+    "display_name": "Houston, TX",
+    "city": "Houston",
+    "state": "TX",
+    "latitude": 29.7604,
+    "longitude": -95.3698
+  },
+  {
+    "place_id": "seattle-wa",
+    "display_name": "Seattle, WA",
+    "city": "Seattle",
+    "state": "WA",
+    "latitude": 47.6062,
+    "longitude": -122.3321
+  },
+  {
+    "place_id": "portland-or",
+    "display_name": "Portland, OR",
+    "city": "Portland",
+    "state": "OR",
+    "latitude": 45.5152,
+    "longitude": -122.6784
+  },
+  {
+    "place_id": "chicago-il",
+    "display_name": "Chicago, IL",
+    "city": "Chicago",
+    "state": "IL",
+    "latitude": 41.8781,
+    "longitude": -87.6298
+  },
+  {
+    "place_id": "indianapolis-in",
+    "display_name": "Indianapolis, IN",
+    "city": "Indianapolis",
+    "state": "IN",
+    "latitude": 39.7684,
+    "longitude": -86.1581
+  }
+]

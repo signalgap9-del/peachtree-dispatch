@@ -11,9 +11,13 @@ public interface SavedPlaceRepository {
 
     void saveRoute(SavedRoute route);
 
+    void saveRouteObservation(SavedRouteObservation observation);
+
     List<SavedPlace> findAll(UUID userId);
 
     List<SavedRoute> findRoutes(UUID userId);
+
+    List<SavedRouteObservation> findRouteObservations(UUID userId, UUID savedItemId);
 
     default Optional<SavedRoute> findRoute(UUID userId, UUID savedItemId) {
         return findRoutes(userId).stream()

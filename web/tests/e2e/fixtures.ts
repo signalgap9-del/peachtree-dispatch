@@ -6,6 +6,7 @@ import type {
   NationalRiskOverview,
   NationalWeatherSnapshot,
   Place,
+  RoadEventFeedRegistry,
   SavedPlaceRecord,
   SavedRouteRecord,
   WeatherRasterManifest,
@@ -149,6 +150,58 @@ export const weatherRaster: WeatherRasterManifest = {
   point_count: weatherSnapshot.points.length,
   coverage: weatherSnapshot.coverage,
   model_version: weatherSnapshot.model_version,
+};
+
+export const roadEventFeeds: RoadEventFeedRegistry = {
+  generated_at: "2026-06-21T12:00:00Z",
+  source: "USDOT WZDx Feed Registry",
+  active_feeds: 3,
+  no_key_feeds: 2,
+  source_status: { wzdx_registry: "LIVE" },
+  feeds: [
+    {
+      feed_id: "utah:udot-wzdx",
+      state: "utah",
+      issuing_organization: "Utah DOT",
+      feed_name: "UDOT WZDx",
+      format: "geojson",
+      version: "4.2",
+      update_frequency: "15 minutes",
+      active: true,
+      requires_api_key: false,
+      endpoint_host: "udottraffic.utah.gov",
+      longitude: -111.891,
+      latitude: 40.761,
+    },
+    {
+      feed_id: "colorado:cotrip-wzdx",
+      state: "colorado",
+      issuing_organization: "Colorado DOT",
+      feed_name: "COtrip WZDx",
+      format: "geojson",
+      version: "4.2",
+      update_frequency: "5 minutes",
+      active: true,
+      requires_api_key: false,
+      endpoint_host: "data.cotrip.org",
+      longitude: -104.99,
+      latitude: 39.74,
+    },
+    {
+      feed_id: "oklahoma:oktraffic-wzdx",
+      state: "oklahoma",
+      issuing_organization: "Oklahoma DOT",
+      feed_name: "OKTraffic WZDx",
+      format: "geojson",
+      version: "4.1",
+      update_frequency: "real time",
+      active: true,
+      requires_api_key: true,
+      endpoint_host: "oktraffic.org",
+      longitude: -97.51,
+      latitude: 35.46,
+    },
+  ],
 };
 
 const mapTileSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><rect width="256" height="256" fill="#eef3f8"/><path d="M0 80h256M0 160h256M80 0v256M160 0v256" stroke="#d8e3ee" stroke-width="4"/></svg>`;
@@ -355,6 +408,7 @@ export async function installApiMocks(page: Page) {
     body: mapTileSvg,
   }));
   await page.route("**/risk/location", (route) => route.fulfill({ json: locationRisk }));
+  await page.route("**/road-events/feeds**", (route) => route.fulfill({ json: roadEventFeeds }));
   await page.route("**/me/saved/places**", (route) => {
     if (route.request().method() === "DELETE") return route.fulfill({ status: 204 });
     if (route.request().method() === "POST") return route.fulfill({ status: 201, json: savedPlaces[0] });

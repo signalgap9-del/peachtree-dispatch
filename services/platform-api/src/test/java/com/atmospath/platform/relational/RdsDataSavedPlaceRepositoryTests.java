@@ -118,6 +118,48 @@ class RdsDataSavedPlaceRepositoryTests {
         assertThat(captureRequest().sql()).contains("item_type = 'ROUTE'", "ST_AsGeoJSON");
     }
 
+    @Test
+    void writesRouteObservationWithOwnerScopedParameters() {
+        when(client.executeStatement(any(ExecuteStatementRequest.class)))
+                .thenReturn(ExecuteStatementResponse.builder().build());
+        var observation = routeObservation();
+
+        repository.saveRouteObservation(observation);
+
+        var request = captureRequest();
+        assertThat(request.sql()).contains(
+                "INSERT INTO route_observation",
+                "FROM saved_item",
+                "item_type = 'ROUTE'",
+                "CAST(:metadata AS jsonb)");
+        assertThat(request.parameters()).hasSize(9);
+        assertThat(request.parameters().stream().filter(parameter -> parameter.name().equals("user_id")).findFirst()
+                .orElseThrow().value().stringValue()).isEqualTo(observation.userId().toString());
+    }
+
+    @Test
+    void mapsRouteObservationRowsFromPostgisResults() {
+        var observation = routeObservation();
+        when(client.executeStatement(any(ExecuteStatementRequest.class))).thenReturn(
+                ExecuteStatementResponse.builder()
+                        .records(List.of(List.of(
+                                string(observation.observationId().toString()),
+                                string(observation.savedItemId().toString()),
+                                string(observation.userId().toString()),
+                                string(observation.observedAt()),
+                                decimal(132.0),
+                                decimal(145.0),
+                                decimal(13.0),
+                                Field.builder().longValue(63L).build(),
+                                string("{\"encounteredHazards\":[\"Flash Flood Warning\"],\"weatherSummary\":\"Heavy rain.\",\"roadEventSummary\":\"Lane closure.\",\"source\":\"USER_REPORTED\",\"notes\":\"Slow traffic.\",\"featureSchemaVersion\":\"saved-route-observation-v1\"}"))))
+                        .build());
+
+        assertThat(repository.findRouteObservations(observation.userId(), observation.savedItemId()))
+                .containsExactly(observation);
+
+        assertThat(captureRequest().sql()).contains("FROM route_observation", "ORDER BY observed_at DESC");
+    }
+
     private ExecuteStatementRequest captureRequest() {
         var captor = ArgumentCaptor.forClass(ExecuteStatementRequest.class);
         verify(client).executeStatement(captor.capture());
@@ -130,5 +172,23 @@ class RdsDataSavedPlaceRepositoryTests {
 
     private static Field decimal(double value) {
         return Field.builder().doubleValue(value).build();
+    }
+
+    private static SavedRouteObservation routeObservation() {
+        return new SavedRouteObservation(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "2026-07-04T13:00:00Z",
+                132.0,
+                145.0,
+                13.0,
+                63,
+                List.of("Flash Flood Warning"),
+                "Heavy rain.",
+                "Lane closure.",
+                "USER_REPORTED",
+                "Slow traffic.",
+                "saved-route-observation-v1");
     }
 }

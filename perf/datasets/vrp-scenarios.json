@@ -1,0 +1,80 @@
+[
+  {
+    "scenarioId": "atlanta-service-day",
+    "depot": {
+      "depotId": "atl-depot",
+      "name": "Atlanta Operations Base",
+      "location": {
+        "latitude": 33.749,
+        "longitude": -84.388
+      }
+    },
+    "vehicles": [
+      {
+        "vehicleId": "van-1",
+        "vehicleType": "VAN",
+        "capacityUnits": 6,
+        "startLocation": {
+          "latitude": 33.749,
+          "longitude": -84.388
+        },
+        "maxDurationMinutes": 480
+      },
+      {
+        "vehicleId": "truck-1",
+        "vehicleType": "TRUCK",
+        "capacityUnits": 10,
+        "startLocation": {
+          "latitude": 33.749,
+          "longitude": -84.388
+        },
+        "maxDurationMinutes": 540
+      }
+    ],
+    "jobs": [
+      {
+        "jobId": "job-marietta",
+        "name": "Marietta",
+        "location": {
+          "latitude": 33.9526,
+          "longitude": -84.5499
+        },
+        "demandUnits": 2,
+        "serviceDurationMinutes": 12,
+        "priority": 2
+      },
+      {
+        "jobId": "job-alpharetta",
+        "name": "Alpharetta",
+        "location": {
+          "latitude": 34.0754,
+          "longitude": -84.2941
+        },
+        "demandUnits": 3,
+        "serviceDurationMinutes": 15,
+        "priority": 3
+      },
+      {
+        "jobId": "job-macon",
+        "name": "Macon",
+        "location": {
+          "latitude": 32.8407,
+          "longitude": -83.6324
+        },
+        "demandUnits": 4,
+        "serviceDurationMinutes": 20,
+        "priority": 4
+      }
+    ],
+    "objective": "risk_adjusted_time",
+    "solver": "ortools",
+    "costModel": {
+      "durationWeight": 1,
+      "weatherRiskWeight": 0.35,
+      "trafficRiskWeight": 0.25,
+      "floodRiskWeight": 0.3,
+      "alertRiskWeight": 0.5,
+      "useMlShadowCost": true
+    }
+  }
+]

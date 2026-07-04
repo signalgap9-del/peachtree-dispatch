@@ -1,0 +1,52 @@
+[
+  {
+    "id": "atlanta-savannah",
+    "label": "Atlanta to Savannah",
+    "vehicleType": "CAR",
+    "origin": "atlanta-ga",
+    "destination": "savannah-ga",
+    "usualDepartureTime": "08:00",
+    "riskThreshold": 55,
+    "hazardTags": ["thunderstorm", "heavy-rain"]
+  },
+  {
+    "id": "miami-west-palm",
+    "label": "Miami to West Palm Beach",
+    "vehicleType": "CAR",
+    "origin": "miami-fl",
+    "destination": "west-palm-beach-fl",
+    "usualDepartureTime": "07:30",
+    "riskThreshold": 50,
+    "hazardTags": ["flash-flood", "coastal-rain"]
+  },
+  {
+    "id": "dallas-houston",
+    "label": "Dallas to Houston",
+    "vehicleType": "TRUCK",
+    "origin": "dallas-tx",
+    "destination": "houston-tx",
+    "usualDepartureTime": "06:00",
+    "riskThreshold": 60,
+    "hazardTags": ["roadwork", "flood-watch"]
+  },
+  {
+    "id": "seattle-portland",
+    "label": "Seattle to Portland",
+    "vehicleType": "VAN",
+    "origin": "seattle-wa",
+    "destination": "portland-or",
+    "usualDepartureTime": "09:00",
+    "riskThreshold": 52,
+    "hazardTags": ["heavy-rain", "wind"]
+  },
+  {
+    "id": "chicago-indianapolis",
+    "label": "Chicago to Indianapolis",
+    "vehicleType": "TRUCK",
+    "origin": "chicago-il",
+    "destination": "indianapolis-in",
+    "usualDepartureTime": "05:30",
+    "riskThreshold": 58,
+    "hazardTags": ["winter-weather", "black-ice"]
+  }
+]

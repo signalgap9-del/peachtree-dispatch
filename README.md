@@ -220,9 +220,12 @@ Remaining before accepting real external users:
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [Completeness-first release plan](docs/architecture/completeness-first-release-plan.md)
+- [VRP ML workflow](docs/architecture/vrp-ml-workflow.md)
 - [Production risk routing](docs/architecture/production-risk-routing.md)
 - [Weather risk pipeline](docs/architecture/weather-risk.md)
 - [Deployment](docs/deployment.md)
+- [Performance/load testing](docs/architecture/performance-load-testing.md)
 - [Publish readiness](docs/publish-readiness.md)
 - [Roadmap](docs/roadmap.md)
 - [Google social login setup](docs/google-auth.md)

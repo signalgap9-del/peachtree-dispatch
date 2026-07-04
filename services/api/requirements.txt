@@ -8,3 +8,4 @@ ortools==9.15.6755
 protobuf==6.33.6
 numpy==2.2.6
 pillow==12.2.0
+strawberry-graphql[fastapi]==0.320.1

@@ -12,9 +12,11 @@ from app.models import (
     NationalRiskOverview,
     NetworkOverview,
     Place,
+    RoadEventFeedRegistry,
     VehicleType,
     WeatherRisk,
 )
+from app.vrp.models import MultiStopRoutePlan, VRPSolution
 
 
 client = TestClient(app)
@@ -190,6 +192,167 @@ def test_location_risk_scores_selected_place(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert response.json()["factors"]["precipitation"] == 70
+
+
+def test_road_event_feeds_exposes_wzdx_registry(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.main.get_road_event_feeds",
+        lambda state=None, limit=30: RoadEventFeedRegistry(
+            generated_at="2026-06-11T00:00:00Z",
+            source="USDOT WZDx Feed Registry",
+            active_feeds=1,
+            no_key_feeds=1,
+            feeds=[{
+                "feed_id": "utah:udot",
+                "state": "utah",
+                "issuing_organization": "Utah DOT",
+                "feed_name": "udot",
+                "format": "geojson",
+                "version": "4",
+                "update_frequency": "15m",
+                "active": True,
+                "requires_api_key": False,
+                "endpoint_host": "udottraffic.utah.gov",
+                "longitude": -111.88822,
+                "latitude": 40.76031,
+            }],
+            source_status={"wzdx_registry": "LIVE"},
+        ),
+    )
+
+    response = client.get("/road-events/feeds?state=utah&limit=5")
+
+    assert response.status_code == 200
+    assert response.json()["source"] == "USDOT WZDx Feed Registry"
+    assert response.json()["feeds"][0]["endpoint_host"] == "udottraffic.utah.gov"
+
+
+def test_multi_stop_endpoint_returns_leg_by_leg_plan(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.vrp.routes.multi_stop_route_service.plan",
+        lambda command: MultiStopRoutePlan(
+            mode=command.mode,
+            vehicle_type=command.vehicle_type,
+            submitted_sequence=[stop.stop_id for stop in command.stops],
+            optimized_sequence=None,
+            sequence_changed=False,
+            explanation=["Submitted stop order was preserved."],
+            total_distance_miles=20,
+            total_duration_minutes=24,
+            risk_adjusted_duration_minutes=31,
+            route_risk_score=35,
+            legs=[
+                {
+                    "from_stop_id": "A",
+                    "to_stop_id": "B",
+                    "sequence": 1,
+                    "distance_miles": 20,
+                    "duration_minutes": 24,
+                    "risk_adjusted_duration_minutes": 31,
+                    "risk_score": 35,
+                    "primary_hazard": "Rain",
+                    "geometry": {"type": "LineString", "coordinates": [[-84, 33], [-83, 32]]},
+                    "explanation": [],
+                }
+            ],
+            source_status={"routing_matrix": "LIVE"},
+        ),
+    )
+
+    response = client.post(
+        "/routes/multi-stop",
+        json={
+            "mode": "MANUAL_ORDER",
+            "vehicleType": "VAN",
+            "stops": [
+                {"stopId": "A", "kind": "DEPOT", "name": "Atlanta", "latitude": 33.749, "longitude": -84.388},
+                {"stopId": "B", "kind": "FINAL", "name": "Macon", "latitude": 32.8407, "longitude": -83.6324},
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["submitted_sequence"] == ["A", "B"]
+    assert response.json()["legs"][0]["risk_score"] == 35
+
+
+def test_vrp_solve_endpoint_returns_vehicle_routes(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.vrp.routes.vrp_optimization_service.solve",
+        lambda scenario: VRPSolution(
+            solver=scenario.solver,
+            status="FEASIBLE",
+            objective_value=100,
+            solve_time_ms=5,
+            routes=[{
+                "vehicle_id": scenario.vehicles[0].vehicle_id,
+                "vehicle_type": scenario.vehicles[0].vehicle_type,
+                "stops": [{"job_id": scenario.jobs[0].job_id, "sequence": 1}],
+            }],
+            source_status={"solver": "LIVE"},
+        ),
+    )
+
+    response = client.post(
+        "/vrp/solve",
+        json={
+            "depot": {"name": "Atlanta depot", "location": {"latitude": 33.749, "longitude": -84.388}},
+            "vehicles": [{"vehicleId": "van-1", "capacityUnits": 2, "startLocation": {"latitude": 33.749, "longitude": -84.388}}],
+            "jobs": [{"jobId": "job-1", "name": "Macon", "location": {"latitude": 32.8407, "longitude": -83.6324}}],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["routes"][0]["vehicle_id"] == "van-1"
+    assert response.json()["routes"][0]["stops"][0]["job_id"] == "job-1"
+
+
+def test_ml_workflow_status_endpoint() -> None:
+    response = client.get("/ml/vrp/workflow/status")
+
+    assert response.status_code == 200
+    assert response.json()["feature_schema_version"] == "edge-cost-v1"
+    assert response.json()["served_to_users"] is False
+
+
+def test_delay_model_backtest_endpoint_trains_from_saved_route_examples() -> None:
+    examples = [
+        {
+            "observationId": f"obs-{index}",
+            "savedItemId": "route-miami-orlando",
+            "featureSchemaVersion": "saved-route-observation-v1",
+            "vehicleType": "CAR",
+            "distanceMiles": 200 + index,
+            "plannedDurationMinutes": 180 + index * 5,
+            "climateDelayMinutes": index,
+            "plannedRiskScore": 30 + index * 4,
+            "generatedAt": "2026-07-04T00:00:00Z",
+            "observedAt": f"2026-07-04T{index:02d}:00:00Z",
+            "actualDurationMinutes": 180 + index * 7,
+            "delayLabelMinutes": index * 2,
+            "observedRiskScore": 35 + index * 4,
+            "plannedHazards": ["Flood Watch"] if index % 2 else ["Thunderstorm"],
+            "encounteredHazards": ["Heavy rain"],
+            "weatherSummary": "rain",
+            "roadEventSummary": "none",
+            "source": "TEST_FIXTURE",
+        }
+        for index in range(1, 9)
+    ]
+
+    response = client.post(
+        "/ml/vrp/delay-model/backtest",
+        json={
+            "examples": examples,
+            "config": {"modelVersion": "api-delay-test", "minImprovementOverBaseline": -1},
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["artifact"]["model_version"] == "api-delay-test"
+    assert body["artifact"]["served_to_users"] is False
+    assert body["artifact"]["metrics"]["example_count"] == 8
 
 
 def test_submit_and_get_optimization_job() -> None:

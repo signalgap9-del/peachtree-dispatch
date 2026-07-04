@@ -35,6 +35,7 @@ import type {
   NationalRiskOverview,
   NationalWeatherSnapshot,
   RiskAlert,
+  RoadEventFeedRegistry,
   SavedPlaceRecord,
   SavedRouteRisk,
   SavedRouteRecord,
@@ -125,17 +126,21 @@ export function DashboardPage({
 }: LiveProps & { weatherSnapshot: NationalWeatherSnapshot | null }) {
   const { t } = useI18n();
   const rows = useMemo(() => topWeatherPoints(weatherSnapshot, 8), [weatherSnapshot]);
-  const [alertQuery, setAlertQuery] = useState("");
-  const [alertCategory, setAlertCategory] = useState<AlertCategory>("all");
-  const alerts = useMemo(() => dashboardAlertResults(national, alertQuery, alertCategory, 5), [alertCategory, alertQuery, national]);
-  const relatedWeather = useMemo(() => weatherSearchResults(weatherSnapshot, alertQuery, alertCategory).slice(0, 3), [alertCategory, alertQuery, weatherSnapshot]);
+  const [roadFeeds, setRoadFeeds] = useState<RoadEventFeedRegistry | null>(null);
+  const [roadFeedsUnavailable, setRoadFeedsUnavailable] = useState(false);
+  const alerts = topAlerts(national, 5);
   const alertChips = alertCategoryOptions.filter((category) => category !== "all");
-  const openAlertCenter = () => {
-    const params = new URLSearchParams();
-    if (alertQuery.trim()) params.set("q", alertQuery.trim());
-    if (alertCategory !== "all") params.set("category", alertCategory);
-    navigate(`/alerts${params.toString() ? `?${params.toString()}` : ""}`);
-  };
+  useEffect(() => {
+    let cancelled = false;
+    void api.roadEventFeeds()
+      .then((feeds) => {
+        if (!cancelled) setRoadFeeds(feeds);
+      })
+      .catch(() => {
+        if (!cancelled) setRoadFeedsUnavailable(true);
+      });
+    return () => { cancelled = true; };
+  }, []);
   return (
     <main className="page-shell dashboard-page">
       <PageTitle title={t("dashboard.title")} subtitle={t("dashboard.subtitle")}>
@@ -159,26 +164,18 @@ export function DashboardPage({
           {!rows.length && <EmptyState title="No weather points available" detail="The dashboard does not substitute fabricated scores when the live pipeline is unavailable." />}
         </div>
         <div className="surface dashboard-alert-intel">
-          <SectionHeader title="Search live alerts" meta={`${national?.active_alerts ?? 0} active NWS alerts`} action="Open alert center" onAction={openAlertCenter} />
-          <label className="alert-search-preview">
-            <Search size={18} />
-            <input value={alertQuery} onChange={(event) => setAlertQuery(event.target.value)} onKeyDown={(event) => event.key === "Enter" && openAlertCenter()} placeholder="Search flood, heat, Miami, I-95..." />
-          </label>
+          <SectionHeader title="Live alert briefing" meta={`${national?.active_alerts ?? 0} active NWS alerts`} action="Search alerts" onAction={() => navigate("/alerts")} />
           <div className="alert-chip-row">
-            {alertChips.map((category) => <button key={category} className={alertCategory === category ? "active" : ""} onClick={() => setAlertCategory((current) => current === category ? "all" : category)}>{alertCategoryLabel(category)}</button>)}
+            {alertChips.map((category) => <button key={category} onClick={() => navigate(`/alerts?category=${category}`)}>{alertCategoryLabel(category)}</button>)}
           </div>
           <div className="dashboard-alert-list">
-            {alerts.map((alert) => <button key={alert.alert_id} onClick={() => navigate(`/alerts?q=${encodeURIComponent(alert.event)}${alertCategory !== "all" ? `&category=${alertCategory}` : ""}`)}><AlertTriangle size={16} /><span><strong>{alert.event}</strong><small>{alert.area || "Affected U.S. region"}</small></span><em className={riskClass(alert.severity)}>{alertDriverAction(alert)}</em></button>)}
-            {!alerts.length && <EmptyState title="No matching live alerts" detail="Try another city, county, highway, or hazard category. We do not invent warnings." />}
-          </div>
-          <div className="dashboard-alert-signals">
-            <strong>Map signals for this search</strong>
-            {relatedWeather.length ? relatedWeather.map((point) => <button key={point.id} onClick={() => navigate(`/map?search=${encodeURIComponent(point.city)}`)}><span>{point.city}</span><small>{conditionLabel(point)} / {roadImpactLabel(point)}</small><em className={riskLevel(point.risk_score)}>{point.risk_score}</em></button>) : <small>No monitored weather point matches this search yet.</small>}
+            {alerts.map((alert) => <button key={alert.alert_id} onClick={() => navigate(`/alerts?q=${encodeURIComponent(alert.event)}`)}><AlertTriangle size={16} /><span><strong>{alert.event}</strong><small>{alert.area || "Affected U.S. region"}</small></span><em className={riskClass(alert.severity)}>{alertDriverAction(alert)}</em></button>)}
+            {!alerts.length && <EmptyState title="No active alerts loaded" detail="Use the alert center search for a city, county, highway, or hazard category." />}
           </div>
           <div className="roadwork-source-card">
             <Newspaper size={17} />
-            <span><strong>Roadwork and closure feed</strong><small>Next external layer: FHWA WZDx + state 511 work-zone feeds. No air-quality filler.</small></span>
-            <button onClick={() => navigate("/alerts?q=closure")}>Track</button>
+            <span><strong>Roadwork and closure feeds</strong><small>{roadworkFeedSummary(roadFeeds, roadFeedsUnavailable)}</small></span>
+            <button onClick={() => navigate("/alerts?q=roadwork")}>Sources</button>
           </div>
         </div>
       </section>
@@ -707,15 +704,14 @@ function topAlerts(national: NationalRiskOverview | null, limit: number) {
   return [...(national?.alerts ?? [])].sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
-function dashboardAlertResults(national: NationalRiskOverview | null, query: string, category: AlertCategory, limit: number) {
-  return [...(national?.alerts ?? [])]
-    .filter((alert) => category === "all" || alertCategory(alert) === category)
-    .filter((alert) => alertMatchesQuery(alert, query))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit);
-}
-
 const alertCategoryOptions: AlertCategory[] = ["all", "flood", "heat", "storm", "wind", "winter", "fire"];
+
+function roadworkFeedSummary(feeds: RoadEventFeedRegistry | null, unavailable: boolean) {
+  if (unavailable) return "USDOT WZDx registry is unavailable right now; the app will retry on refresh.";
+  if (!feeds) return "Loading USDOT WZDx provider registry for work-zone, closure, and detour feeds.";
+  if (!feeds.active_feeds) return "No active WZDx road-event providers were returned by the registry.";
+  return `${feeds.active_feeds} active WZDx provider feeds / ${feeds.no_key_feeds} available without API keys.`;
+}
 
 function normalizeAlertCategory(value: string | null): AlertCategory {
   return alertCategoryOptions.includes(value as AlertCategory) ? value as AlertCategory : "all";

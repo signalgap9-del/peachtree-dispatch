@@ -26,6 +26,7 @@ import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 public class DynamoDbSavedPlaceRepository implements SavedPlaceRepository {
     private static final String SAVED_PLACE_PREFIX = "SAVED_PLACE#";
     private static final String SAVED_ROUTE_PREFIX = "SAVED_ROUTE#";
+    private static final String ROUTE_OBSERVATION_PREFIX = "ROUTE_OBSERVATION#";
     private static final TypeReference<List<List<Double>>> COORDINATES_TYPE = new TypeReference<>() {
     };
 
@@ -110,6 +111,31 @@ public class DynamoDbSavedPlaceRepository implements SavedPlaceRepository {
     }
 
     @Override
+    public void saveRouteObservation(SavedRouteObservation observation) {
+        var now = Instant.now().toString();
+        var item = new HashMap<String, AttributeValue>();
+        item.put("PK", string(userKey(observation.userId())));
+        item.put("SK", string(routeObservationKey(observation)));
+        item.put("entityType", string("SavedRouteObservation"));
+        item.put("observationId", string(observation.observationId().toString()));
+        item.put("savedItemId", string(observation.savedItemId().toString()));
+        item.put("userId", string(observation.userId().toString()));
+        item.put("observedAt", string(observation.observedAt()));
+        item.put("plannedDurationMinutes", number(observation.plannedDurationMinutes()));
+        item.put("actualDurationMinutes", number(observation.actualDurationMinutes()));
+        item.put("delayMinutes", number(observation.delayMinutes()));
+        item.put("observedRiskScore", number(observation.observedRiskScore()));
+        item.put("encounteredHazardsJson", string(writeStringList(observation.encounteredHazards())));
+        item.put("weatherSummary", string(nullToEmpty(observation.weatherSummary())));
+        item.put("roadEventSummary", string(nullToEmpty(observation.roadEventSummary())));
+        item.put("source", string(observation.source()));
+        item.put("notes", string(nullToEmpty(observation.notes())));
+        item.put("featureSchemaVersion", string(observation.featureSchemaVersion()));
+        item.put("updatedAt", string(now));
+        client.putItem(PutItemRequest.builder().tableName(tableName).item(item).build());
+    }
+
+    @Override
     public List<SavedPlace> findAll(UUID userId) {
         var response = client.query(QueryRequest.builder()
                 .tableName(tableName)
@@ -133,6 +159,20 @@ public class DynamoDbSavedPlaceRepository implements SavedPlaceRepository {
                 .limit(100)
                 .build());
         return response.items().stream().map(this::toSavedRoute).toList();
+    }
+
+    @Override
+    public List<SavedRouteObservation> findRouteObservations(UUID userId, UUID savedItemId) {
+        var response = client.query(QueryRequest.builder()
+                .tableName(tableName)
+                .keyConditionExpression("PK = :pk AND begins_with(SK, :prefix)")
+                .expressionAttributeValues(Map.of(
+                        ":pk", string(userKey(userId)),
+                        ":prefix", string(ROUTE_OBSERVATION_PREFIX + savedItemId + "#")))
+                .scanIndexForward(false)
+                .limit(100)
+                .build());
+        return response.items().stream().map(this::toSavedRouteObservation).toList();
     }
 
     @Override
@@ -196,6 +236,24 @@ public class DynamoDbSavedPlaceRepository implements SavedPlaceRepository {
                 stringValue(item, "riskTrend", "STABLE"));
     }
 
+    private SavedRouteObservation toSavedRouteObservation(Map<String, AttributeValue> item) {
+        return new SavedRouteObservation(
+                UUID.fromString(item.get("observationId").s()),
+                UUID.fromString(item.get("savedItemId").s()),
+                UUID.fromString(item.get("userId").s()),
+                item.get("observedAt").s(),
+                Double.parseDouble(item.get("plannedDurationMinutes").n()),
+                Double.parseDouble(item.get("actualDurationMinutes").n()),
+                Double.parseDouble(item.get("delayMinutes").n()),
+                Integer.parseInt(item.get("observedRiskScore").n()),
+                readStringList(stringValue(item, "encounteredHazardsJson", "[]")),
+                nullIfEmpty(stringValue(item, "weatherSummary", "")),
+                nullIfEmpty(stringValue(item, "roadEventSummary", "")),
+                stringValue(item, "source", "USER_REPORTED"),
+                nullIfEmpty(stringValue(item, "notes", "")),
+                stringValue(item, "featureSchemaVersion", "saved-route-observation-v1"));
+    }
+
     private String writeCoordinates(List<List<Double>> coordinates) {
         try {
             return objectMapper.writeValueAsString(coordinates);
@@ -255,6 +313,23 @@ public class DynamoDbSavedPlaceRepository implements SavedPlaceRepository {
 
     private static String userKey(UUID userId) {
         return "USER#" + userId;
+    }
+
+    private static String routeObservationKey(SavedRouteObservation observation) {
+        return ROUTE_OBSERVATION_PREFIX
+                + observation.savedItemId()
+                + "#"
+                + observation.observedAt()
+                + "#"
+                + observation.observationId();
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    private static String nullIfEmpty(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     private static AttributeValue string(String value) {

@@ -36,6 +36,26 @@ public class RiskController {
         return riskEngine.post("/directions", request);
     }
 
+    @PostMapping("/routes/multi-stop")
+    JsonNode multiStopRoute(@RequestBody JsonNode request) {
+        return riskEngine.post("/routes/multi-stop", request);
+    }
+
+    @PostMapping("/routes/multi-stop/optimize")
+    JsonNode optimizeMultiStopRoute(@RequestBody JsonNode request) {
+        return riskEngine.post("/routes/multi-stop/optimize", request);
+    }
+
+    @PostMapping("/vrp/solve")
+    JsonNode solveVrp(@RequestBody JsonNode request) {
+        return riskEngine.post("/vrp/solve", request);
+    }
+
+    @PostMapping("/graphql")
+    JsonNode graphql(@RequestBody JsonNode request) {
+        return riskEngine.post("/graphql", request);
+    }
+
     @GetMapping("/risk/national")
     JsonNode nationalRisk() {
         return riskEngine.get("/risk/national");
@@ -62,6 +82,17 @@ public class RiskController {
     @PostMapping("/risk/location")
     JsonNode locationRisk(@RequestBody JsonNode request) {
         return riskEngine.post("/risk/location", request);
+    }
+
+    @GetMapping("/road-events/feeds")
+    JsonNode roadEventFeeds(
+            @RequestParam(value = "state", required = false) String state,
+            @RequestParam(value = "limit", defaultValue = "30") int limit) {
+        StringBuilder path = new StringBuilder("/road-events/feeds?limit=").append(limit);
+        if (state != null && !state.isBlank()) {
+            path.append("&state=").append(URLEncoder.encode(state, StandardCharsets.UTF_8));
+        }
+        return riskEngine.get(path.toString());
     }
 
 }

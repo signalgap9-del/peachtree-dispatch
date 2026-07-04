@@ -1,13 +1,21 @@
 import type {
   DirectionsPlan,
   LocationRisk,
+  CreateSavedRouteObservation,
+  MultiStopRoutePlan,
+  MultiStopRouteRequest,
   NationalRiskOverview,
   NationalWeatherSnapshot,
   WeatherRasterManifest,
   Place,
   SavedPlaceRecord,
+  SavedRouteObservation,
   SavedRouteRisk,
   SavedRouteRecord,
+  SavedRouteTrainingExample,
+  RoadEventFeedRegistry,
+  VRPScenario,
+  VRPSolution,
   VehicleType,
 } from "./types";
 import { accessToken } from "./auth";
@@ -70,7 +78,26 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ origin, destination, vehicle_type: vehicleType }),
     }),
+  multiStopRoute: (payload: MultiStopRouteRequest, options?: RequestOptions) =>
+    request<MultiStopRoutePlan>("/routes/multi-stop", {
+      ...options,
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  optimizeMultiStopRoute: (payload: MultiStopRouteRequest, options?: RequestOptions) =>
+    request<MultiStopRoutePlan>("/routes/multi-stop/optimize", {
+      ...options,
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  solveVrp: (payload: VRPScenario, options?: RequestOptions) =>
+    request<VRPSolution>("/vrp/solve", {
+      ...options,
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   nationalRisk: () => request<NationalRiskOverview>("/risk/national"),
+  roadEventFeeds: () => request<RoadEventFeedRegistry>("/road-events/feeds?limit=30"),
   weatherSnapshot: () => request<NationalWeatherSnapshot>("/risk/weather-snapshot"),
   weatherRaster: async () => {
     const manifest = await request<WeatherRasterManifest>("/risk/weather-raster");
@@ -85,6 +112,15 @@ export const api = {
   savedRouteCurrentRisk: (savedItemId: string) => request<SavedRouteRisk>(`/me/saved/routes/${savedItemId}/current-risk`),
   savedRouteRiskHistory: (savedItemId: string) =>
     request<Array<{ checkedAt: string | null; riskScore: number; riskTrend: string }>>(`/me/saved/routes/${savedItemId}/risk-history`),
+  savedRouteObservations: (savedItemId: string) =>
+    request<SavedRouteObservation[]>(`/me/saved/routes/${savedItemId}/observations`),
+  recordSavedRouteObservation: (savedItemId: string, payload: CreateSavedRouteObservation) =>
+    request<SavedRouteObservation>(`/me/saved/routes/${savedItemId}/observations`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  savedRouteMlDataset: (savedItemId: string) =>
+    request<SavedRouteTrainingExample[]>(`/me/saved/routes/${savedItemId}/ml-dataset`),
   savePlace: (place: Place, currentRiskScore?: number) =>
     request<SavedPlaceRecord>("/me/saved/places", {
       method: "POST",

@@ -89,6 +89,57 @@ public class RdsDataSavedPlaceRepository implements SavedPlaceRepository {
               AND user_id = CAST(:user_id AS uuid)
               AND deleted_at IS NULL
             """;
+    private static final String SAVE_ROUTE_OBSERVATION_SQL = """
+            INSERT INTO route_observation(
+              route_observation_id,
+              saved_item_id,
+              user_id,
+              observed_at,
+              planned_duration_minutes,
+              actual_duration_minutes,
+              delay_minutes,
+              observed_risk_score,
+              metadata)
+            SELECT
+              CAST(:id AS uuid),
+              saved_item_id,
+              user_id,
+              CAST(:observed_at AS timestamptz),
+              :planned_duration_minutes,
+              :actual_duration_minutes,
+              :delay_minutes,
+              :observed_risk_score,
+              CAST(:metadata AS jsonb)
+            FROM saved_item
+            WHERE saved_item_id = CAST(:saved_item_id AS uuid)
+              AND user_id = CAST(:user_id AS uuid)
+              AND item_type = 'ROUTE'
+              AND deleted_at IS NULL
+            ON CONFLICT(route_observation_id) DO UPDATE SET
+              planned_duration_minutes = EXCLUDED.planned_duration_minutes,
+              actual_duration_minutes = EXCLUDED.actual_duration_minutes,
+              delay_minutes = EXCLUDED.delay_minutes,
+              observed_risk_score = EXCLUDED.observed_risk_score,
+              metadata = EXCLUDED.metadata,
+              updated_at = now()
+            WHERE route_observation.user_id = EXCLUDED.user_id
+            """;
+    private static final String FIND_ROUTE_OBSERVATIONS_SQL = """
+            SELECT route_observation_id::text,
+              saved_item_id::text,
+              user_id::text,
+              observed_at::text,
+              planned_duration_minutes,
+              actual_duration_minutes,
+              delay_minutes,
+              observed_risk_score,
+              metadata::text
+            FROM route_observation
+            WHERE user_id = CAST(:user_id AS uuid)
+              AND saved_item_id = CAST(:saved_item_id AS uuid)
+            ORDER BY observed_at DESC
+            LIMIT 100
+            """;
 
     private final RdsDataClient client;
     private final RelationalStoreProperties properties;
@@ -138,6 +189,20 @@ public class RdsDataSavedPlaceRepository implements SavedPlaceRepository {
     }
 
     @Override
+    public void saveRouteObservation(SavedRouteObservation observation) {
+        client.executeStatement(request(SAVE_ROUTE_OBSERVATION_SQL, List.of(
+                string("id", observation.observationId().toString()),
+                string("saved_item_id", observation.savedItemId().toString()),
+                string("user_id", observation.userId().toString()),
+                string("observed_at", observation.observedAt()),
+                decimal("planned_duration_minutes", observation.plannedDurationMinutes()),
+                decimal("actual_duration_minutes", observation.actualDurationMinutes()),
+                decimal("delay_minutes", observation.delayMinutes()),
+                integer("observed_risk_score", observation.observedRiskScore()),
+                string("metadata", writeObservationMetadata(observation)))));
+    }
+
+    @Override
     public List<SavedPlace> findNearby(UUID userId, double longitude, double latitude, double radiusMiles) {
         var response = client.executeStatement(request(NEARBY_SQL, List.of(
                 string("user_id", userId.toString()),
@@ -157,6 +222,13 @@ public class RdsDataSavedPlaceRepository implements SavedPlaceRepository {
     public List<SavedRoute> findRoutes(UUID userId) {
         return mapRoutes(client.executeStatement(request(FIND_ROUTES_SQL, List.of(
                 string("user_id", userId.toString())))).records());
+    }
+
+    @Override
+    public List<SavedRouteObservation> findRouteObservations(UUID userId, UUID savedItemId) {
+        return mapRouteObservations(client.executeStatement(request(FIND_ROUTE_OBSERVATIONS_SQL, List.of(
+                string("user_id", userId.toString()),
+                string("saved_item_id", savedItemId.toString())))).records());
     }
 
     @Override
@@ -206,6 +278,27 @@ public class RdsDataSavedPlaceRepository implements SavedPlaceRepository {
         }).toList();
     }
 
+    private List<SavedRouteObservation> mapRouteObservations(List<List<Field>> records) {
+        return records.stream().map(row -> {
+            var metadata = readObservationMetadata(row.get(8).stringValue());
+            return new SavedRouteObservation(
+                    UUID.fromString(row.get(0).stringValue()),
+                    UUID.fromString(row.get(1).stringValue()),
+                    UUID.fromString(row.get(2).stringValue()),
+                    row.get(3).stringValue(),
+                    numeric(row.get(4)),
+                    numeric(row.get(5)),
+                    numeric(row.get(6)),
+                    row.get(7).longValue().intValue(),
+                    metadata.encounteredHazards() == null ? List.of() : metadata.encounteredHazards(),
+                    metadata.weatherSummary(),
+                    metadata.roadEventSummary(),
+                    metadata.source() == null ? "USER_REPORTED" : metadata.source(),
+                    metadata.notes(),
+                    metadata.featureSchemaVersion() == null ? "saved-route-observation-v1" : metadata.featureSchemaVersion());
+        }).toList();
+    }
+
     private String writeMetadata(SavedRoute route) {
         try {
             return objectMapper.writeValueAsString(new RouteMetadata(
@@ -232,6 +325,28 @@ public class RdsDataSavedPlaceRepository implements SavedPlaceRepository {
             return objectMapper.readValue(value, RouteMetadata.class);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Saved route metadata could not be read.", exception);
+        }
+    }
+
+    private String writeObservationMetadata(SavedRouteObservation observation) {
+        try {
+            return objectMapper.writeValueAsString(new ObservationMetadata(
+                    observation.encounteredHazards(),
+                    observation.weatherSummary(),
+                    observation.roadEventSummary(),
+                    observation.source(),
+                    observation.notes(),
+                    observation.featureSchemaVersion()));
+        } catch (JsonProcessingException exception) {
+            throw new IllegalArgumentException("Route observation metadata could not be serialized.", exception);
+        }
+    }
+
+    private ObservationMetadata readObservationMetadata(String value) {
+        try {
+            return objectMapper.readValue(value, ObservationMetadata.class);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Route observation metadata could not be read.", exception);
         }
     }
 
@@ -276,6 +391,12 @@ public class RdsDataSavedPlaceRepository implements SavedPlaceRepository {
                 .build();
     }
 
+    private static double numeric(Field field) {
+        if (field.doubleValue() != null) return field.doubleValue();
+        if (field.longValue() != null) return field.longValue().doubleValue();
+        return Double.parseDouble(field.stringValue());
+    }
+
     private record RouteMetadata(
             String originName,
             String destinationName,
@@ -290,5 +411,14 @@ public class RdsDataSavedPlaceRepository implements SavedPlaceRepository {
             String lastCheckedAt,
             List<String> activeHazards,
             String riskTrend) {
+    }
+
+    private record ObservationMetadata(
+            List<String> encounteredHazards,
+            String weatherSummary,
+            String roadEventSummary,
+            String source,
+            String notes,
+            String featureSchemaVersion) {
     }
 }

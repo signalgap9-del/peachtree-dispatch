@@ -35,6 +35,8 @@ export interface WeatherRasterManifest {
 }
 
 export type VehicleType = "CAR" | "VAN" | "TRUCK";
+export type StopKind = "DEPOT" | "PICKUP" | "DELIVERY" | "WAYPOINT" | "REST" | "FINAL";
+export type MultiStopMode = "MANUAL_ORDER" | "OPTIMIZE_ORDER";
 
 export interface Place {
   place_id: string;
@@ -82,6 +84,56 @@ export interface SavedRouteRisk {
   lastCheckedAt: string | null;
   activeHazards: string[];
   riskTrend: string;
+}
+
+export interface SavedRouteObservation {
+  observationId: string;
+  savedItemId: string;
+  userId: string;
+  observedAt: string;
+  plannedDurationMinutes: number;
+  actualDurationMinutes: number;
+  delayMinutes: number;
+  observedRiskScore: number;
+  encounteredHazards: string[];
+  weatherSummary?: string | null;
+  roadEventSummary?: string | null;
+  source: string;
+  notes?: string | null;
+  featureSchemaVersion: string;
+}
+
+export interface CreateSavedRouteObservation {
+  observedAt?: string | null;
+  actualDurationMinutes: number;
+  plannedDurationMinutes?: number | null;
+  observedRiskScore: number;
+  encounteredHazards?: string[];
+  weatherSummary?: string | null;
+  roadEventSummary?: string | null;
+  source?: string | null;
+  notes?: string | null;
+}
+
+export interface SavedRouteTrainingExample {
+  observationId: string;
+  savedItemId: string;
+  featureSchemaVersion: string;
+  vehicleType: VehicleType;
+  distanceMiles: number;
+  plannedDurationMinutes: number;
+  climateDelayMinutes: number;
+  plannedRiskScore: number;
+  generatedAt: string | null;
+  observedAt: string;
+  actualDurationMinutes: number;
+  delayLabelMinutes: number;
+  observedRiskScore: number;
+  plannedHazards: string[];
+  encounteredHazards: string[];
+  weatherSummary?: string | null;
+  roadEventSummary?: string | null;
+  source: string;
 }
 
 export interface DirectionsPlan {
@@ -204,6 +256,149 @@ export interface NationalRiskOverview {
   alerts_with_geometry: number;
   alerts: RiskAlert[];
   by_event: Record<string, number>;
+  source_status?: Record<string, string>;
+}
+
+export interface RouteStop {
+  stop_id: string;
+  kind: StopKind;
+  name: string;
+  latitude: number;
+  longitude: number;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  sequence?: number | null;
+  demand_units?: number;
+  service_duration_minutes?: number;
+  time_window_start?: string | null;
+  time_window_end?: string | null;
+  required_vehicle_type?: VehicleType | null;
+}
+
+export interface MultiStopRouteRequest {
+  mode: MultiStopMode;
+  vehicle_type: VehicleType;
+  stops: RouteStop[];
+  start_stop_id?: string | null;
+  end_stop_id?: string | null;
+  objective?: "duration" | "risk_adjusted_time";
+  risk_model?: {
+    weather_risk_weight?: number;
+    traffic_risk_weight?: number;
+    flood_risk_weight?: number;
+    alert_risk_weight?: number;
+  };
+}
+
+export interface RouteLeg {
+  from_stop_id: string;
+  to_stop_id: string;
+  sequence: number;
+  distance_miles: number;
+  duration_minutes: number;
+  risk_adjusted_duration_minutes: number;
+  risk_score: number;
+  primary_hazard?: string | null;
+  geometry: { type: "LineString"; coordinates: number[][]; sourceStatus?: string };
+  explanation: string[];
+}
+
+export interface MultiStopRoutePlan {
+  route_id: string;
+  mode: MultiStopMode;
+  vehicle_type: VehicleType;
+  submitted_sequence: string[];
+  optimized_sequence?: string[] | null;
+  sequence_changed: boolean;
+  explanation: string[];
+  total_distance_miles: number;
+  total_duration_minutes: number;
+  risk_adjusted_duration_minutes: number;
+  route_risk_score: number;
+  legs: RouteLeg[];
+  source_status: Record<string, string>;
+}
+
+export interface VRPScenario {
+  scenario_id?: string;
+  depot: {
+    depot_id?: string;
+    name: string;
+    location: { latitude: number; longitude: number };
+  };
+  vehicles: Array<{
+    vehicle_id: string;
+    vehicle_type?: VehicleType;
+    capacity_units?: number;
+    start_location: { latitude: number; longitude: number };
+    end_location?: { latitude: number; longitude: number } | null;
+    shift_start?: string | null;
+    shift_end?: string | null;
+  }>;
+  jobs: Array<{
+    job_id: string;
+    name: string;
+    location: { latitude: number; longitude: number };
+    demand_units?: number;
+    service_duration_minutes?: number;
+    time_window_start?: string | null;
+    time_window_end?: string | null;
+    drop_penalty?: number;
+  }>;
+  objective?: "duration" | "risk_adjusted_time";
+  solver?: "ortools" | "pyvrp";
+}
+
+export interface VRPSolution {
+  solution_id: string;
+  solver: string;
+  status: "OPTIMAL" | "FEASIBLE" | "INFEASIBLE" | "ERROR";
+  objective_value: number;
+  solve_time_ms: number;
+  routes: Array<{
+    vehicle_id: string;
+    vehicle_type: VehicleType;
+    total_duration_minutes: number;
+    total_distance_miles: number;
+    risk_adjusted_duration_minutes: number;
+    risk_exposure_score: number;
+    stops: Array<{
+      job_id: string;
+      sequence: number;
+      eta?: string | null;
+      arrival_window_status: "EARLY" | "ON_TIME" | "LATE" | "UNKNOWN";
+      leg_duration_minutes: number;
+      leg_distance_miles: number;
+      leg_risk_score: number;
+      primary_hazard?: string | null;
+    }>;
+  }>;
+  dropped_jobs: string[];
+  source_status: Record<string, string>;
+}
+
+export interface RoadEventFeed {
+  feed_id: string;
+  state: string;
+  issuing_organization: string;
+  feed_name: string;
+  format: string;
+  version?: string | null;
+  update_frequency?: string | null;
+  active: boolean;
+  requires_api_key: boolean;
+  endpoint_host?: string | null;
+  longitude?: number | null;
+  latitude?: number | null;
+}
+
+export interface RoadEventFeedRegistry {
+  generated_at: string;
+  source: string;
+  active_feeds: number;
+  no_key_feeds: number;
+  feeds: RoadEventFeed[];
   source_status?: Record<string, string>;
 }
 
