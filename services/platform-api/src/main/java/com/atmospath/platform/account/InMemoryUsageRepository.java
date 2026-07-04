@@ -6,9 +6,11 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
 
 @Repository
+@ConditionalOnProperty(name = "atmospath.usage-store", havingValue = "memory", matchIfMissing = true)
 public class InMemoryUsageRepository implements UsageRepository {
     private final ConcurrentHashMap<UsageKey, AtomicInteger> counters = new ConcurrentHashMap<>();
 

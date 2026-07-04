@@ -2,6 +2,7 @@ package com.atmospath.platform.relational;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -15,6 +16,10 @@ import software.amazon.awssdk.services.rdsdata.model.ExecuteStatementRequest;
 @Component
 @ConditionalOnProperty(name = "atmospath.relational.initialize-schema", havingValue = "true")
 public class RelationalSchemaInitializer implements ApplicationRunner {
+    private static final List<String> MIGRATIONS = List.of(
+            "db/migration/V001__identity_saved_items_postgis.sql",
+            "db/migration/V002__tenant_rls_policies.sql");
+
     private final RdsDataClient client;
     private final RelationalStoreProperties properties;
 
@@ -25,11 +30,13 @@ public class RelationalSchemaInitializer implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) throws IOException {
-        var resource = new ClassPathResource("db/migration/V001__identity_saved_items_postgis.sql");
-        var sql = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        for (String statement : sql.split("(?m)^-- statement\\s*$")) {
-            if (!statement.isBlank()) {
-                client.executeStatement(baseRequest(statement).build());
+        for (String migration : MIGRATIONS) {
+            var resource = new ClassPathResource(migration);
+            var sql = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            for (String statement : sql.split("(?m)^-- statement\\s*$")) {
+                if (!statement.isBlank()) {
+                    client.executeStatement(baseRequest(statement).build());
+                }
             }
         }
     }

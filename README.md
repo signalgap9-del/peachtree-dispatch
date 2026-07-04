@@ -105,15 +105,15 @@ Implemented hardening:
 - Request correlation via `X-Request-Id`.
 - API security headers: CSP, frame deny, referrer policy.
 - DynamoDB writes use user-scoped partition keys and conditional owner checks.
+- SaaS usage counters use tenant-scoped DynamoDB atomic counters in AWS deployments.
+- Optional PostGIS schema includes owner-based RLS policies and runtime `app.user_id` context execution.
 - No long-lived AWS keys are required; deployment is designed for GitHub Actions OIDC.
 - Frontend E2E covers marker text XSS hardening and unavailable-auth messaging.
 - Frontend error boundary prevents blank-screen failure and records render errors in session-scoped operational telemetry.
 
 Known next security work:
 
-- Durable usage counters in DynamoDB instead of the current in-memory preview repository.
 - Full tenant/workspace membership tables once team accounts are enabled.
-- Postgres RLS if the PostGIS path becomes the primary store.
 - Rate limiting at API Gateway/WAF in deployed environments.
 
 ## Data Sources
@@ -249,8 +249,9 @@ Single-table operational data:
 - `PK = USER#{userId}`, `SK = PROFILE`
 - `PK = USER#{userId}`, `SK = SAVED_PLACE#{savedItemId}`
 - `PK = USER#{userId}`, `SK = SAVED_ROUTE#{savedItemId}`
+- `PK = TENANT#{tenantId}`, `SK = USAGE#{yyyy-MM-dd}#{feature}`
 
-The deployed preview avoids idle database compute. DynamoDB is appropriate for low-cost private watchlists and saved route state.
+The deployed preview avoids idle database compute. DynamoDB is appropriate for low-cost private watchlists, saved route state, and atomic SaaS usage counters.
 
 ### PostGIS Expansion Path
 
@@ -259,6 +260,7 @@ Documented for advanced spatial joins:
 - `saved_item.point`
 - `saved_item.path`
 - GiST indexes for point/path lookups
+- owner-based RLS policies driven by `app.user_id`
 - route exposure observations
 - route risk history
 - future tenant/workspace/member/subscription tables
@@ -313,6 +315,8 @@ Ready for portfolio/beta demonstration:
 - SaaS account usage and quota pages
 - operational status page with frontend runtime telemetry
 - server-side entitlement enforcement
+- DynamoDB durable usage counters and owner-conditional saved data writes/deletes
+- PostGIS RLS migration path for future spatial persistence
 - structured error contract
 - local stress harness and published result
 - frontend bundle performance budget
@@ -321,7 +325,6 @@ Ready for portfolio/beta demonstration:
 Not yet ready for open public commercial launch:
 
 - Google OAuth secrets must be wired in the deployed environment.
-- Usage counters should move from in-memory preview to DynamoDB.
 - WAF/API Gateway rate limits should be enabled before broad sharing.
 - Multi-stop optimization should move to async job execution for larger workloads.
 - HRRR/MRMS raster cadence should be measured under budget alarms.

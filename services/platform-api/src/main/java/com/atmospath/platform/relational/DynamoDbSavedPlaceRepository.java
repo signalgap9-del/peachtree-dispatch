@@ -177,6 +177,8 @@ public class DynamoDbSavedPlaceRepository implements SavedPlaceRepository {
                 .key(Map.of(
                         "PK", string(userKey(userId)),
                         "SK", string(SAVED_PLACE_PREFIX + savedItemId)))
+                .conditionExpression("attribute_not_exists(PK) OR userId = :userId")
+                .expressionAttributeValues(Map.of(":userId", string(userId.toString())))
                 .build());
     }
 
@@ -187,6 +189,8 @@ public class DynamoDbSavedPlaceRepository implements SavedPlaceRepository {
                 .key(Map.of(
                         "PK", string(userKey(userId)),
                         "SK", string(SAVED_ROUTE_PREFIX + savedItemId)))
+                .conditionExpression("attribute_not_exists(PK) OR userId = :userId")
+                .expressionAttributeValues(Map.of(":userId", string(userId.toString())))
                 .build());
     }
 

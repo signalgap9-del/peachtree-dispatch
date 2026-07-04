@@ -120,6 +120,8 @@ class DynamoDbSavedPlaceRepositoryTests {
         verify(client).deleteItem(captor.capture());
         assertThat(captor.getValue().key().get("PK").s()).isEqualTo("USER#" + userId);
         assertThat(captor.getValue().key().get("SK").s()).isEqualTo("SAVED_PLACE#" + savedItemId);
+        assertThat(captor.getValue().conditionExpression()).contains("attribute_not_exists(PK)", "userId = :userId");
+        assertThat(captor.getValue().expressionAttributeValues().get(":userId").s()).isEqualTo(userId.toString());
     }
 
     @Test
@@ -133,6 +135,8 @@ class DynamoDbSavedPlaceRepositoryTests {
         verify(client).deleteItem(captor.capture());
         assertThat(captor.getValue().key().get("PK").s()).isEqualTo("USER#" + userId);
         assertThat(captor.getValue().key().get("SK").s()).isEqualTo("SAVED_ROUTE#" + savedItemId);
+        assertThat(captor.getValue().conditionExpression()).contains("attribute_not_exists(PK)", "userId = :userId");
+        assertThat(captor.getValue().expressionAttributeValues().get(":userId").s()).isEqualTo(userId.toString());
     }
 
     @Test

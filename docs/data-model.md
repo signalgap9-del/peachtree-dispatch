@@ -19,6 +19,7 @@ PostgreSQL/PostGIS remains the future path for complex spatial relationships.
 | AP7 | Find failed asynchronous work | SQS DLQ, not a table scan |
 | AP8 | List one user's saved places | `PK=USER#<userId>`, `SK begins_with SAVED_PLACE#` |
 | AP9 | Create or delete one saved place | `PK=USER#<userId>`, `SK=SAVED_PLACE#<savedItemId>` |
+| AP10 | Increment one tenant's daily metered usage | `PK=TENANT#<tenantId>`, `SK=USAGE#<yyyy-MM-dd>#<feature>` with atomic `ADD used :one` |
 
 ## Representative Items
 
@@ -47,6 +48,20 @@ PostgreSQL/PostGIS remains the future path for complex spatial relationships.
 }
 ```
 
+```json
+{
+  "PK": "TENANT#9b9a...",
+  "SK": "USAGE#2026-07-04#ROUTE_PLAN",
+  "entityType": "TenantUsageCounter",
+  "tenantId": "9b9a...",
+  "feature": "ROUTE_PLAN",
+  "day": "2026-07-04",
+  "used": 8,
+  "updatedAt": "2026-07-04T12:05:00Z",
+  "expiresAt": 1785801600
+}
+```
+
 ## Indexes and Retention
 
 The current deployed table contains legacy delivery-oriented GSIs from the
@@ -56,5 +71,6 @@ removed only through a separately reviewed, non-destructive migration.
 - TTL removes idempotency locks, caches, job history, and notification dedupe records.
 - Large weather objects and rasters live in S3, never DynamoDB.
 - Job failures and replay are handled through SQS/DLQ.
-- Saved places live in DynamoDB for the low-traffic preview.
+- Saved places, saved routes, and tenant usage counters live in DynamoDB for the low-traffic preview.
+- Usage counters use tenant-scoped partition keys and atomic update expressions; they are not stored in process memory in AWS deployments.
 - Complex route-history and spatial relationship queries belong in optional PostgreSQL/PostGIS.
