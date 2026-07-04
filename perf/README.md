@@ -13,7 +13,7 @@ Remote targets are blocked unless `ALLOW_REMOTE_TARGET=true` is set. Staging-sty
 
 Use k6 for the first production-grade harness:
 
-- scenarios model smoke, read-mix, route planning, GraphQL, and authenticated saved-route flows
+- scenarios model smoke, read-mix, route planning, and authenticated saved-route flows
 - thresholds fail the run when p95 latency, error rate, or check pass rate violates the budget
 - JSON summaries are written to `perf/results/`
 
@@ -67,7 +67,6 @@ Route planning and route engine:
 
 ```powershell
 k6 run perf/k6/scenarios/route-planning.js
-k6 run perf/k6/scenarios/graphql-route-engine.js
 ```
 
 Authenticated saved-routes flow:
@@ -124,3 +123,7 @@ The suite writes JSON summaries to `perf/results/`. Treat threshold failures as 
 - saved-route failures: auth/Cognito/JWT or DynamoDB/relational store path
 
 Keep raw reports out of Git. Only commit summarized findings in docs or pull request notes.
+
+## Deferred GraphQL Scenario
+
+`perf/k6/scenarios/graphql-route-engine.js` exists as an optional future harness, but it is not part of the current release gate. Product completeness is REST-first until auth, saved routes, alert search, route risk, and live data status are stable in the deployed app.

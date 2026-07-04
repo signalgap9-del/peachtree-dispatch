@@ -18,12 +18,14 @@ const requiredFiles = [
   "perf/k6/scenarios/smoke.js",
   "perf/k6/scenarios/api-read-mix.js",
   "perf/k6/scenarios/route-planning.js",
-  "perf/k6/scenarios/graphql-route-engine.js",
   "perf/k6/scenarios/saved-routes.js",
   "docs/architecture/performance-load-testing.md"
 ];
 
 const scenarioFiles = requiredFiles.filter((file) => file.startsWith("perf/k6/scenarios/"));
+const optionalScenarioFiles = [
+  "perf/k6/scenarios/graphql-route-engine.js"
+];
 const errors = [];
 
 for (const file of requiredFiles) {
@@ -48,6 +50,16 @@ for (const file of scenarioFiles) {
   mustContain(source, "assertSafeLoadTarget", `${file} must call the remote-target guard`);
   mustContain(source, "handleSummary", `${file} must write a summary`);
   mustContain(source, "summaryOutputs", `${file} must use shared summary output`);
+}
+
+for (const file of optionalScenarioFiles) {
+  if (!fs.existsSync(path.join(root, file))) {
+    continue;
+  }
+  const source = read(file);
+  mustContain(source, "export const options", `${file} must export k6 options when present`);
+  mustContain(source, "assertSafeLoadTarget", `${file} must call the remote-target guard when present`);
+  mustContain(source, "handleSummary", `${file} must write a summary when present`);
 }
 
 const savedRoutes = read("perf/k6/scenarios/saved-routes.js");

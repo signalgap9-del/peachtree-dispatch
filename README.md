@@ -220,6 +220,7 @@ Remaining before accepting real external users:
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [Completeness-first release plan](docs/architecture/completeness-first-release-plan.md)
 - [Production risk routing](docs/architecture/production-risk-routing.md)
 - [Weather risk pipeline](docs/architecture/weather-risk.md)
 - [Deployment](docs/deployment.md)

@@ -2,14 +2,21 @@
 
 Date: 2026-07-04
 
+Status: Deferred. Keep the existing scaffold available for future composition,
+but do not treat GraphQL or real ML training as release blockers until the
+REST-first product flows are complete.
+
 ## Why this exists
 
-AtmosPath is moving from separate route, alert, road-event, saved-route, and VRP
-REST calls toward composed product workflows. The frontend will soon need one
-screen to ask for a saved route, current risk, NWS alert overlaps, WZDx/511 road
-events, route alternatives, and ML shadow-scoring status. A typed GraphQL BFF is
-the right place to compose those reads without replacing the stable REST
-endpoints that already work.
+AtmosPath may eventually move from separate route, alert, road-event,
+saved-route, and VRP REST calls toward composed product workflows. That becomes
+valuable after the user-facing REST flows are stable enough that a BFF removes
+screen complexity.
+
+For the current release track, product completeness comes first: alert search,
+saved routes, route risk evidence, deployed auth, and honest live/degraded data
+states. The typed GraphQL BFF remains a future composition option, not the next
+thing to build.
 
 ## Source-backed decisions
 
@@ -22,6 +29,8 @@ endpoints that already work.
 | AWS AppSync docs, https://docs.aws.amazon.com/appsync/ | Treat AppSync as a future managed GraphQL option when real-time subscriptions or multi-source AWS resolver composition justify it. |
 
 ## Current implementation
+
+This implementation exists, but it is not part of the current release gate:
 
 - `POST /graphql` on the FastAPI risk engine.
 - `POST /api/v1/graphql` through the Spring platform API proxy.
@@ -72,7 +81,8 @@ implemented. LOC should be a byproduct of product depth, not padding.
 ## Next slices
 
 1. Add `GET /road-events` normalized events from no-key WZDx/511 feeds.
-2. Add GraphQL query composition for saved route detail:
+2. Complete saved-route detail over REST:
    saved route + current risk + alert overlap + road events + risk history.
 3. Add offline dataset export beyond per-route rows and baseline trainer.
 4. Add backtest thresholds and shadow-model release gates.
+5. Revisit GraphQL only after the REST saved-route workflow is stable.

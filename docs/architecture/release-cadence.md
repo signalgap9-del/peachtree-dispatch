@@ -44,3 +44,9 @@ or platform increment.
 3. Saved Routes as a first-class monitor
 4. Route-level risk scoring using NWS, weather grid, and road-event overlap
 5. Google OAuth production smoke test after secrets are configured
+
+## Deferred Until Completeness
+
+- GraphQL BFF work is not a release blocker.
+- ML model training is not a release blocker; shadow-disabled workflow and label collection are enough until product flows are stable.
+- Performance tests should focus on smoke, REST route planning, read APIs, and authenticated saved routes before optional GraphQL pressure tests.

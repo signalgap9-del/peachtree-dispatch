@@ -6,7 +6,7 @@ Accepted as the first load-testing harness for the portfolio release path.
 
 ## Decision
 
-Use k6 scripts under `perf/` for API, GraphQL, route-engine, and authenticated saved-route performance tests.
+Use k6 scripts under `perf/` for REST API, route-engine, and authenticated saved-route performance tests.
 
 The default target is localhost and the scripts block remote targets unless `ALLOW_REMOTE_TARGET=true` is set. Staging profiles also require `CONFIRM_STAGING_LOAD=true`.
 
@@ -31,8 +31,11 @@ Sources:
 | Smoke | `perf/k6/scenarios/smoke.js` | Health, national risk, road events |
 | API read mix | `perf/k6/scenarios/api-read-mix.js` | Dashboard/search/read-heavy traffic |
 | Route planning | `perf/k6/scenarios/route-planning.js` | Directions, multi-stop planning, optimization |
-| GraphQL route engine | `perf/k6/scenarios/graphql-route-engine.js` | GraphQL BFF and route-engine mutations |
 | Saved routes | `perf/k6/scenarios/saved-routes.js` | Authenticated create/read/history/delete lifecycle |
+
+GraphQL route-engine testing is intentionally deferred. The optional
+`perf/k6/scenarios/graphql-route-engine.js` file can be revived after the
+REST-first product flows are stable.
 
 ## Initial SLO Budgets
 
@@ -43,7 +46,6 @@ These are not final business SLOs. They are release gates for the current previe
 | Health | 300 ms | 400 ms |
 | Read APIs | 1200 ms | 1000 ms |
 | Route planning | 3500 ms | 3000 ms |
-| GraphQL route engine | 3500 ms | 3200 ms |
 | Saved routes | 1800 ms | 1600 ms |
 
 Error-rate gates:
@@ -83,7 +85,6 @@ Local route-engine pressure:
 
 ```powershell
 k6 run perf/k6/scenarios/route-planning.js
-k6 run perf/k6/scenarios/graphql-route-engine.js
 ```
 
 Staging smoke:
@@ -99,4 +100,4 @@ k6 run perf/k6/scenarios/smoke.js
 
 ## Release Use
 
-Run the smoke scenario before every preview publish. Run route planning and GraphQL scenarios before describing route-engine work on a resume or public demo. Run saved-routes only when a short-lived JWT is available and the target environment can safely create and delete user records.
+Run the smoke scenario before every preview publish. Run route planning before describing route-engine work on a resume or public demo. Run saved-routes only when a short-lived JWT is available and the target environment can safely create and delete user records. Do not treat GraphQL as a release blocker until the REST product surface is complete.
