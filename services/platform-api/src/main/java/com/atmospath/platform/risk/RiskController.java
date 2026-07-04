@@ -51,6 +51,11 @@ public class RiskController {
         return riskEngine.post("/vrp/solve", request);
     }
 
+    @PostMapping("/graphql")
+    JsonNode graphql(@RequestBody JsonNode request) {
+        return riskEngine.post("/graphql", request);
+    }
+
     @GetMapping("/risk/national")
     JsonNode nationalRisk() {
         return riskEngine.get("/risk/national");

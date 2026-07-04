@@ -43,12 +43,12 @@ This slice makes `/alerts` the single alert command center:
    filters. Search inputs should not be duplicated across pages unless they
    share the same command model and map state.
 
-3. Do not add GraphQL yet.
-   GraphQL becomes useful when the app has multiple composed resources per view:
-   saved route + risk history + alert overlaps + roadwork + notification inbox.
-   Today the immediate issue is not overfetching; it is product correctness and
-   state consistency. When that composition layer is ready, AWS AppSync is the
-   AWS-aligned candidate.
+3. Add GraphQL only as the composition layer.
+   GraphQL is now useful because route planning, saved routes, risk history,
+   alert overlaps, roadwork, and ML shadow status are becoming one screen-level
+   workflow. REST remains the stable operational API; GraphQL composes those
+   resources for the frontend. AWS AppSync remains the AWS-aligned managed
+   candidate if subscriptions or multi-source resolver composition justify it.
 
 4. Treat roadwork/closures as first-class operational risk.
    Air quality is lower priority for this product. The next provider track

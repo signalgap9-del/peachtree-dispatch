@@ -1,4 +1,5 @@
 from .directions import build_directions, search_places
+from .graphql_schema import schema as graphql_schema
 from .models import DirectionsRequest, Place, VehicleType
 from .risk import location_risk, national_risk
 from .road_events import get_road_event_feeds
@@ -44,6 +45,8 @@ def handler(event: dict, context: object) -> dict:
         result = multi_stop_route_service.plan(command)
     elif method == "POST" and path == "/vrp/solve":
         result = vrp_optimization_service.solve(VRPScenario.model_validate(body))
+    elif method == "POST" and path == "/graphql":
+        return {"data": _execute_graphql(body)}
     elif method == "GET" and path == "/network":
         # The public weather and routing API must not import the legacy
         # multi-stop optimizer or initialize its persistence layer at startup.
@@ -63,3 +66,33 @@ def handler(event: dict, context: object) -> dict:
     if isinstance(result, list):
         return {"data": [item.model_dump(mode="json") for item in result]}
     return {"data": result.model_dump(mode="json")}
+
+
+def _execute_graphql(body: dict) -> dict:
+    query = body.get("query")
+    if not isinstance(query, str) or not query.strip():
+        return {
+            "data": None,
+            "errors": [{"message": "GraphQL request body must include a non-empty query string."}],
+        }
+    variables = body.get("variables")
+    if variables is not None and not isinstance(variables, dict):
+        return {
+            "data": None,
+            "errors": [{"message": "GraphQL variables must be an object when provided."}],
+        }
+    operation_name = body.get("operationName")
+    if operation_name is not None and not isinstance(operation_name, str):
+        return {
+            "data": None,
+            "errors": [{"message": "GraphQL operationName must be a string when provided."}],
+        }
+    result = graphql_schema.execute_sync(
+        query,
+        variable_values=variables,
+        operation_name=operation_name,
+    )
+    response = {"data": result.data}
+    if result.errors:
+        response["errors"] = [error.formatted for error in result.errors]
+    return response

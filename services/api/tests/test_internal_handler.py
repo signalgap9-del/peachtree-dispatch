@@ -153,3 +153,28 @@ def test_internal_handler_supports_vrp_solve(monkeypatch) -> None:
     )
 
     assert response["data"]["status"] == "FEASIBLE"
+
+
+def test_internal_handler_supports_graphql_capabilities() -> None:
+    response = handler(
+        {
+            "method": "POST",
+            "path": "/graphql",
+            "body": {
+                "query": """
+                    query Capabilities {
+                      routeEngineCapabilities {
+                        supportsGraphql
+                        supportedSolvers
+                      }
+                    }
+                """
+            },
+        },
+        None,
+    )
+
+    assert response["data"]["data"]["routeEngineCapabilities"] == {
+        "supportsGraphql": True,
+        "supportedSolvers": ["ortools"],
+    }
