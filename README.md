@@ -223,6 +223,7 @@ Remaining before accepting real external users:
 - [Production risk routing](docs/architecture/production-risk-routing.md)
 - [Weather risk pipeline](docs/architecture/weather-risk.md)
 - [Deployment](docs/deployment.md)
+- [Performance/load testing](docs/architecture/performance-load-testing.md)
 - [Publish readiness](docs/publish-readiness.md)
 - [Roadmap](docs/roadmap.md)
 - [Google social login setup](docs/google-auth.md)

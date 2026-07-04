@@ -44,5 +44,11 @@ tmp/
 web/test-results/
 web/playwright-report/
 
+# Performance test outputs
+perf/results/*
+!perf/results/.gitkeep
+perf/reports/*
+!perf/reports/.gitkeep
+
 # Local codebase knowledge graph
 .understand-anything/

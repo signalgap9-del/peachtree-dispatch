@@ -1,0 +1,9 @@
+{
+  "name": "atmospath-perf",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "validate": "node scripts/validate-perf-suite.mjs"
+  }
+}
