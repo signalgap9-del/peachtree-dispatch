@@ -18,6 +18,7 @@ import { api } from "./api";
 import { authConfigured, completeLogin, currentUser, googleAuthConfigured, login, loginWithGoogle, logout, type AuthUser } from "./auth";
 import { useI18n } from "./i18n";
 import { LanguageToggle } from "./LanguageToggle";
+import { OperationalStatusPage } from "./OperationalStatusPage";
 import { AlertsPage, DashboardPage, HomePage, PlaceDetailPage, PricingPage, SavedPage, UsagePage } from "./ProductPages";
 import type { NationalRiskOverview, NationalWeatherSnapshot, WeatherRasterManifest } from "./types";
 import { notify } from "./ui";
@@ -96,6 +97,7 @@ function AppShell() {
         <Route path="/saved" element={<SavedPage navigate={navigate} weatherSnapshot={weatherSnapshot} dataStatus={dataStatus} />} />
         <Route path="/alerts" element={<AlertsPage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} dataStatus={dataStatus} />} />
         <Route path="/usage" element={<UsagePage navigate={navigate} />} />
+        <Route path="/status" element={<OperationalStatusPage navigate={navigate} dataStatus={dataStatus} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} />} />
         <Route path="/pricing" element={<PricingPage navigate={navigate} />} />
         <Route path="/locations/:slug" element={<PlaceRoute navigate={navigate} weatherRaster={weatherRaster} />} />
         <Route path="/map" element={<MapRoute navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} />} />

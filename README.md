@@ -24,6 +24,7 @@ Current capabilities:
 - Live alert search by hazard type, city, county, corridor, or route impact.
 - Saved routes and saved places with monitor settings, risk threshold, current risk, and risk history.
 - SaaS account summary with plan, quota, saved asset capacity, and readiness signals.
+- Operational status page for live source health, frontend runtime issues, and browser performance snapshots.
 - Google OAuth/Cognito integration path for real user accounts.
 - Production-shaped public preview that keeps core map flows available without login while private watchlist data requires authentication.
 - Cost-aware serverless AWS deployment with CloudFront, private S3, API Gateway, Lambda, Cognito, DynamoDB, and optional PostGIS expansion.
@@ -106,6 +107,7 @@ Implemented hardening:
 - DynamoDB writes use user-scoped partition keys and conditional owner checks.
 - No long-lived AWS keys are required; deployment is designed for GitHub Actions OIDC.
 - Frontend E2E covers marker text XSS hardening and unavailable-auth messaging.
+- Frontend error boundary prevents blank-screen failure and records render errors in session-scoped operational telemetry.
 
 Known next security work:
 
@@ -154,9 +156,29 @@ Last local verification: July 4, 2026.
 | Python Risk Engine | `$env:PYTHONPATH='services/api'; python -m pytest services/api/tests -q` | 60 passed, 4 warnings |
 | Frontend lint | `npm run lint --prefix web` | passed |
 | Frontend build | `npm run build --prefix web` | passed |
+| Frontend bundle budget | `npm run perf:budget --prefix web` | passed |
 | Design rules | `npm run design:lint --prefix web` | 0 errors, 0 warnings |
-| Playwright E2E | `npm run test:e2e --prefix web` | 24 passed |
+| Playwright E2E | `npm run test:e2e --prefix web` | 26 passed |
 | Frontend dependency audit | `npm run audit --prefix web` | 0 high vulnerabilities |
+
+### Frontend Performance Budget
+
+The frontend now enforces a local bundle budget after a test-mode Vite build:
+
+```powershell
+npm run perf:budget --prefix web
+```
+
+Latest result:
+
+| Budget | Result |
+| --- | --- |
+| Initial JS gzip | 98.78 kB / 180.00 kB |
+| MapLibre vendor chunk gzip | 278.40 kB / 320.00 kB |
+| Map route chunk gzip | 9.59 kB / 45.00 kB |
+| CSS gzip | 21.78 kB / 90.00 kB |
+
+Runtime frontend observability is exposed at `/status`. It shows live source status, the most recent browser performance snapshot from `PerformanceObserver`, and session-scoped API/network/render issues captured without sending secrets to third-party telemetry.
 
 ### Local Stress Test
 
@@ -196,6 +218,7 @@ docker compose up --build
 npm install --prefix web
 npm run lint --prefix web
 npm run build --prefix web
+npm run perf:budget --prefix web
 npm run test:e2e --prefix web
 npm run audit --prefix web
 ```
@@ -288,9 +311,11 @@ Ready for portfolio/beta demonstration:
 - alert search and route impact UX
 - saved route watchlist
 - SaaS account usage and quota pages
+- operational status page with frontend runtime telemetry
 - server-side entitlement enforcement
 - structured error contract
 - local stress harness and published result
+- frontend bundle performance budget
 - backend/frontend/test coverage across critical flows
 
 Not yet ready for open public commercial launch:

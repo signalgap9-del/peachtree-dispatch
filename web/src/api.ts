@@ -13,6 +13,7 @@ import type {
   VehicleType,
 } from "./types";
 import { accessToken } from "./auth";
+import { reportClientIssue } from "./telemetry";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 const weatherRasterPngUrl = `${API_URL}/risk/weather-raster.png`;
@@ -47,7 +48,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const controller = new AbortController();
   const abort = () => controller.abort();
   signal?.addEventListener("abort", abort, { once: true });
-  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  let timedOut = false;
+  const timeout = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
   const token = accessToken();
   const mergedHeaders = {
     "Content-Type": "application/json",
@@ -67,6 +72,25 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     }
     if (response.status === 204) return undefined as T;
     return response.json() as Promise<T>;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      reportClientIssue({
+        kind: "api_error",
+        message: error.message,
+        details: { path, status: error.status, code: error.code ?? null, requestId: error.requestId ?? null },
+      });
+    } else if (error instanceof DOMException && error.name === "AbortError") {
+      if (timedOut) {
+        reportClientIssue({ kind: "api_timeout", message: `Request timed out after ${timeoutMs} ms`, details: { path, timeoutMs } });
+      }
+    } else {
+      reportClientIssue({
+        kind: "network_error",
+        message: error instanceof Error ? error.message : "Network request failed",
+        details: { path },
+      });
+    }
+    throw error;
   } finally {
     window.clearTimeout(timeout);
     signal?.removeEventListener("abort", abort);

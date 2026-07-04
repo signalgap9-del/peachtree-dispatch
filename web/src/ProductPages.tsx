@@ -453,6 +453,7 @@ export function UsagePage({ navigate }: { navigate: Navigate }) {
   return (
     <main className="page-shell usage-page">
       <PageTitle title="Usage and operations" subtitle="Plan limits, quota enforcement, and production readiness signals for this workspace">
+        <button className="button secondary" onClick={() => navigate("/status")}>Operational status</button>
         <button className="button secondary" onClick={() => navigate("/pricing")}>Compare plans</button>
         <button className="button primary" onClick={() => navigate("/directions")}>Plan route <Navigation size={16} /></button>
       </PageTitle>
