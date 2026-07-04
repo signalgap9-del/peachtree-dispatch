@@ -3,6 +3,9 @@ package com.atmospath.platform.relational;
 import java.util.List;
 import java.util.UUID;
 
+import com.atmospath.platform.account.EntitlementService;
+import com.atmospath.platform.account.TenantContextResolver;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -31,9 +34,16 @@ import org.springframework.web.bind.annotation.RestController;
 @ConditionalOnProperty(name = "atmospath.auth.enabled", havingValue = "true")
 public class SavedRouteController {
     private final SavedPlaceRepository repository;
+    private final TenantContextResolver tenantContextResolver;
+    private final EntitlementService entitlements;
 
-    public SavedRouteController(SavedPlaceRepository repository) {
+    public SavedRouteController(
+            SavedPlaceRepository repository,
+            TenantContextResolver tenantContextResolver,
+            EntitlementService entitlements) {
         this.repository = repository;
+        this.tenantContextResolver = tenantContextResolver;
+        this.entitlements = entitlements;
     }
 
     @GetMapping
@@ -43,10 +53,15 @@ public class SavedRouteController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    SavedRoute create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody CreateSavedRoute request) {
+    SavedRoute create(
+            @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest servletRequest,
+            @Valid @RequestBody CreateSavedRoute request) {
+        var context = tenantContextResolver.resolve(jwt, servletRequest);
+        entitlements.requireSavedRouteCapacity(context, repository.findRoutes(context.userId()).size());
         var route = new SavedRoute(
                 UUID.randomUUID(),
-                userId(jwt),
+                context.userId(),
                 request.name(),
                 request.originName(),
                 request.destinationName(),

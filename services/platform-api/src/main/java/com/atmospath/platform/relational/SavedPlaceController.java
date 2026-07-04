@@ -3,6 +3,9 @@ package com.atmospath.platform.relational;
 import java.util.List;
 import java.util.UUID;
 
+import com.atmospath.platform.account.EntitlementService;
+import com.atmospath.platform.account.TenantContextResolver;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -28,9 +31,16 @@ import org.springframework.web.bind.annotation.RestController;
 @ConditionalOnProperty(name = "atmospath.auth.enabled", havingValue = "true")
 public class SavedPlaceController {
     private final SavedPlaceRepository repository;
+    private final TenantContextResolver tenantContextResolver;
+    private final EntitlementService entitlements;
 
-    public SavedPlaceController(SavedPlaceRepository repository) {
+    public SavedPlaceController(
+            SavedPlaceRepository repository,
+            TenantContextResolver tenantContextResolver,
+            EntitlementService entitlements) {
         this.repository = repository;
+        this.tenantContextResolver = tenantContextResolver;
+        this.entitlements = entitlements;
     }
 
     @GetMapping
@@ -40,10 +50,15 @@ public class SavedPlaceController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    SavedPlace create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody CreateSavedPlace request) {
+    SavedPlace create(
+            @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest servletRequest,
+            @Valid @RequestBody CreateSavedPlace request) {
+        var context = tenantContextResolver.resolve(jwt, servletRequest);
+        entitlements.requireSavedPlaceCapacity(context, repository.findAll(context.userId()).size());
         var place = new SavedPlace(
                 UUID.randomUUID(),
-                userId(jwt),
+                context.userId(),
                 request.name(),
                 request.longitude(),
                 request.latitude(),

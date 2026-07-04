@@ -1,4 +1,6 @@
 import type {
+  AccountSummary,
+  ApiErrorEnvelope,
   DirectionsPlan,
   LocationRisk,
   NationalRiskOverview,
@@ -19,10 +21,20 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
-    readonly detail?: unknown,
+    readonly detail?: ApiErrorEnvelope | unknown,
   ) {
     super(message);
     this.name = "ApiError";
+  }
+
+  get code() {
+    if (isApiErrorEnvelope(this.detail)) return this.detail.error?.code;
+    return undefined;
+  }
+
+  get requestId() {
+    if (isApiErrorEnvelope(this.detail)) return this.detail.error?.requestId;
+    return undefined;
   }
 }
 
@@ -49,8 +61,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       signal: controller.signal,
     });
     if (!response.ok) {
-      const body = await response.json().catch(() => ({ detail: response.statusText }));
-      const message = typeof body.detail === "string" ? body.detail : response.statusText;
+      const body = await response.json().catch(() => ({ detail: response.statusText })) as ApiErrorEnvelope;
+      const message = body.error?.message ?? (typeof body.detail === "string" ? body.detail : response.statusText);
       throw new ApiError(message || "Request failed", response.status, body);
     }
     if (response.status === 204) return undefined as T;
@@ -79,6 +91,7 @@ export const api = {
   },
   locationRisk: (place: Place) =>
     request<LocationRisk>("/risk/location", { method: "POST", body: JSON.stringify(place) }),
+  accountSummary: () => request<AccountSummary>("/me/account"),
   savedPlaces: () => request<SavedPlaceRecord[]>("/me/saved/places"),
   savedRoutes: async () => (await request<SavedRouteRecord[]>("/me/saved/routes")).map(normalizeSavedRoute),
   savedRoute: async (savedItemId: string) => normalizeSavedRoute(await request<SavedRouteRecord>(`/me/saved/routes/${savedItemId}`)),
@@ -128,6 +141,10 @@ export const api = {
   deleteSavedRoute: (savedItemId: string) =>
     request<void>(`/me/saved/routes/${savedItemId}`, { method: "DELETE" }),
 };
+
+function isApiErrorEnvelope(value: unknown): value is ApiErrorEnvelope {
+  return Boolean(value && typeof value === "object" && "error" in value);
+}
 
 function normalizeSavedRoute(route: SavedRouteRecord): SavedRouteRecord {
   return {

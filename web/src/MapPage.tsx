@@ -15,7 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import { useLocation, useSearchParams } from "react-router-dom";
 
 import type { Navigate } from "./App";
-import { api } from "./api";
+import { ApiError, api } from "./api";
 import { currentUser, login } from "./auth";
 import { RouteAlternativeCard } from "./components/RouteAlternativeCard";
 import { RouteDecisionSummary } from "./components/RouteDecisionSummary";
@@ -140,6 +140,11 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
       setPlan(await api.directions(origin, destination, vehicleType, { signal, timeoutMs: 20000 }));
     } catch (caught) {
       if (signal?.aborted) return;
+      if (caught instanceof ApiError && caught.code === "QUOTA_EXCEEDED") {
+        const requestHint = caught.requestId ? ` Request ${caught.requestId}.` : "";
+        setError(`Plan limit reached for this workspace. Open Usage to review limits or try again after reset.${requestHint}`);
+        return;
+      }
       setError(caught instanceof Error ? caught.message : "Unable to calculate directions");
     } finally {
       if (!signal?.aborted) setLoading(false);

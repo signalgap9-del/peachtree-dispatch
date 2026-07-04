@@ -1,5 +1,9 @@
 import os
+from collections import OrderedDict
 from datetime import UTC, datetime
+from threading import Lock
+from time import monotonic
+from typing import Callable, TypeVar
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query, Response, status
@@ -56,6 +60,13 @@ optimization_service = OptimizationService()
 app.include_router(route_engine_router)
 app.include_router(ml_workflow_router)
 
+T = TypeVar("T")
+_CACHE_TTL_SECONDS = int(os.getenv("RISK_ENGINE_CACHE_TTL_SECONDS", "60"))
+_CACHE_MAX_ITEMS = int(os.getenv("RISK_ENGINE_CACHE_MAX_ITEMS", "128"))
+_cache_lock = Lock()
+_response_cache: OrderedDict[str, tuple[float, object]] = OrderedDict()
+_key_locks: dict[str, Lock] = {}
+
 
 @app.get("/health")
 def health() -> dict[str, str]:
@@ -99,27 +110,31 @@ def network(vehicle_type: VehicleType | None = None) -> NetworkOverview:
 
 @app.get("/places/search", response_model=list[Place])
 def places_search(q: str = Query(min_length=2, max_length=160)) -> list[Place]:
-    return search_places(q)
+    normalized = q.strip().lower()
+    return _cached_response(f"places-search:{normalized}", lambda: search_places(q))
 
 
 @app.post("/directions", response_model=DirectionsPlan)
 def directions(command: DirectionsRequest) -> DirectionsPlan:
-    return build_directions(command)
+    return _cached_response(
+        f"directions:{command.model_dump_json()}",
+        lambda: build_directions(command),
+    )
 
 
 @app.get("/risk/national", response_model=NationalRiskOverview)
 def risk_national() -> NationalRiskOverview:
-    return national_risk()
+    return _cached_response("risk-national", national_risk)
 
 
 @app.get("/risk/weather-snapshot", response_model=NationalWeatherSnapshot)
 def risk_weather_snapshot() -> NationalWeatherSnapshot:
-    return get_weather_snapshot()
+    return _cached_response("risk-weather-snapshot", get_weather_snapshot)
 
 
 @app.get("/risk/weather-raster", response_model=WeatherRasterManifest)
 def risk_weather_raster() -> WeatherRasterManifest:
-    return get_weather_raster_manifest()
+    return _cached_response("risk-weather-raster", get_weather_raster_manifest)
 
 
 @app.get("/risk/weather-raster.png")
@@ -129,7 +144,10 @@ def risk_weather_raster_png() -> Response:
 
 @app.post("/risk/location", response_model=LocationRisk)
 def risk_location(place: Place) -> LocationRisk:
-    return location_risk(place)
+    return _cached_response(
+        f"location-risk:{place.model_dump_json()}",
+        lambda: location_risk(place),
+    )
 
 
 @app.get("/road-events/feeds", response_model=RoadEventFeedRegistry)
@@ -137,7 +155,8 @@ def road_event_feeds(
     state: str | None = Query(None, min_length=2, max_length=40),
     limit: int = Query(30, ge=1, le=100),
 ) -> RoadEventFeedRegistry:
-    return get_road_event_feeds(state=state, limit=limit)
+    normalized_state = state.strip().lower() if state else "all"
+    return _cached_response(f"road-events:{normalized_state}:{limit}", lambda: get_road_event_feeds(state=state, limit=limit))
 
 
 @app.post(
@@ -224,3 +243,45 @@ def _transition(
         raise HTTPException(status_code=404, detail="Delivery not found") from error
     except ValueError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+def _cached_response(key: str, builder: Callable[[], T]) -> T:
+    now = monotonic()
+    with _cache_lock:
+        cached = _response_cache.get(key)
+        if cached and now - cached[0] <= _CACHE_TTL_SECONDS:
+            _response_cache.move_to_end(key)
+            return cached[1]  # type: ignore[return-value]
+
+    key_lock = _lock_for_key(key)
+    with key_lock:
+        now = monotonic()
+        with _cache_lock:
+            cached = _response_cache.get(key)
+            if cached and now - cached[0] <= _CACHE_TTL_SECONDS:
+                _response_cache.move_to_end(key)
+                return cached[1]  # type: ignore[return-value]
+
+        value = builder()
+        with _cache_lock:
+            _response_cache[key] = (now, value)
+            _response_cache.move_to_end(key)
+            while len(_response_cache) > _CACHE_MAX_ITEMS:
+                evicted_key, _ = _response_cache.popitem(last=False)
+                _key_locks.pop(evicted_key, None)
+        return value
+
+
+def _lock_for_key(key: str) -> Lock:
+    with _cache_lock:
+        key_lock = _key_locks.get(key)
+        if key_lock is None:
+            key_lock = Lock()
+            _key_locks[key] = key_lock
+        return key_lock
+
+
+def _clear_response_cache_for_tests() -> None:
+    with _cache_lock:
+        _response_cache.clear()
+        _key_locks.clear()

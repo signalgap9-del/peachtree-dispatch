@@ -18,6 +18,7 @@ atmospath:
   risk-engine-function-name: ${RISK_ENGINE_FUNCTION_NAME:}
   cors-origins: ${CORS_ORIGINS:http://localhost:5173}
   api-origin-verify-secret: ${API_ORIGIN_VERIFY_SECRET:}
+  default-plan: ${ATMOSPATH_DEFAULT_PLAN:FREE}
   auth:
     enabled: ${AUTH_ENABLED:false}
     issuer-uri: ${AUTH_ISSUER_URI:}

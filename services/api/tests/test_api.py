@@ -5,6 +5,7 @@ os.environ["DATABASE_PATH"] = str(Path(__file__).parent / "test.db")
 
 from fastapi.testclient import TestClient
 
+import app.main as main_module
 from app.main import app
 from app.models import (
     DirectionsPlan,
@@ -91,6 +92,7 @@ def test_search_places_supports_nationwide_results(monkeypatch) -> None:
 
 
 def test_directions_accepts_us_places(monkeypatch) -> None:
+    main_module._clear_response_cache_for_tests()
     seattle = Place(
         place_id="1",
         display_name="Seattle, Washington, United States",
@@ -132,6 +134,55 @@ def test_directions_accepts_us_places(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert response.json()["summary"] == "Seattle to Miami"
+
+
+def test_directions_cache_avoids_recomputing_identical_requests(monkeypatch) -> None:
+    main_module._clear_response_cache_for_tests()
+    calls = 0
+    seattle = Place(
+        place_id="cache-seattle",
+        display_name="Seattle, Washington, United States",
+        city="Seattle",
+        state="Washington",
+        latitude=47.6062,
+        longitude=-122.3321,
+    )
+    miami = Place(
+        place_id="cache-miami",
+        display_name="Miami, Florida, United States",
+        city="Miami",
+        state="Florida",
+        latitude=25.7617,
+        longitude=-80.1918,
+    )
+
+    def fake_build(command):
+        nonlocal calls
+        calls += 1
+        return DirectionsPlan(
+            generated_at="2026-06-11T00:00:00Z",
+            origin=command.origin,
+            destination=command.destination,
+            vehicle_type=VehicleType.CAR,
+            coordinates=[[-122.3321, 47.6062], [-80.1918, 25.7617]],
+            distance_miles=3300,
+            duration_minutes=2880,
+            climate_delay_minutes=20,
+            risk_score=15,
+            weather=[],
+            summary="Cached Seattle to Miami",
+            alternatives=[],
+        )
+
+    monkeypatch.setattr("app.main.build_directions", fake_build)
+    payload = {"origin": seattle.model_dump(), "destination": miami.model_dump(), "vehicle_type": "CAR"}
+
+    first = client.post("/directions", json=payload)
+    second = client.post("/directions", json=payload)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert calls == 1
 
 
 def test_national_risk_returns_live_summary(monkeypatch) -> None:

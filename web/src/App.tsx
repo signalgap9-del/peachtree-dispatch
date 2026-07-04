@@ -3,6 +3,7 @@ import {
   Bookmark,
   ChevronDown,
   CloudSun,
+  Gauge,
   Home,
   LayoutDashboard,
   LogIn,
@@ -17,7 +18,7 @@ import { api } from "./api";
 import { authConfigured, completeLogin, currentUser, googleAuthConfigured, login, loginWithGoogle, logout, type AuthUser } from "./auth";
 import { useI18n } from "./i18n";
 import { LanguageToggle } from "./LanguageToggle";
-import { AlertsPage, DashboardPage, HomePage, PlaceDetailPage, SavedPage } from "./ProductPages";
+import { AlertsPage, DashboardPage, HomePage, PlaceDetailPage, PricingPage, SavedPage, UsagePage } from "./ProductPages";
 import type { NationalRiskOverview, NationalWeatherSnapshot, WeatherRasterManifest } from "./types";
 import { notify } from "./ui";
 import "./styles.css";
@@ -31,6 +32,7 @@ const navItems = [
   { path: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
   { path: "/saved", labelKey: "nav.saved", icon: Bookmark },
   { path: "/alerts", labelKey: "nav.alerts", icon: ShieldAlert },
+  { path: "/usage", labelKey: "nav.usage", icon: Gauge },
 ] as const;
 
 const MapPage = lazy(() => import("./MapPage").then((module) => ({ default: module.MapPage })));
@@ -93,6 +95,8 @@ function AppShell() {
         <Route path="/dashboard" element={<DashboardPage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} dataStatus={dataStatus} />} />
         <Route path="/saved" element={<SavedPage navigate={navigate} weatherSnapshot={weatherSnapshot} dataStatus={dataStatus} />} />
         <Route path="/alerts" element={<AlertsPage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} dataStatus={dataStatus} />} />
+        <Route path="/usage" element={<UsagePage navigate={navigate} />} />
+        <Route path="/pricing" element={<PricingPage navigate={navigate} />} />
         <Route path="/locations/:slug" element={<PlaceRoute navigate={navigate} weatherRaster={weatherRaster} />} />
         <Route path="/map" element={<MapRoute navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} />} />
         <Route path="/directions" element={<MapRoute navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} />} />

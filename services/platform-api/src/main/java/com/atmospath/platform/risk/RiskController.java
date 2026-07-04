@@ -3,8 +3,14 @@ package com.atmospath.platform.risk;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
+import com.atmospath.platform.account.EntitlementService;
+import com.atmospath.platform.account.MeteredFeature;
+import com.atmospath.platform.account.TenantContextResolver;
 import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotBlank;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -21,19 +27,34 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping({"/api/v1", ""})
 public class RiskController {
     private final RiskEngineGateway riskEngine;
+    private final TenantContextResolver tenantContextResolver;
+    private final EntitlementService entitlements;
 
-    public RiskController(RiskEngineGateway riskEngine) {
+    public RiskController(
+            RiskEngineGateway riskEngine,
+            TenantContextResolver tenantContextResolver,
+            EntitlementService entitlements) {
         this.riskEngine = riskEngine;
+        this.tenantContextResolver = tenantContextResolver;
+        this.entitlements = entitlements;
     }
 
     @GetMapping("/places/search")
-    JsonNode searchPlaces(@RequestParam("q") @NotBlank String query) {
+    JsonNode searchPlaces(
+            @RequestParam("q") @NotBlank String query,
+            @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request) {
+        entitlements.consume(tenantContextResolver.resolve(jwt, request), MeteredFeature.PLACE_SEARCH);
         return riskEngine.get("/places/search?q=" + URLEncoder.encode(query, StandardCharsets.UTF_8));
     }
 
     @PostMapping("/directions")
-    JsonNode directions(@RequestBody JsonNode request) {
-        return riskEngine.post("/directions", request);
+    JsonNode directions(
+            @RequestBody JsonNode body,
+            @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request) {
+        entitlements.consume(tenantContextResolver.resolve(jwt, request), MeteredFeature.ROUTE_PLAN);
+        return riskEngine.post("/directions", body);
     }
 
     @GetMapping("/risk/national")
@@ -60,8 +81,12 @@ public class RiskController {
     }
 
     @PostMapping("/risk/location")
-    JsonNode locationRisk(@RequestBody JsonNode request) {
-        return riskEngine.post("/risk/location", request);
+    JsonNode locationRisk(
+            @RequestBody JsonNode body,
+            @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request) {
+        entitlements.consume(tenantContextResolver.resolve(jwt, request), MeteredFeature.LOCATION_RISK);
+        return riskEngine.post("/risk/location", body);
     }
 
 }
