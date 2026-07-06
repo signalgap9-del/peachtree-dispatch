@@ -7,9 +7,11 @@ AtmosPath is a climate-aware navigation and route-risk SaaS preview. It combines
 - Current release: `v0.1.0-preview` / Phase 1 production hardening
 - Release notes: [CHANGELOG.md](CHANGELOG.md)
 - Architecture notes: [docs/architecture.md](docs/architecture.md)
+- Demo playbook: [docs/demo-playbook.md](docs/demo-playbook.md)
 - Cost model: [docs/cost-model.md](docs/cost-model.md)
+- Research/security basis: [docs/architecture/research-and-security-basis.md](docs/architecture/research-and-security-basis.md)
 - ADRs: [docs/adr/](docs/adr/)
-- Codebase size: about 16.2k source/test/IaC/config LOC; about 18.9k tracked text LOC including docs, excluding lockfiles and generated build output.
+- Codebase size: about 23.0k source/test/IaC/config LOC; about 26.0k tracked text LOC including docs, excluding lockfiles and generated build output.
 
 ![AtmosPath route comparison](docs/screenshots/map-route-live.png)
 
@@ -37,7 +39,7 @@ AtmosPath is a climate-aware navigation and route-risk SaaS preview. It combines
 | Road events | Discover WZDx roadwork/closure feed registries by state as the foundation for future road-event joins | `GET /road-events/feeds` |
 | Account controls | Expose plan, quota, capacity, readiness signals, daily metered usage, and structured quota errors without enabling paid billing | `/usage`, `/pricing`, `GET /me/account` |
 | VRP foundation | Support multi-stop route planning, route optimization contracts, OR-Tools-backed solver foundation, and risk-weighted edge costs | `POST /routes/multi-stop`, `POST /routes/multi-stop/optimize`, `POST /vrp/solve` |
-| ML workflow | Convert saved-route observations into delay examples, backtest a delay model, load a safe JSON artifact, record shadow predictions, and optionally apply promoted ML delay to VRP/multi-stop solver costs behind guardrails | `GET /ml/vrp/workflow/status`, `POST /ml/vrp/delay-model/backtest`, `POST /ml/vrp/delay-model/predict` |
+| ML workflow | Convert saved-route observations into delay examples, backtest a delay model, load a safe JSON artifact, record shadow predictions, optionally apply promoted ML delay to VRP/multi-stop solver costs behind guardrails, and run a local served-cost demo | `GET /ml/vrp/workflow/status`, `POST /ml/vrp/delay-model/backtest`, `POST /ml/vrp/delay-model/predict`, `scripts/run_vrp_served_cost_demo.py` |
 | Operations | Show frontend runtime health, bundle budgets, local API stress evidence, release gates, runbooks, rollback docs, and cloud load-test strategy | `/status`, `perf/local_api_stress.py`, `docs/ops/`, `docs/runbooks/` |
 | Security | Cognito JWT path, owner-scoped DynamoDB keys, conditional writes/deletes, request IDs, security headers, origin verification, optional PostGIS RLS migration | Spring Platform API, Terraform, `V002__tenant_rls_policies.sql` |
 
@@ -138,6 +140,7 @@ Implemented hardening:
 - DynamoDB writes use user-scoped partition keys and conditional owner checks.
 - SaaS usage counters use tenant-scoped DynamoDB atomic counters in AWS deployments.
 - Optional PostGIS schema includes owner-based RLS policies and runtime `app.user_id` context execution.
+- External provider calls use an outbound allowlist, HTTPS enforcement, redirect blocking, and default rejection of cloud metadata, localhost, and private-network targets.
 - No long-lived AWS keys are required; deployment is designed for GitHub Actions OIDC.
 - Frontend E2E covers marker text XSS hardening and unavailable-auth messaging.
 - Frontend error boundary prevents blank-screen failure and records render errors in session-scoped operational telemetry.
@@ -145,7 +148,7 @@ Implemented hardening:
 Known next security work:
 
 - Full tenant/workspace membership tables once team accounts are enabled.
-- Rate limiting at API Gateway/WAF in deployed environments.
+- Managed WAF rules and CSP report collection before broad public traffic.
 
 ## Data Sources
 
@@ -184,7 +187,8 @@ Last local verification: July 6, 2026.
 | Layer | Command | Result |
 | --- | --- | --- |
 | Spring Platform API | `powershell -ExecutionPolicy Bypass -File ..\..\scripts\mvn.ps1 --batch-mode test` | 27 passed |
-| Python Risk Engine | `$env:PYTHONPATH='services/api'; python -m pytest services/api/tests -q` | 60 passed, 4 warnings |
+| Python Risk Engine | `cd services/api; python -m pytest tests -q` | 73 passed, 4 warnings |
+| ML served-cost demo | `cd services/api; python scripts/run_vrp_served_cost_demo.py --artifact-dir ..\..\tmp\demo-vrp-ml --model-version demo-served-delay-v1` | passed; feasible route, no dropped jobs, promoted ML edge delay explained |
 | Frontend lint | `npm run lint --prefix web` | passed |
 | Frontend build | `npm run build --prefix web` | passed |
 | Frontend bundle budget | `npm run perf:budget --prefix web` | passed |
@@ -356,6 +360,7 @@ API and CLI:
 - `POST /ml/vrp/delay-model/predict`
 - `python services/api/scripts/train_vrp_delay_model.py --input <dataset> --output <artifact> --model-version <version>`
 - `python services/api/scripts/promote_vrp_delay_model.py --input <shadow-artifact> --output <served-artifact>`
+- `python services/api/scripts/run_vrp_served_cost_demo.py --artifact-dir tmp/demo-vrp-ml --model-version demo-served-delay-v1`
 
 Served-cost gate:
 
@@ -423,6 +428,8 @@ Not yet ready for open public commercial launch:
 
 - [Release notes](CHANGELOG.md)
 - [Architecture](docs/architecture.md)
+- [Demo playbook](docs/demo-playbook.md)
+- [Research and security basis](docs/architecture/research-and-security-basis.md)
 - [Production risk routing](docs/architecture/production-risk-routing.md)
 - [Weather risk pipeline](docs/architecture/weather-risk.md)
 - [WZDx road-event feed discovery](docs/architecture/road-events-wzdx-feeds.md)

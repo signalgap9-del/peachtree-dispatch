@@ -1,9 +1,10 @@
 import json
 from collections.abc import Iterable
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from .models import RiskAlert
+from .outbound_http import safe_urlopen as urlopen
 
 
 USER_AGENT = "AtmosPath/0.2 (https://github.com/signalgap9-del/peachtree-dispatch)"

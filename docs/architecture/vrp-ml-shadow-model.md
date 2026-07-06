@@ -120,6 +120,10 @@ python scripts/train_vrp_delay_model.py `
 python scripts/promote_vrp_delay_model.py `
   --input .\artifacts\vrp-delay-model.json `
   --output .\artifacts\vrp-delay-model-served.json
+
+python scripts/run_vrp_served_cost_demo.py `
+  --artifact-dir ..\..\tmp\demo-vrp-ml `
+  --model-version demo-served-delay-v1
 ```
 
 ## Optional Research Dependencies

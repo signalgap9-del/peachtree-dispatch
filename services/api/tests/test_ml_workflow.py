@@ -207,6 +207,31 @@ def test_promote_cli_marks_gated_artifact_for_served_cost(tmp_path: Path) -> Non
     assert promoted.release_gate.passed is True
 
 
+def test_served_cost_demo_cli_runs_end_to_end(tmp_path: Path) -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "scripts/run_vrp_served_cost_demo.py",
+            "--artifact-dir",
+            str(tmp_path),
+            "--model-version",
+            "demo-test-delay",
+        ],
+        check=True,
+        cwd=Path(__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+    )
+    summary = json.loads(completed.stdout)
+
+    assert summary["demo"] == "vrp-ml-served-cost"
+    assert summary["modelVersion"] == "demo-test-delay"
+    assert summary["releaseGatePassed"] is True
+    assert summary["servedMl"]["sourceStatus"]["ml_cost_model"] == "SERVING_REQUESTED:demo-test-delay"
+    assert summary["savannahEdge"]["mlDelaySeconds"] > 0
+    assert any("ml_served_delay_applied" in item for item in summary["savannahEdge"]["explanation"])
+
+
 def test_ml_workflow_status_reports_serving_enabled_for_promoted_artifact(tmp_path: Path, monkeypatch) -> None:
     artifact_path = tmp_path / "served-delay-model.json"
     examples = [

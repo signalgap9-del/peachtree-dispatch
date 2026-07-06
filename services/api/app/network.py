@@ -2,9 +2,9 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from urllib.parse import urlencode
-from urllib.request import urlopen
 
 from .models import DeliverySummary, Location, NetworkOverview, OptimizedRoute, RouteStop, VehicleType, WeatherRisk
+from .outbound_http import safe_urlopen as urlopen
 from .optimizer import solve_routes
 from .vehicle_profiles import VEHICLE_PROFILES
 

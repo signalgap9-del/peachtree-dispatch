@@ -5,10 +5,11 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from math import asin, cos, radians, sin, sqrt
 from time import monotonic
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from .hazards import USER_AGENT
 from .models import NationalWeatherSnapshot, WeatherRisk
+from .outbound_http import safe_urlopen as urlopen
 
 
 MAJOR_CITY_POINTS = [

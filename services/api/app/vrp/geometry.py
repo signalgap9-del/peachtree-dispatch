@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 from typing import Protocol
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from .matrix import USER_AGENT, _haversine_meters
 from .models import GeoNode, RouteGeometry
+from ..outbound_http import safe_urlopen as urlopen
 
 
 class RouteGeometryProvider(Protocol):

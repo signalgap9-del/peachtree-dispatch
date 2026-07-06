@@ -2,7 +2,7 @@ import json
 from collections import Counter
 from datetime import UTC, datetime
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from .hazards import USER_AGENT, alerts_for_route_samples
 from .models import (
@@ -15,6 +15,7 @@ from .models import (
     RouteRiskSegment,
     WeatherRisk,
 )
+from .outbound_http import safe_urlopen as urlopen
 from .vehicle_profiles import VEHICLE_PROFILES
 from .weather_snapshot import nearest_snapshot_weather
 

@@ -4,9 +4,10 @@ from datetime import UTC, datetime
 from typing import Any
 from urllib.error import URLError
 from urllib.parse import urlencode, urlparse
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from .models import RoadEventFeed, RoadEventFeedRegistry
+from .outbound_http import OutboundRequestError, safe_urlopen as urlopen
 
 WZDX_REGISTRY_URL = os.getenv(
     "WZDX_REGISTRY_URL",
@@ -41,7 +42,7 @@ def _fetch_registry(limit: int) -> list[dict[str, Any]]:
     try:
         with urlopen(request, timeout=8) as response:
             payload = response.read()
-    except URLError as exception:
+    except (OutboundRequestError, URLError) as exception:
         raise RuntimeError("WZDx feed registry unavailable") from exception
     decoded = json.loads(payload.decode("utf-8"))
     if not isinstance(decoded, list):

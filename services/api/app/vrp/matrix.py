@@ -5,10 +5,11 @@ import math
 import os
 from typing import Protocol
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.request import Request
 from uuid import uuid4
 
 from .models import GeoNode, RoutingMatrix
+from ..outbound_http import safe_urlopen as urlopen
 
 MILES_PER_METER = 1 / 1609.344
 DEFAULT_SPEED_MPH = 48
