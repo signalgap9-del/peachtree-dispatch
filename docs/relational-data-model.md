@@ -56,8 +56,30 @@ This prevents a route score from becoming an unexplained number.
 a verified JWT claim; clients never choose an arbitrary owner ID. Public
 relational writes therefore remain closed until Cognito authorization exists.
 
+## Row Level Security
+
+`V002__tenant_rls_policies.sql` enables and forces PostgreSQL RLS on user-owned
+tables. Policies read `app.current_user_id()`, which resolves the transaction
+local `app.user_id` setting. Runtime RDS Data API calls set that value before
+issuing saved item queries, so both the SQL predicate and the database policy
+must agree on the same owner.
+
+Protected tables:
+
+- `app_user`
+- `saved_item`
+- `saved_collection`
+- `saved_collection_item`
+- `alert_subscription`
+- `route_plan`
+- `risk_exposure`
+
+This makes PostGIS a viable future primary store without relying only on
+application-side `WHERE user_id = ...` filters.
+
 ## Migration Boundary
 
 The current application initializer is suitable only for a disabled-by-default
-portfolio foundation. Production enablement must separate migration credentials
-from runtime credentials and run versioned migrations as a deployment step.
+portfolio foundation. Production enablement should still separate migration
+credentials from runtime credentials and run versioned migrations as a
+deployment step.

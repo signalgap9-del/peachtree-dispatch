@@ -1,4 +1,6 @@
 import type {
+  AccountSummary,
+  ApiErrorEnvelope,
   DirectionsPlan,
   LocationRisk,
   NationalRiskOverview,
@@ -11,6 +13,7 @@ import type {
   VehicleType,
 } from "./types";
 import { accessToken } from "./auth";
+import { reportClientIssue } from "./telemetry";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 const weatherRasterPngUrl = `${API_URL}/risk/weather-raster.png`;
@@ -19,10 +22,20 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
-    readonly detail?: unknown,
+    readonly detail?: ApiErrorEnvelope | unknown,
   ) {
     super(message);
     this.name = "ApiError";
+  }
+
+  get code() {
+    if (isApiErrorEnvelope(this.detail)) return this.detail.error?.code;
+    return undefined;
+  }
+
+  get requestId() {
+    if (isApiErrorEnvelope(this.detail)) return this.detail.error?.requestId;
+    return undefined;
   }
 }
 
@@ -35,7 +48,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const controller = new AbortController();
   const abort = () => controller.abort();
   signal?.addEventListener("abort", abort, { once: true });
-  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  let timedOut = false;
+  const timeout = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
   const token = accessToken();
   const mergedHeaders = {
     "Content-Type": "application/json",
@@ -49,12 +66,31 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       signal: controller.signal,
     });
     if (!response.ok) {
-      const body = await response.json().catch(() => ({ detail: response.statusText }));
-      const message = typeof body.detail === "string" ? body.detail : response.statusText;
+      const body = await response.json().catch(() => ({ detail: response.statusText })) as ApiErrorEnvelope;
+      const message = body.error?.message ?? (typeof body.detail === "string" ? body.detail : response.statusText);
       throw new ApiError(message || "Request failed", response.status, body);
     }
     if (response.status === 204) return undefined as T;
     return response.json() as Promise<T>;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      reportClientIssue({
+        kind: "api_error",
+        message: error.message,
+        details: { path, status: error.status, code: error.code ?? null, requestId: error.requestId ?? null },
+      });
+    } else if (error instanceof DOMException && error.name === "AbortError") {
+      if (timedOut) {
+        reportClientIssue({ kind: "api_timeout", message: `Request timed out after ${timeoutMs} ms`, details: { path, timeoutMs } });
+      }
+    } else {
+      reportClientIssue({
+        kind: "network_error",
+        message: error instanceof Error ? error.message : "Network request failed",
+        details: { path },
+      });
+    }
+    throw error;
   } finally {
     window.clearTimeout(timeout);
     signal?.removeEventListener("abort", abort);
@@ -79,6 +115,7 @@ export const api = {
   },
   locationRisk: (place: Place) =>
     request<LocationRisk>("/risk/location", { method: "POST", body: JSON.stringify(place) }),
+  accountSummary: () => request<AccountSummary>("/me/account"),
   savedPlaces: () => request<SavedPlaceRecord[]>("/me/saved/places"),
   savedRoutes: async () => (await request<SavedRouteRecord[]>("/me/saved/routes")).map(normalizeSavedRoute),
   savedRoute: async (savedItemId: string) => normalizeSavedRoute(await request<SavedRouteRecord>(`/me/saved/routes/${savedItemId}`)),
@@ -128,6 +165,10 @@ export const api = {
   deleteSavedRoute: (savedItemId: string) =>
     request<void>(`/me/saved/routes/${savedItemId}`, { method: "DELETE" }),
 };
+
+function isApiErrorEnvelope(value: unknown): value is ApiErrorEnvelope {
+  return Boolean(value && typeof value === "object" && "error" in value);
+}
 
 function normalizeSavedRoute(route: SavedRouteRecord): SavedRouteRecord {
   return {

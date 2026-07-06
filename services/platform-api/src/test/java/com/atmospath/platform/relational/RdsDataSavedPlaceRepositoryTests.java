@@ -3,16 +3,20 @@ package com.atmospath.platform.relational;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import software.amazon.awssdk.services.rdsdata.RdsDataClient;
+import software.amazon.awssdk.services.rdsdata.model.BeginTransactionRequest;
+import software.amazon.awssdk.services.rdsdata.model.BeginTransactionResponse;
 import software.amazon.awssdk.services.rdsdata.model.ExecuteStatementRequest;
 import software.amazon.awssdk.services.rdsdata.model.ExecuteStatementResponse;
 import software.amazon.awssdk.services.rdsdata.model.Field;
@@ -22,6 +26,12 @@ class RdsDataSavedPlaceRepositoryTests {
     private final RelationalStoreProperties properties =
             new RelationalStoreProperties(true, false, "atmospath", "cluster-arn", "secret-arn");
     private final RdsDataSavedPlaceRepository repository = new RdsDataSavedPlaceRepository(client, properties);
+
+    @BeforeEach
+    void setUpTransaction() {
+        when(client.beginTransaction(any(BeginTransactionRequest.class))).thenReturn(
+                BeginTransactionResponse.builder().transactionId("tx-1").build());
+    }
 
     @Test
     void writesAPlaceUsingPostgisPointConstruction() {
@@ -35,6 +45,7 @@ class RdsDataSavedPlaceRepositoryTests {
         assertThat(request.sql()).contains("ST_MakePoint", "ON CONFLICT", "saved_item.user_id = EXCLUDED.user_id");
         assertThat(request.parameters()).hasSize(6);
         assertThat(request.resourceArn()).isEqualTo("cluster-arn");
+        assertThat(request.transactionId()).isEqualTo("tx-1");
     }
 
     @Test
@@ -120,8 +131,9 @@ class RdsDataSavedPlaceRepositoryTests {
 
     private ExecuteStatementRequest captureRequest() {
         var captor = ArgumentCaptor.forClass(ExecuteStatementRequest.class);
-        verify(client).executeStatement(captor.capture());
-        return captor.getValue();
+        verify(client, times(2)).executeStatement(captor.capture());
+        assertThat(captor.getAllValues().getFirst().sql()).contains("set_config('app.user_id'");
+        return captor.getAllValues().getLast();
     }
 
     private static Field string(String value) {

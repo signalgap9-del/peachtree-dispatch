@@ -17,6 +17,8 @@ import org.mockito.ArgumentCaptor;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
@@ -36,6 +38,7 @@ class DynamoDbSavedPlaceRepositoryTests {
         assertThat(captor.getValue().tableName()).isEqualTo("atmospath-dev");
         assertThat(captor.getValue().item().get("PK").s()).isEqualTo("USER#" + place.userId());
         assertThat(captor.getValue().item().get("SK").s()).isEqualTo("SAVED_PLACE#" + place.savedItemId());
+        assertThat(captor.getValue().conditionExpression()).contains("userId = :userId");
     }
 
     @Test
@@ -49,6 +52,7 @@ class DynamoDbSavedPlaceRepositoryTests {
         assertThat(captor.getValue().item().get("PK").s()).isEqualTo("USER#" + route.userId());
         assertThat(captor.getValue().item().get("SK").s()).isEqualTo("SAVED_ROUTE#" + route.savedItemId());
         assertThat(captor.getValue().item().get("coordinatesJson").s()).contains("-122.3321", "-80.13");
+        assertThat(captor.getValue().expressionAttributeValues().get(":userId").s()).isEqualTo(route.userId().toString());
     }
 
     @Test
@@ -116,6 +120,8 @@ class DynamoDbSavedPlaceRepositoryTests {
         verify(client).deleteItem(captor.capture());
         assertThat(captor.getValue().key().get("PK").s()).isEqualTo("USER#" + userId);
         assertThat(captor.getValue().key().get("SK").s()).isEqualTo("SAVED_PLACE#" + savedItemId);
+        assertThat(captor.getValue().conditionExpression()).contains("attribute_not_exists(PK)", "userId = :userId");
+        assertThat(captor.getValue().expressionAttributeValues().get(":userId").s()).isEqualTo(userId.toString());
     }
 
     @Test
@@ -129,6 +135,35 @@ class DynamoDbSavedPlaceRepositoryTests {
         verify(client).deleteItem(captor.capture());
         assertThat(captor.getValue().key().get("PK").s()).isEqualTo("USER#" + userId);
         assertThat(captor.getValue().key().get("SK").s()).isEqualTo("SAVED_ROUTE#" + savedItemId);
+        assertThat(captor.getValue().conditionExpression()).contains("attribute_not_exists(PK)", "userId = :userId");
+        assertThat(captor.getValue().expressionAttributeValues().get(":userId").s()).isEqualTo(userId.toString());
+    }
+
+    @Test
+    void readsSingleSavedRouteByOwnedCompositeKey() {
+        var route = savedRoute();
+        var item = new HashMap<String, AttributeValue>();
+        item.put("savedItemId", string(route.savedItemId().toString()));
+        item.put("userId", string(route.userId().toString()));
+        item.put("name", string(route.name()));
+        item.put("originName", string(route.originName()));
+        item.put("destinationName", string(route.destinationName()));
+        item.put("vehicleType", string(route.vehicleType()));
+        item.put("distanceMiles", number(String.valueOf(route.distanceMiles())));
+        item.put("durationMinutes", number(String.valueOf(route.durationMinutes())));
+        item.put("climateDelayMinutes", number(String.valueOf(route.climateDelayMinutes())));
+        item.put("riskScore", number(String.valueOf(route.riskScore())));
+        item.put("coordinatesJson", string("[[-122.3321,47.6062],[-80.13,25.7907]]"));
+        item.put("generatedAt", string(route.generatedAt()));
+        when(client.getItem(any(GetItemRequest.class))).thenReturn(GetItemResponse.builder().item(item).build());
+
+        assertThat(repository.findRoute(route.userId(), route.savedItemId())).contains(route);
+
+        var captor = ArgumentCaptor.forClass(GetItemRequest.class);
+        verify(client).getItem(captor.capture());
+        assertThat(captor.getValue().consistentRead()).isTrue();
+        assertThat(captor.getValue().key().get("PK").s()).isEqualTo("USER#" + route.userId());
+        assertThat(captor.getValue().key().get("SK").s()).isEqualTo("SAVED_ROUTE#" + route.savedItemId());
     }
 
     private static SavedRoute savedRoute() {

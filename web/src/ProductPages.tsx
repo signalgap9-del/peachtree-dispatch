@@ -31,6 +31,7 @@ import { LiveRiskMap } from "./components/LiveRiskMap";
 import { useI18n } from "./i18n";
 import { places, riskLevel } from "./mockData";
 import type {
+  AccountSummary,
   LocationRisk,
   NationalRiskOverview,
   NationalWeatherSnapshot,
@@ -207,6 +208,7 @@ export function SavedPage({
   const [highestRisk, setHighestRisk] = useState(false);
   const [placesState, setPlacesState] = useState<SavedPlaceRecord[]>([]);
   const [routesState, setRoutesState] = useState<SavedRouteRecord[]>([]);
+  const [account, setAccount] = useState<AccountSummary | null>(null);
   const [loading, setLoading] = useState(Boolean(currentUser()));
   const [collection, setCollection] = useState<"all" | "routes" | "places">("all");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -218,10 +220,11 @@ export function SavedPage({
 
   useEffect(() => {
     if (!userEmail) return;
-    void Promise.all([api.savedPlaces(), api.savedRoutes()])
-      .then(([savedPlaces, savedRoutes]) => {
+    void Promise.all([api.savedPlaces(), api.savedRoutes(), api.accountSummary().catch(() => null)])
+      .then(([savedPlaces, savedRoutes, accountSummary]) => {
         setPlacesState(savedPlaces);
         setRoutesState(savedRoutes);
+        setAccount(accountSummary);
       })
       .catch(() => notify("Saved records could not be loaded."))
       .finally(() => setLoading(false));
@@ -332,9 +335,11 @@ export function SavedPage({
         <button className={collection === "places" ? "active" : ""} onClick={() => setCollection("places")}><MapPin size={17} /><span>Places</span><em>{placesState.length}</em></button>
         <div className="collection-insight">
           <strong>Account insights</strong>
-          <span>High-risk places <b>{placesState.filter((place) => (place.currentRiskScore ?? 0) >= 55).length}</b></span>
-          <span>High-risk routes <b>{routesState.filter((route) => route.riskScore >= 55).length}</b></span>
-          <span>Weather coverage <b>{Math.round((weatherSnapshot?.coverage ?? 0) * 100)}%</b></span>
+          <span>Plan <b>{account?.plan.code ?? "Preview"}</b></span>
+          <span>Saved routes <b>{routesState.length}/{account?.savedRoutes.limit ?? "?"}</b></span>
+          <span>Saved places <b>{placesState.length}/{account?.savedPlaces.limit ?? "?"}</b></span>
+          <span>High-risk watchlist <b>{placesState.filter((place) => (place.currentRiskScore ?? 0) >= 55).length + routesState.filter((route) => route.riskScore >= 55).length}</b></span>
+          <button className="collection-link" onClick={() => navigate("/usage")}>Usage and limits</button>
         </div>
       </aside>
       <section className="saved-main">
@@ -411,6 +416,120 @@ export function SavedPage({
           <button className="button secondary wide" onClick={() => void deleteSelected()}>Delete saved item</button>
         </> : <EmptyState title="Nothing selected" detail="Saved item details will appear here." />}
       </aside>
+    </main>
+  );
+}
+
+export function UsagePage({ navigate }: { navigate: Navigate }) {
+  const [account, setAccount] = useState<AccountSummary | null>(null);
+  const [loading, setLoading] = useState(Boolean(currentUser()));
+  const [error, setError] = useState("");
+  const userEmail = currentUser()?.email ?? null;
+
+  useEffect(() => {
+    if (!userEmail) return;
+    setLoading(true);
+    void api.accountSummary()
+      .then(setAccount)
+      .catch(() => setError("Account usage could not be loaded. Check OAuth and platform API deployment settings."))
+      .finally(() => setLoading(false));
+  }, [userEmail]);
+
+  if (!userEmail) {
+    return (
+      <main className="page-shell usage-page">
+        <CallToAction
+          title="Sign in to view usage"
+          detail="Usage, quotas, and saved route capacity are tenant-scoped. Public map preview stays available without login."
+          action="Sign in"
+          onClick={() => void login()}
+          secondaryAction="Compare plans"
+          onSecondaryClick={() => navigate("/pricing")}
+        />
+      </main>
+    );
+  }
+
+  return (
+    <main className="page-shell usage-page">
+      <PageTitle title="Usage and operations" subtitle="Plan limits, quota enforcement, and production readiness signals for this workspace">
+        <button className="button secondary" onClick={() => navigate("/status")}>Operational status</button>
+        <button className="button secondary" onClick={() => navigate("/pricing")}>Compare plans</button>
+        <button className="button primary" onClick={() => navigate("/directions")}>Plan route <Navigation size={16} /></button>
+      </PageTitle>
+      {loading && <EmptyState title="Loading account usage" detail="Reading workspace summary from the platform API." />}
+      {error && <div className="data-notice degraded" role="status"><AlertTriangle size={17} /><span><strong>Usage unavailable</strong><small>{error}</small></span></div>}
+      {account && (
+        <>
+          <section className="usage-hero surface">
+            <div>
+              <span className="eyebrow">Workspace</span>
+              <h2>{account.workspace.name}</h2>
+              <p>{account.user.email || account.user.subject}</p>
+            </div>
+            <PlanBadge account={account} />
+            <div className="usage-hero-actions">
+              <button className="button secondary" onClick={() => navigate("/saved")}>Manage watchlist</button>
+              <button className="button primary" onClick={() => navigate("/alerts")}>Open alerts</button>
+            </div>
+          </section>
+          <section className="usage-grid">
+            <div className="surface usage-panel">
+              <SectionHeader title="Daily metered API usage" meta={`Resets ${formatReset(account.dailyUsage[0]?.resetsAt)}`} />
+              <div className="usage-meter-list">
+                {account.dailyUsage.map((usage) => <UsageMeter key={usage.feature} usage={usage} />)}
+              </div>
+            </div>
+            <div className="surface usage-panel">
+              <SectionHeader title="Saved asset capacity" meta="Tenant-scoped private data" />
+              <div className="usage-meter-list">
+                <UsageMeter usage={{ ...account.savedRoutes, resetsAt: "capacity" }} />
+                <UsageMeter usage={{ ...account.savedPlaces, resetsAt: "capacity" }} />
+              </div>
+            </div>
+          </section>
+          <section className="surface readiness-panel">
+            <SectionHeader title="Production readiness signals" meta="What an operator can verify during incident response" />
+            <div className="readiness-grid">
+              {account.readiness.map((signal) => (
+                <article key={signal.key}>
+                  <ShieldCheck size={20} />
+                  <span><strong>{signal.label}</strong><small>{signal.detail}</small></span>
+                  <em>{signal.state.replaceAll("_", " ")}</em>
+                </article>
+              ))}
+            </div>
+          </section>
+        </>
+      )}
+    </main>
+  );
+}
+
+export function PricingPage({ navigate }: { navigate: Navigate }) {
+  const plans = [
+    { code: "FREE", title: "Free preview", price: "$0", detail: "Portfolio-safe public preview with server-side quotas.", limits: ["30 route plans / day", "10 saved routes", "25 saved places", "7 days route history"] },
+    { code: "PRO", title: "Pro", price: "Billing disabled", detail: "Target SaaS tier for individual power users once payments are added.", limits: ["300 route plans / day", "100 saved routes", "250 saved places", "Dispatch optimizer enabled"] },
+    { code: "TEAM", title: "Team", price: "Billing disabled", detail: "Future workspace tier for fleets, consultants, and operations teams.", limits: ["2,000 route plans / day", "1,000 saved routes", "Team workspace controls", "90 days route history"] },
+  ];
+  return (
+    <main className="page-shell pricing-page">
+      <PageTitle title="Plans without billing lock-in" subtitle="AtmosPath enforces SaaS-style entitlements now; payment collection is intentionally out of scope for this portfolio release.">
+        <button className="button secondary" onClick={() => navigate("/usage")}>View usage</button>
+        <button className="button primary" onClick={() => navigate("/map")}>Try the map</button>
+      </PageTitle>
+      <section className="pricing-grid">
+        {plans.map((plan) => (
+          <article className="surface pricing-card" key={plan.code}>
+            <span className="eyebrow">{plan.code}</span>
+            <h2>{plan.title}</h2>
+            <strong>{plan.price}</strong>
+            <p>{plan.detail}</p>
+            <ul>{plan.limits.map((limit) => <li key={limit}><ShieldCheck size={15} /> {limit}</li>)}</ul>
+            <button className={plan.code === "FREE" ? "button primary wide" : "button secondary wide"} onClick={() => navigate(plan.code === "FREE" ? "/directions" : "/usage")}>{plan.code === "FREE" ? "Start planning" : "Track readiness"}</button>
+          </article>
+        ))}
+      </section>
     </main>
   );
 }
@@ -604,6 +723,30 @@ function PageTitle({ title, subtitle, children }: { title: string; subtitle: str
 
 function SectionHeader({ title, meta, action, onAction }: { title: string; meta?: string; action?: string; onAction?: () => void }) {
   return <header className="section-header"><div><h2>{title}</h2>{meta && <span>{meta}</span>}</div>{action && onAction && <button onClick={onAction}>{action} <ArrowRight size={14} /></button>}</header>;
+}
+
+function PlanBadge({ account }: { account: AccountSummary }) {
+  return (
+    <div className="plan-badge">
+      <span>{account.plan.status}</span>
+      <strong>{account.plan.code}</strong>
+      <small>{account.plan.dispatchOptimizerEnabled ? "Optimizer enabled" : "Map preview quota"}</small>
+    </div>
+  );
+}
+
+function UsageMeter({ usage }: { usage: { label: string; used: number; limit: number; remaining: number; exceeded: boolean; resetsAt?: string } }) {
+  const percent = usage.limit <= 0 ? 0 : Math.min(100, Math.round((usage.used / usage.limit) * 100));
+  return (
+    <article className={`usage-meter ${usage.exceeded ? "exceeded" : percent >= 80 ? "warning" : ""}`}>
+      <div>
+        <strong>{usage.label}</strong>
+        <span>{usage.used.toLocaleString()} used / {usage.limit.toLocaleString()} limit</span>
+      </div>
+      <em>{usage.remaining.toLocaleString()} left</em>
+      <i className={`meter-${Math.ceil(percent / 10) * 10}`}><b /></i>
+    </article>
+  );
 }
 
 function QuickAction({ icon, title, subtitle, onClick }: { icon: React.ReactNode; title: string; subtitle: string; onClick: () => void }) {
@@ -911,6 +1054,11 @@ function riskClass(level?: string) {
 function formatTime(value?: string) {
   if (!value) return "not available";
   return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(new Date(value));
+}
+
+function formatReset(value?: string) {
+  if (!value || value === "capacity") return "when capacity changes";
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", timeZoneName: "short" }).format(new Date(value));
 }
 
 function savePlace(place: (typeof places)[string], score?: number) {

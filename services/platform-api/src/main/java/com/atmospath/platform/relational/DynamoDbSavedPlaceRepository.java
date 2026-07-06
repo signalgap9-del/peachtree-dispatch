@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Repository;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 
@@ -77,7 +79,12 @@ public class DynamoDbSavedPlaceRepository implements SavedPlaceRepository {
         if (place.currentRiskScore() != null) {
             item.put("currentRiskScore", number(place.currentRiskScore()));
         }
-        client.putItem(PutItemRequest.builder().tableName(tableName).item(item).build());
+        client.putItem(PutItemRequest.builder()
+                .tableName(tableName)
+                .item(item)
+                .conditionExpression("attribute_not_exists(PK) OR userId = :userId")
+                .expressionAttributeValues(Map.of(":userId", string(place.userId().toString())))
+                .build());
     }
 
     @Override
@@ -106,7 +113,12 @@ public class DynamoDbSavedPlaceRepository implements SavedPlaceRepository {
         item.put("activeHazardsJson", string(writeStringList(route.activeHazards())));
         item.put("riskTrend", string(route.riskTrend()));
         item.put("updatedAt", string(now));
-        client.putItem(PutItemRequest.builder().tableName(tableName).item(item).build());
+        client.putItem(PutItemRequest.builder()
+                .tableName(tableName)
+                .item(item)
+                .conditionExpression("attribute_not_exists(PK) OR userId = :userId")
+                .expressionAttributeValues(Map.of(":userId", string(route.userId().toString())))
+                .build());
     }
 
     @Override
@@ -136,6 +148,21 @@ public class DynamoDbSavedPlaceRepository implements SavedPlaceRepository {
     }
 
     @Override
+    public Optional<SavedRoute> findRoute(UUID userId, UUID savedItemId) {
+        var response = client.getItem(GetItemRequest.builder()
+                .tableName(tableName)
+                .key(Map.of(
+                        "PK", string(userKey(userId)),
+                        "SK", string(SAVED_ROUTE_PREFIX + savedItemId)))
+                .consistentRead(true)
+                .build());
+        if (!response.hasItem()) {
+            return Optional.empty();
+        }
+        return Optional.of(toSavedRoute(response.item()));
+    }
+
+    @Override
     public List<SavedPlace> findNearby(UUID userId, double longitude, double latitude, double radiusMiles) {
         return findAll(userId).stream()
                 .filter(place -> distanceMiles(latitude, longitude, place.latitude(), place.longitude()) <= radiusMiles)
@@ -150,6 +177,8 @@ public class DynamoDbSavedPlaceRepository implements SavedPlaceRepository {
                 .key(Map.of(
                         "PK", string(userKey(userId)),
                         "SK", string(SAVED_PLACE_PREFIX + savedItemId)))
+                .conditionExpression("attribute_not_exists(PK) OR userId = :userId")
+                .expressionAttributeValues(Map.of(":userId", string(userId.toString())))
                 .build());
     }
 
@@ -160,6 +189,8 @@ public class DynamoDbSavedPlaceRepository implements SavedPlaceRepository {
                 .key(Map.of(
                         "PK", string(userKey(userId)),
                         "SK", string(SAVED_ROUTE_PREFIX + savedItemId)))
+                .conditionExpression("attribute_not_exists(PK) OR userId = :userId")
+                .expressionAttributeValues(Map.of(":userId", string(userId.toString())))
                 .build());
     }
 

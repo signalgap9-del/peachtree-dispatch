@@ -1,0 +1,66 @@
+{
+  "requests": 180,
+  "concurrency": 8,
+  "failures": 0,
+  "duration_seconds": 14.62,
+  "requests_per_second": 12.31,
+  "p50_ms": 134.34,
+  "p95_ms": 2988.33,
+  "p99_ms": 3147.05,
+  "endpoints": [
+    {
+      "endpoint": "GET /health",
+      "count": 30,
+      "failures": 0,
+      "p50_ms": 150.83,
+      "p95_ms": 414.23,
+      "p99_ms": 595.7,
+      "max_ms": 595.7
+    },
+    {
+      "endpoint": "GET /places/search",
+      "count": 30,
+      "failures": 0,
+      "p50_ms": 80.3,
+      "p95_ms": 471.54,
+      "p99_ms": 491.65,
+      "max_ms": 491.65
+    },
+    {
+      "endpoint": "GET /risk/national",
+      "count": 30,
+      "failures": 0,
+      "p50_ms": 102.58,
+      "p95_ms": 422.45,
+      "p99_ms": 429.67,
+      "max_ms": 429.67
+    },
+    {
+      "endpoint": "POST /directions",
+      "count": 30,
+      "failures": 0,
+      "p50_ms": 121.6,
+      "p95_ms": 403.62,
+      "p99_ms": 406.36,
+      "max_ms": 406.36
+    },
+    {
+      "endpoint": "POST /risk/location",
+      "count": 30,
+      "failures": 0,
+      "p50_ms": 50.44,
+      "p95_ms": 371.05,
+      "p99_ms": 389.83,
+      "max_ms": 389.83
+    },
+    {
+      "endpoint": "POST /routes/multi-stop",
+      "count": 30,
+      "failures": 0,
+      "p50_ms": 2811.73,
+      "p95_ms": 3224.28,
+      "p99_ms": 3279.4,
+      "max_ms": 3279.4
+    }
+  ]
+}

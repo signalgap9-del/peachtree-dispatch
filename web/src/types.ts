@@ -84,6 +84,68 @@ export interface SavedRouteRisk {
   riskTrend: string;
 }
 
+export type PlanCode = "FREE" | "PRO" | "TEAM" | "INTERNAL";
+export type SubscriptionStatus = "TRIALING" | "ACTIVE" | "PAST_DUE" | "SUSPENDED";
+export type MeteredFeature = "ROUTE_PLAN" | "PLACE_SEARCH" | "LOCATION_RISK" | "ALERT_SEARCH" | "SAVED_ROUTE" | "SAVED_PLACE";
+
+export interface FeatureUsage {
+  feature: MeteredFeature;
+  label: string;
+  used: number;
+  limit: number;
+  remaining: number;
+  resetsAt: string;
+  exceeded: boolean;
+}
+
+export interface CapacityUsage {
+  feature: MeteredFeature;
+  label: string;
+  used: number;
+  limit: number;
+  remaining: number;
+  exceeded: boolean;
+}
+
+export interface AccountSummary {
+  user: {
+    userId: string;
+    subject: string;
+    email: string;
+  };
+  workspace: {
+    tenantId: string;
+    name: string;
+    role: string;
+  };
+  plan: {
+    code: PlanCode;
+    status: SubscriptionStatus;
+    savedRouteHistoryDays: number;
+    dispatchOptimizerEnabled: boolean;
+    teamWorkspaceEnabled: boolean;
+  };
+  dailyUsage: FeatureUsage[];
+  savedRoutes: CapacityUsage;
+  savedPlaces: CapacityUsage;
+  readiness: Array<{
+    key: string;
+    label: string;
+    state: "READY" | "ENFORCED" | "CONFIGURABLE" | "PUBLIC_PREVIEW" | string;
+    detail: string;
+  }>;
+}
+
+export interface ApiErrorEnvelope {
+  error?: {
+    code?: string;
+    message?: string;
+    requestId?: string;
+    details?: Record<string, unknown>;
+  };
+  detail?: string;
+}
+
 export interface DirectionsPlan {
   generated_at: string;
   origin: Place;

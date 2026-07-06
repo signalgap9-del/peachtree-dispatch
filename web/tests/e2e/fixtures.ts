@@ -1,6 +1,7 @@
 import type { Page, Route } from "@playwright/test";
 
 import type {
+  AccountSummary,
   DirectionsPlan,
   LocationRisk,
   NationalRiskOverview,
@@ -152,6 +153,10 @@ export const weatherRaster: WeatherRasterManifest = {
 };
 
 const mapTileSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><rect width="256" height="256" fill="#eef3f8"/><path d="M0 80h256M0 160h256M80 0v256M160 0v256" stroke="#d8e3ee" stroke-width="4"/></svg>`;
+const transparentPng = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lX4dGQAAAABJRU5ErkJggg==",
+  "base64",
+);
 
 export const savedPlaces: SavedPlaceRecord[] = [
   {
@@ -198,6 +203,39 @@ export const savedRoutes: SavedRouteRecord[] = [
     riskTrend: "IMPROVING",
   },
 ];
+
+export const accountSummary: AccountSummary = {
+  user: {
+    userId: "user-fixture",
+    subject: "user-fixture",
+    email: "driver@example.com",
+  },
+  workspace: {
+    tenantId: "tenant-fixture",
+    name: "Personal workspace",
+    role: "OWNER",
+  },
+  plan: {
+    code: "FREE",
+    status: "ACTIVE",
+    savedRouteHistoryDays: 7,
+    dispatchOptimizerEnabled: false,
+    teamWorkspaceEnabled: false,
+  },
+  dailyUsage: [
+    { feature: "ROUTE_PLAN", label: "Route plans", used: 8, limit: 30, remaining: 22, resetsAt: "2026-07-05T00:00:00Z", exceeded: false },
+    { feature: "PLACE_SEARCH", label: "Place searches", used: 18, limit: 100, remaining: 82, resetsAt: "2026-07-05T00:00:00Z", exceeded: false },
+    { feature: "LOCATION_RISK", label: "Location risk checks", used: 11, limit: 120, remaining: 109, resetsAt: "2026-07-05T00:00:00Z", exceeded: false },
+    { feature: "ALERT_SEARCH", label: "Alert searches", used: 6, limit: 150, remaining: 144, resetsAt: "2026-07-05T00:00:00Z", exceeded: false },
+  ],
+  savedRoutes: { feature: "SAVED_ROUTE", label: "Saved routes", used: savedRoutes.length, limit: 10, remaining: 9, exceeded: false },
+  savedPlaces: { feature: "SAVED_PLACE", label: "Saved places", used: savedPlaces.length, limit: 25, remaining: 23, exceeded: false },
+  readiness: [
+    { key: "auth", label: "Google OAuth / Cognito boundary", state: "READY", detail: "Requests are scoped to the signed-in user subject." },
+    { key: "quota", label: "Plan and usage limits", state: "ENFORCED", detail: "Route planning, search, and saved data capacity are checked server-side." },
+    { key: "origin", label: "CloudFront origin verification", state: "CONFIGURABLE", detail: "API_ORIGIN_VERIFY_SECRET rejects direct origin traffic in deployed environments." },
+  ],
+};
 
 export const locationRisk: LocationRisk = {
   generated_at: "2026-06-21T12:00:00Z",
@@ -351,10 +389,11 @@ export async function installApiMocks(page: Page) {
   await page.route("**/risk/weather-snapshot", (route) => route.fulfill({ json: weatherSnapshot }));
   await page.route("**/risk/weather-raster", (route) => route.fulfill({ json: weatherRaster }));
   await page.route("**/risk/weather-raster.png", (route) => route.fulfill({
-    contentType: "image/svg+xml",
-    body: mapTileSvg,
+    contentType: "image/png",
+    body: transparentPng,
   }));
   await page.route("**/risk/location", (route) => route.fulfill({ json: locationRisk }));
+  await page.route("**/me/account", (route) => route.fulfill({ json: accountSummary }));
   await page.route("**/me/saved/places**", (route) => {
     if (route.request().method() === "DELETE") return route.fulfill({ status: 204 });
     if (route.request().method() === "POST") return route.fulfill({ status: 201, json: savedPlaces[0] });

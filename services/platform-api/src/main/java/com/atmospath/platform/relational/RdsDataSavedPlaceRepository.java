@@ -12,7 +12,12 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
 
 import software.amazon.awssdk.services.rdsdata.RdsDataClient;
+import software.amazon.awssdk.services.rdsdata.model.BeginTransactionRequest;
+import software.amazon.awssdk.services.rdsdata.model.CommitTransactionRequest;
+import software.amazon.awssdk.services.rdsdata.model.ExecuteStatementRequest;
+import software.amazon.awssdk.services.rdsdata.model.ExecuteStatementResponse;
 import software.amazon.awssdk.services.rdsdata.model.Field;
+import software.amazon.awssdk.services.rdsdata.model.RollbackTransactionRequest;
 import software.amazon.awssdk.services.rdsdata.model.SqlParameter;
 
 @Repository
@@ -108,62 +113,62 @@ public class RdsDataSavedPlaceRepository implements SavedPlaceRepository {
     @Override
     public UUID ensureUser(String authSubject, String email) {
         var proposedId = UUID.nameUUIDFromBytes(authSubject.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        var response = client.executeStatement(request(ENSURE_USER_SQL, List.of(
+        var response = executeForUser(proposedId, ENSURE_USER_SQL, List.of(
                 string("user_id", proposedId.toString()),
                 string("auth_subject", authSubject),
-                string("email", email == null ? "" : email))));
+                string("email", email == null ? "" : email)));
         return UUID.fromString(response.records().getFirst().getFirst().stringValue());
     }
 
     @Override
     public void save(SavedPlace place) {
-        client.executeStatement(request(SAVE_SQL, List.of(
+        executeForUser(place.userId(), SAVE_SQL, List.of(
                 string("id", place.savedItemId().toString()),
                 string("user_id", place.userId().toString()),
                 string("name", place.name()),
                 decimal("longitude", place.longitude()),
                 decimal("latitude", place.latitude()),
-                integer("risk_score", place.currentRiskScore()))));
+                integer("risk_score", place.currentRiskScore())));
     }
 
     @Override
     public void saveRoute(SavedRoute route) {
-        client.executeStatement(request(SAVE_ROUTE_SQL, List.of(
+        executeForUser(route.userId(), SAVE_ROUTE_SQL, List.of(
                 string("id", route.savedItemId().toString()),
                 string("user_id", route.userId().toString()),
                 string("name", route.name()),
                 string("path_wkt", toLineString(route.coordinates())),
                 string("metadata", writeMetadata(route)),
-                integer("risk_score", route.riskScore()))));
+                integer("risk_score", route.riskScore())));
     }
 
     @Override
     public List<SavedPlace> findNearby(UUID userId, double longitude, double latitude, double radiusMiles) {
-        var response = client.executeStatement(request(NEARBY_SQL, List.of(
+        var response = executeForUser(userId, NEARBY_SQL, List.of(
                 string("user_id", userId.toString()),
                 decimal("longitude", longitude),
                 decimal("latitude", latitude),
-                decimal("radius_meters", radiusMiles * 1609.344))));
+                decimal("radius_meters", radiusMiles * 1609.344)));
         return mapPlaces(response.records());
     }
 
     @Override
     public List<SavedPlace> findAll(UUID userId) {
-        return mapPlaces(client.executeStatement(request(FIND_ALL_SQL, List.of(
-                string("user_id", userId.toString())))).records());
+        return mapPlaces(executeForUser(userId, FIND_ALL_SQL, List.of(
+                string("user_id", userId.toString()))).records());
     }
 
     @Override
     public List<SavedRoute> findRoutes(UUID userId) {
-        return mapRoutes(client.executeStatement(request(FIND_ROUTES_SQL, List.of(
-                string("user_id", userId.toString())))).records());
+        return mapRoutes(executeForUser(userId, FIND_ROUTES_SQL, List.of(
+                string("user_id", userId.toString()))).records());
     }
 
     @Override
     public void delete(UUID userId, UUID savedItemId) {
-        client.executeStatement(request(DELETE_SQL, List.of(
+        executeForUser(userId, DELETE_SQL, List.of(
                 string("user_id", userId.toString()),
-                string("id", savedItemId.toString()))));
+                string("id", savedItemId.toString())));
     }
 
     @Override
@@ -250,14 +255,40 @@ public class RdsDataSavedPlaceRepository implements SavedPlaceRepository {
                 .collect(java.util.stream.Collectors.joining(", ", "LINESTRING(", ")"));
     }
 
-    private software.amazon.awssdk.services.rdsdata.model.ExecuteStatementRequest request(
-            String sql, List<SqlParameter> parameters) {
-        return software.amazon.awssdk.services.rdsdata.model.ExecuteStatementRequest.builder()
+    private ExecuteStatementResponse executeForUser(UUID userId, String sql, List<SqlParameter> parameters) {
+        var transaction = client.beginTransaction(BeginTransactionRequest.builder()
+                .database(properties.database())
+                .resourceArn(properties.resourceArn())
+                .secretArn(properties.secretArn())
+                .build());
+        try {
+            client.executeStatement(request("SELECT set_config('app.user_id', :user_id, true)", List.of(
+                    string("user_id", userId.toString())), transaction.transactionId()));
+            var response = client.executeStatement(request(sql, parameters, transaction.transactionId()));
+            client.commitTransaction(CommitTransactionRequest.builder()
+                    .resourceArn(properties.resourceArn())
+                    .secretArn(properties.secretArn())
+                    .transactionId(transaction.transactionId())
+                    .build());
+            return response;
+        } catch (RuntimeException exception) {
+            client.rollbackTransaction(RollbackTransactionRequest.builder()
+                    .resourceArn(properties.resourceArn())
+                    .secretArn(properties.secretArn())
+                    .transactionId(transaction.transactionId())
+                    .build());
+            throw exception;
+        }
+    }
+
+    private ExecuteStatementRequest request(String sql, List<SqlParameter> parameters, String transactionId) {
+        return ExecuteStatementRequest.builder()
                 .database(properties.database())
                 .resourceArn(properties.resourceArn())
                 .secretArn(properties.secretArn())
                 .sql(sql)
                 .parameters(parameters)
+                .transactionId(transactionId)
                 .build();
     }
 
