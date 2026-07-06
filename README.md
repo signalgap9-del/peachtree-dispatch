@@ -148,11 +148,11 @@ Deferred but tracked:
 
 ## Verification Evidence
 
-Last local verification: July 4, 2026.
+Last local verification: July 6, 2026.
 
 | Layer | Command | Result |
 | --- | --- | --- |
-| Spring Platform API | `powershell -ExecutionPolicy Bypass -File ..\..\scripts\mvn.ps1 --batch-mode test` | 23 passed |
+| Spring Platform API | `powershell -ExecutionPolicy Bypass -File ..\..\scripts\mvn.ps1 --batch-mode test` | 27 passed |
 | Python Risk Engine | `$env:PYTHONPATH='services/api'; python -m pytest services/api/tests -q` | 60 passed, 4 warnings |
 | Frontend lint | `npm run lint --prefix web` | passed |
 | Frontend build | `npm run build --prefix web` | passed |
@@ -182,11 +182,20 @@ Runtime frontend observability is exposed at `/status`. It shows live source sta
 
 ### Local Stress Test
 
-The default stress harness is cost-free. It uses FastAPI TestClient in-process and does not hit AWS, Google, paid weather APIs, or live staging.
+The default stress harness is cost-free. It uses FastAPI `TestClient` in-process and does not hit AWS, Google, paid weather APIs, or live staging. The goal is not to prove maximum cloud throughput; it is a repeatable release gate for API latency regressions, routing hot paths, cache effectiveness, and solver bottlenecks before any paid staging test is considered.
 
 ```powershell
 python perf/local_api_stress.py --requests 180 --concurrency 8 --json-output docs/ops/local-api-stress-2026-07-04.json
 ```
+
+What the run exercises:
+
+- `GET /health`
+- `GET /risk/national`
+- `GET /places/search`
+- `POST /risk/location`
+- `POST /directions`
+- `POST /routes/multi-stop`
 
 Latest result:
 
@@ -199,6 +208,26 @@ Latest result:
 - remaining bottleneck: multi-stop route planning p95 3224.28 ms
 
 The multi-stop bottleneck is expected because that path still performs route matrix and geometry work synchronously. The production path should move larger optimization jobs behind an async job API, cache key, and/or persisted result store.
+
+### Serverless Load Testing Strategy
+
+Serverless load tests are still meaningful, but they answer different questions than the local harness. For Lambda/API Gateway, the useful test is a controlled canary load test, not an open-ended "how many requests can it take" benchmark.
+
+What a cloud test should validate:
+
+- API Gateway and Lambda p95/p99 latency under expected preview traffic.
+- Cold start behavior after idle periods.
+- Reserved concurrency, throttling, timeout, and retry behavior.
+- DynamoDB on-demand usage counter and saved-route access patterns.
+- Cost envelope, CloudWatch alarms, and rollback readiness.
+
+What it should avoid:
+
+- Unbounded public load testing against a portfolio preview.
+- Hitting paid third-party APIs or live NOAA/Google-style providers without cache controls.
+- Treating Lambda burst scaling as proof that downstream data joins and solver paths are production-ready.
+
+For this portfolio release, the safe default is local stress testing plus small authenticated smoke tests after deploy. A future staging load test should use a bounded tool such as k6 or Artillery, a fixed request budget, low reserved concurrency, and CloudWatch cost alarms.
 
 ## Local Development
 
