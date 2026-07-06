@@ -23,7 +23,7 @@ AtmosPath is a climate-aware navigation and route-risk SaaS preview. It combines
 | Primary goal | Weather-aware route comparison with saved-route monitoring and SaaS-style operational controls |
 | Deployment model | Serverless-first AWS preview: CloudFront, private S3, API Gateway, Lambda, Cognito, DynamoDB |
 | Persistence | DynamoDB for low-cost saved routes, saved places, and usage counters; optional PostGIS schema documented for spatial expansion |
-| ML status | Shadow workflow implemented; ML predictions are evaluated but not served as authoritative route costs |
+| ML status | Shadow workflow plus guarded served-cost mode for VRP/multi-stop routing; serving requires promoted artifact, release gate, environment guard, and request flag |
 | Explicitly out of scope | Billing collection, team/workspace SaaS, public commercial launch, production ML serving, always-on Kubernetes/Aurora/Redis |
 
 ## Functional Specification
@@ -37,7 +37,7 @@ AtmosPath is a climate-aware navigation and route-risk SaaS preview. It combines
 | Road events | Discover WZDx roadwork/closure feed registries by state as the foundation for future road-event joins | `GET /road-events/feeds` |
 | Account controls | Expose plan, quota, capacity, readiness signals, daily metered usage, and structured quota errors without enabling paid billing | `/usage`, `/pricing`, `GET /me/account` |
 | VRP foundation | Support multi-stop route planning, route optimization contracts, OR-Tools-backed solver foundation, and risk-weighted edge costs | `POST /routes/multi-stop`, `POST /routes/multi-stop/optimize`, `POST /vrp/solve` |
-| ML workflow | Convert saved-route observations into delay examples, backtest a delay model, load a safe JSON artifact, and record shadow predictions without changing served route decisions | `GET /ml/vrp/workflow/status`, `POST /ml/vrp/delay-model/backtest`, `POST /ml/vrp/delay-model/predict` |
+| ML workflow | Convert saved-route observations into delay examples, backtest a delay model, load a safe JSON artifact, record shadow predictions, and optionally apply promoted ML delay to VRP/multi-stop solver costs behind guardrails | `GET /ml/vrp/workflow/status`, `POST /ml/vrp/delay-model/backtest`, `POST /ml/vrp/delay-model/predict` |
 | Operations | Show frontend runtime health, bundle budgets, local API stress evidence, release gates, runbooks, rollback docs, and cloud load-test strategy | `/status`, `perf/local_api_stress.py`, `docs/ops/`, `docs/runbooks/` |
 | Security | Cognito JWT path, owner-scoped DynamoDB keys, conditional writes/deletes, request IDs, security headers, origin verification, optional PostGIS RLS migration | Spring Platform API, Terraform, `V002__tenant_rls_policies.sql` |
 
@@ -329,9 +329,12 @@ See [docs/data-model.md](docs/data-model.md) and [docs/relational-data-model.md]
 
 ## ML and Optimization Workflow
 
-Current status: implemented as a shadow workflow. The model can be trained,
-backtested, loaded, and evaluated against route edge features, but it does not
-change the route served to users in `v0.1.0-preview`.
+Current status: implemented as a shadow workflow with guarded serving support
+for VRP and multi-stop route optimization. The model can be trained, backtested,
+loaded, promoted, evaluated against route edge features, and, when all gates are
+enabled, applied to the risk-adjusted solver cost matrix. The default remains
+safe: rule-based route scoring is authoritative unless the model and request are
+explicitly promoted into served-cost mode.
 
 Implemented:
 
@@ -341,7 +344,9 @@ Implemented:
 - Backtests record MAE, RMSE, p95 absolute error, baseline MAE, improvement over baseline, and release-gate pass/fail reasons.
 - Runtime artifacts are safe JSON files containing coefficients, intercept, feature names, metrics, and release metadata instead of pickle/joblib blobs.
 - `VRP_ML_MODEL_ARTIFACT` can load an artifact-backed shadow model.
-- VRP edge costs can record `ml_delay_seconds` while keeping rule-based costs authoritative.
+- VRP and multi-stop edge costs can record `ml_delay_seconds`.
+- `useMlServedCost=true` can add a confidence-gated, capped, weighted ML delay to the solver cost matrix when the artifact is promoted and runtime guards are enabled.
+- Failed release gates, missing runtime allow flags, unpromoted artifacts, or low confidence fail closed to rule-based cost.
 - Optional `services/api/requirements-ml.txt` includes MLflow and XGBoost for offline experiments outside the default Lambda runtime.
 
 API and CLI:
@@ -350,17 +355,21 @@ API and CLI:
 - `POST /ml/vrp/delay-model/backtest`
 - `POST /ml/vrp/delay-model/predict`
 - `python services/api/scripts/train_vrp_delay_model.py --input <dataset> --output <artifact> --model-version <version>`
+- `python services/api/scripts/promote_vrp_delay_model.py --input <shadow-artifact> --output <served-artifact>`
 
-Release gate:
+Served-cost gate:
 
-- `served_to_users` remains `false`.
-- Rule-based route scoring remains authoritative.
-- A future release must persist more edge-level observations, join real NWS/WZDx/511 edge signals, compare multiple model families, and pass offline backtests before ML affects route choice.
+- Training writes `served_to_users=false` by default.
+- Promotion requires a passing release gate and writes a new artifact with `served_to_users=true`.
+- Runtime serving requires `VRP_ML_WORKFLOW_MODE=SERVING_ENABLED`, `VRP_ML_ALLOW_SERVED_COST=true`, and `VRP_ML_MODEL_ARTIFACT=<promoted artifact>`.
+- Request serving requires `useMlServedCost=true`; otherwise the model stays in shadow/evaluation mode.
+- Applied delay is capped by `mlMaxDelaySeconds`, weighted by `mlDelayWeight`, and blocked below `mlMinConfidence`.
 
 Next ML/optimization work:
 
 - Persist edge-level route observations from saved-route check-ins.
 - Join NWS alert geometry, weather raster samples, WZDx, and 511 road events into edge features.
+- Compare served ML decisions against rule-based alternatives in production telemetry before widening rollout.
 - Add time windows, service duration, and vehicle shift constraints.
 - Add PyVRP adapter and SVRPBench-style benchmark harness.
 - Build a frontend Dispatch Optimizer only after the backend constraints and benchmark gates are real.

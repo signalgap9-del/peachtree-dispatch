@@ -6,14 +6,15 @@ Date: 2026-07-04
 
 AtmosPath route optimization needs a real ML workflow without making unsafe
 route decisions before enough field evidence exists. This slice upgrades the
-route engine from "ML planned" to "ML shadow evaluation":
+route engine from "ML planned" to "ML shadow evaluation" and adds a guarded
+served-cost mode for VRP/multi-stop solver experiments:
 
 - train a delay model from saved-route observations
 - run an offline backtest against a baseline model
 - write and load a versioned model artifact
 - compare ML delay predictions against rule-based edge costs in shadow mode
-- keep served route costs rule-based until release gates and production
-  observation quality are proven
+- optionally apply promoted ML delay to the solver cost matrix when release
+  gates, runtime guards, and request flags are all enabled
 
 ## Research Direction
 
@@ -84,9 +85,22 @@ The model artifact records:
 - improvement over baseline
 - release gate pass/fail and reasons
 
-Even if the gate passes, `served_to_users` remains `false` in this slice. The
-route engine only records `ml_delay_seconds` on edge costs and keeps
-rule-based adjusted cost authoritative.
+Training artifacts default to `served_to_users=false`. A model can affect
+solver decisions only after a separate promotion step and runtime guard:
+
+1. Train/backtest the model and pass the release gate.
+2. Promote the artifact with `scripts/promote_vrp_delay_model.py`.
+3. Configure `VRP_ML_MODEL_ARTIFACT` to the promoted artifact.
+4. Set `VRP_ML_WORKFLOW_MODE=SERVING_ENABLED`.
+5. Set `VRP_ML_ALLOW_SERVED_COST=true`.
+6. Send a VRP or multi-stop request with `useMlServedCost=true`.
+
+If any condition is missing, the route engine still records `ml_delay_seconds`
+when requested but keeps rule-based adjusted cost authoritative.
+
+When served cost is enabled, the predicted delay is confidence-gated, capped by
+`mlMaxDelaySeconds`, weighted by `mlDelayWeight`, and added to the risk-adjusted
+matrix that OR-Tools or the multi-stop optimizer uses.
 
 ## API Surface
 
@@ -102,6 +116,10 @@ python scripts/train_vrp_delay_model.py `
   --output .\artifacts\vrp-delay-model.json `
   --model-version vrp-delay-YYYYMMDD `
   --max-mae-seconds 900
+
+python scripts/promote_vrp_delay_model.py `
+  --input .\artifacts\vrp-delay-model.json `
+  --output .\artifacts\vrp-delay-model-served.json
 ```
 
 ## Optional Research Dependencies
@@ -117,6 +135,7 @@ then export a safe runtime artifact only after a backtest gate passes.
 
 1. Persist edge-level observations from saved-route check-ins.
 2. Add NWS alert and WZDx/511 corridor joins to edge features.
-3. Add PyVRP adapter for time windows, service durations, and vehicle shifts.
-4. Add SVRPBench-style synthetic benchmark harness.
-5. Add Dispatch Optimizer UI backed by real VRP scenarios.
+3. Log served ML decisions next to rule-based alternatives before widening rollout.
+4. Add PyVRP adapter for time windows, service durations, and vehicle shifts.
+5. Add SVRPBench-style synthetic benchmark harness.
+6. Add Dispatch Optimizer UI backed by real VRP scenarios.

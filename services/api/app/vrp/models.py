@@ -113,6 +113,11 @@ class RiskModelWeights(ApiModel):
         ge=0,
         validation_alias=AliasChoices("alert_risk_weight", "alertRiskWeight"),
     )
+    use_ml_shadow_cost: bool = Field(default=False, validation_alias=AliasChoices("use_ml_shadow_cost", "useMlShadowCost"))
+    use_ml_served_cost: bool = Field(default=False, validation_alias=AliasChoices("use_ml_served_cost", "useMlServedCost"))
+    ml_delay_weight: float = Field(default=0.35, ge=0, le=2, validation_alias=AliasChoices("ml_delay_weight", "mlDelayWeight"))
+    ml_max_delay_seconds: float = Field(default=3600, ge=0, le=24 * 60 * 60, validation_alias=AliasChoices("ml_max_delay_seconds", "mlMaxDelaySeconds"))
+    ml_min_confidence: float = Field(default=0.25, ge=0, le=1, validation_alias=AliasChoices("ml_min_confidence", "mlMinConfidence"))
 
 
 class MultiStopRouteRequest(ApiModel):
@@ -244,6 +249,10 @@ class CostModelConfig(ApiModel):
     late_penalty_weight: float = Field(default=2.0, ge=0, validation_alias=AliasChoices("late_penalty_weight", "latePenaltyWeight"))
     unserved_penalty_weight: float = Field(default=10.0, ge=0, validation_alias=AliasChoices("unserved_penalty_weight", "unservedPenaltyWeight"))
     use_ml_shadow_cost: bool = Field(default=False, validation_alias=AliasChoices("use_ml_shadow_cost", "useMlShadowCost"))
+    use_ml_served_cost: bool = Field(default=False, validation_alias=AliasChoices("use_ml_served_cost", "useMlServedCost"))
+    ml_delay_weight: float = Field(default=0.35, ge=0, le=2, validation_alias=AliasChoices("ml_delay_weight", "mlDelayWeight"))
+    ml_max_delay_seconds: float = Field(default=3600, ge=0, le=24 * 60 * 60, validation_alias=AliasChoices("ml_max_delay_seconds", "mlMaxDelaySeconds"))
+    ml_min_confidence: float = Field(default=0.25, ge=0, le=1, validation_alias=AliasChoices("ml_min_confidence", "mlMinConfidence"))
 
 
 class VRPScenario(ApiModel):
