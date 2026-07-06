@@ -49,11 +49,12 @@ class VRPOptimizationService:
         return solution
 
     def _ml_cost_model_status(self, scenario: VRPScenario) -> str:
-        if not scenario.cost_model.use_ml_shadow_cost:
+        if not scenario.cost_model.use_ml_shadow_cost and not scenario.cost_model.use_ml_served_cost:
             return "DISABLED"
         if self.shadow_cost_model is None or self.shadow_cost_model.model_version == "disabled":
-            return "SHADOW_DISABLED"
-        return f"SHADOW_ARTIFACT:{self.shadow_cost_model.model_version}"
+            return "ML_REQUESTED_BUT_DISABLED" if scenario.cost_model.use_ml_served_cost else "SHADOW_DISABLED"
+        mode = "SERVING_REQUESTED" if scenario.cost_model.use_ml_served_cost else "SHADOW_ARTIFACT"
+        return f"{mode}:{self.shadow_cost_model.model_version}"
 
 
 def build_default_vrp_service() -> VRPOptimizationService:

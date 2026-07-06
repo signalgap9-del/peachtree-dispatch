@@ -10,7 +10,7 @@ from .features import FEATURE_SCHEMA_VERSION
 from .artifact import DelayModelArtifact, load_delay_model_artifact
 
 
-MLWorkflowMode = Literal["SHADOW_DISABLED", "SHADOW_LOG_ONLY", "SHADOW_EVALUATING", "SERVING_BLOCKED"]
+MLWorkflowMode = Literal["SHADOW_DISABLED", "SHADOW_LOG_ONLY", "SHADOW_EVALUATING", "SERVING_BLOCKED", "SERVING_ENABLED"]
 
 
 class TrainingReadinessCheck(BaseModel):
@@ -34,12 +34,20 @@ class MLWorkflowStatus(BaseModel):
 
 def get_ml_workflow_status() -> MLWorkflowStatus:
     mode = os.getenv("VRP_ML_WORKFLOW_MODE", "SHADOW_DISABLED")
-    if mode not in {"SHADOW_DISABLED", "SHADOW_LOG_ONLY", "SHADOW_EVALUATING", "SERVING_BLOCKED"}:
+    if mode not in {"SHADOW_DISABLED", "SHADOW_LOG_ONLY", "SHADOW_EVALUATING", "SERVING_BLOCKED", "SERVING_ENABLED"}:
         mode = "SHADOW_DISABLED"
     artifact = _load_configured_artifact()
+    allow_served_cost = os.getenv("VRP_ML_ALLOW_SERVED_COST", "").lower() in {"1", "true", "yes"}
+    served_to_users = bool(
+        mode == "SERVING_ENABLED"
+        and allow_served_cost
+        and artifact
+        and artifact.served_to_users
+        and artifact.release_gate.passed
+    )
     return MLWorkflowStatus(
         mode=mode,
-        served_to_users=False,
+        served_to_users=served_to_users,
         active_model_version=artifact.model_version if artifact else os.getenv("VRP_ML_MODEL_VERSION", "none"),
         feature_schema_version=FEATURE_SCHEMA_VERSION,
         training_readiness=[
@@ -71,11 +79,24 @@ def get_ml_workflow_status() -> MLWorkflowStatus:
                     else "Backtest gate must pass before any serving rollout is considered."
                 ),
             ),
+            TrainingReadinessCheck(
+                label="served_cost_guard",
+                ready=served_to_users,
+                detail=(
+                    "Artifact is promoted, release gate passed, workflow mode is SERVING_ENABLED, and VRP_ML_ALLOW_SERVED_COST is enabled."
+                    if served_to_users
+                    else "Serving requires a promoted artifact, passed release gate, SERVING_ENABLED mode, and VRP_ML_ALLOW_SERVED_COST=true."
+                ),
+            ),
         ],
         next_actions=[
             "Export cross-route saved-route ML datasets from the platform API.",
             "Join route observations to NWS alert geometry, weather raster samples, and WZDx road events.",
-            "Log observed-vs-predicted delay in shadow mode before enabling any served cost changes.",
+            (
+                "Monitor served ML route-cost decisions against rule-based alternatives and be ready to return to shadow mode."
+                if served_to_users
+                else "Log observed-vs-predicted delay in shadow mode before enabling any served cost changes."
+            ),
         ],
     )
 

@@ -44,22 +44,34 @@ class DisabledShadowCostModel:
 
 
 class ArtifactShadowCostModel:
-    def __init__(self, artifact: DelayModelArtifact):
+    def __init__(self, artifact: DelayModelArtifact, *, allow_served_cost: bool = False):
         self.artifact = artifact
         self.model_version = artifact.model_version
+        self.allow_served_cost = allow_served_cost
 
     def predict(self, feature: EdgeFeatureVector) -> ShadowCostPrediction:
         delay = predict_delay_seconds(self.artifact, feature)
         confidence = _confidence(delay, self.artifact.metrics.mae_seconds)
+        serving_blockers = _serving_blockers(self.artifact, self.allow_served_cost)
+        served_to_users = not serving_blockers
         return ShadowCostPrediction(
             model_version=self.model_version,
             predicted_delay_seconds=delay,
             confidence=confidence,
-            served_to_users=False,
+            served_to_users=served_to_users,
             explanation=[
-                "artifact-backed ML delay model evaluated in shadow mode",
+                (
+                    "artifact-backed ML delay model eligible for served cost"
+                    if served_to_users
+                    else "artifact-backed ML delay model evaluated in shadow mode"
+                ),
                 f"release_gate_passed={self.artifact.release_gate.passed}",
-                "rule-based cost remains authoritative",
+                *[f"ml_serving_blocker={reason}" for reason in serving_blockers],
+                (
+                    "caller may apply ML delay to route cost"
+                    if served_to_users
+                    else "rule-based cost remains authoritative"
+                ),
             ],
         )
 
@@ -71,9 +83,29 @@ def load_shadow_cost_model_from_env() -> ShadowCostModel:
     path = Path(artifact_path)
     if not path.exists():
         return DisabledShadowCostModel()
-    return ArtifactShadowCostModel(load_delay_model_artifact(path))
+    workflow_serving_enabled = os.getenv("VRP_ML_WORKFLOW_MODE", "SHADOW_DISABLED") == "SERVING_ENABLED"
+    allow_served_cost = workflow_serving_enabled and os.getenv("VRP_ML_ALLOW_SERVED_COST", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    return ArtifactShadowCostModel(
+        load_delay_model_artifact(path),
+        allow_served_cost=allow_served_cost,
+    )
 
 
 def _confidence(predicted_delay_seconds: float, mae_seconds: float) -> float:
     denominator = max(1.0, predicted_delay_seconds + mae_seconds)
     return max(0.05, min(0.95, 1 - (mae_seconds / denominator)))
+
+
+def _serving_blockers(artifact: DelayModelArtifact, allow_served_cost: bool) -> list[str]:
+    blockers: list[str] = []
+    if not allow_served_cost:
+        blockers.append("runtime served-cost guard is not enabled")
+    if not artifact.served_to_users:
+        blockers.append("artifact is not promoted for served user costs")
+    if not artifact.release_gate.passed:
+        blockers.extend(artifact.release_gate.reasons or ["release gate did not pass"])
+    return blockers

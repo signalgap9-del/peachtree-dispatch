@@ -60,7 +60,6 @@ def build_risk_adjusted_matrix(
             )
             duration_weight = getattr(config, "duration_weight", 1.0)
             adjusted_cost = max(0, round(float(base_duration) * duration_weight + penalty_seconds))
-            row.append(adjusted_cost)
             edge_cost = EdgeCost(
                 from_node_id=from_node.node_id,
                 to_node_id=to_node.node_id,
@@ -74,7 +73,9 @@ def build_risk_adjusted_matrix(
                 primary_hazard=risk.primary_hazard,
                 explanation=risk.explanation,
             )
-            edge_costs.append(_with_shadow_prediction(edge_cost, config, shadow_cost_model))
+            edge_cost = _with_shadow_prediction(edge_cost, config, shadow_cost_model)
+            row.append(edge_cost.adjusted_cost_seconds)
+            edge_costs.append(edge_cost)
         adjusted.append(row)
 
     return adjusted, edge_costs
@@ -89,16 +90,48 @@ def _with_shadow_prediction(
     config: CostModelConfig | RiskModelWeights,
     shadow_cost_model: ShadowCostModel | None,
 ) -> EdgeCost:
-    if not getattr(config, "use_ml_shadow_cost", False) or shadow_cost_model is None:
+    use_shadow = getattr(config, "use_ml_shadow_cost", False)
+    use_served = getattr(config, "use_ml_served_cost", False)
+    if not (use_shadow or use_served) or shadow_cost_model is None:
         return edge
     prediction = shadow_cost_model.predict(edge_cost_to_feature_vector(edge))
+    adjusted_cost, served_explanation = _served_cost_adjustment(edge, config, prediction) if use_served else (
+        edge.adjusted_cost_seconds,
+        [],
+    )
     return edge.model_copy(
         update={
             "ml_delay_seconds": prediction.predicted_delay_seconds,
+            "adjusted_cost_seconds": adjusted_cost,
             "explanation": [
                 *edge.explanation,
                 *prediction.explanation,
+                *served_explanation,
                 f"ml_shadow_model={prediction.model_version}",
             ],
         }
     )
+
+
+def _served_cost_adjustment(
+    edge: EdgeCost,
+    config: CostModelConfig | RiskModelWeights,
+    prediction,
+) -> tuple[int, list[str]]:
+    min_confidence = getattr(config, "ml_min_confidence", 0.25)
+    if not prediction.served_to_users:
+        return edge.adjusted_cost_seconds, ["ml_served_cost_blocked=model_not_promoted_or_gate_failed"]
+    if prediction.confidence < min_confidence:
+        return edge.adjusted_cost_seconds, [
+            f"ml_served_cost_blocked=confidence_below_threshold:{prediction.confidence:.2f}<{min_confidence:.2f}"
+        ]
+
+    capped_delay = min(prediction.predicted_delay_seconds, getattr(config, "ml_max_delay_seconds", 3600))
+    weight = getattr(config, "ml_delay_weight", 0.35)
+    applied_delay = capped_delay * weight
+    adjusted_cost = max(0, round(edge.adjusted_cost_seconds + applied_delay))
+    return adjusted_cost, [
+        f"ml_served_delay_applied={applied_delay:.1f}s",
+        f"ml_served_delay_raw={prediction.predicted_delay_seconds:.1f}s",
+        f"ml_served_delay_weight={weight:.2f}",
+    ]

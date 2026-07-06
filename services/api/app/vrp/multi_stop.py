@@ -7,6 +7,7 @@ from .cost_model import build_risk_adjusted_matrix, edge_cost_lookup
 from .edge_risk import EdgeRiskProvider, RuleBasedEdgeRiskProvider
 from .geometry import FallbackRouteGeometryProvider, OsrmRouteGeometryProvider, ResilientRouteGeometryProvider, RouteGeometryProvider
 from .matrix import RoutingMatrixProvider, build_default_matrix_provider
+from .ml.shadow_cost_model import ShadowCostModel, load_shadow_cost_model_from_env
 from .models import (
     GeoNode,
     MultiStopMode,
@@ -24,10 +25,12 @@ class MultiStopRouteService:
         matrix_provider: RoutingMatrixProvider,
         edge_risk_provider: EdgeRiskProvider,
         geometry_provider: RouteGeometryProvider,
+        shadow_cost_model: ShadowCostModel | None = None,
     ):
         self.matrix_provider = matrix_provider
         self.edge_risk_provider = edge_risk_provider
         self.geometry_provider = geometry_provider
+        self.shadow_cost_model = shadow_cost_model
 
     def plan(self, request: MultiStopRouteRequest) -> MultiStopRoutePlan:
         nodes = [stop_to_node(stop) for stop in request.stops]
@@ -37,6 +40,7 @@ class MultiStopRouteService:
             nodes=nodes,
             config=request.risk_model,
             edge_risk_provider=self.edge_risk_provider,
+            shadow_cost_model=self.shadow_cost_model,
         )
         if request.mode == MultiStopMode.OPTIMIZE_ORDER:
             ordered_stops, explanation = self._optimized_order(request, nodes, adjusted_matrix)
@@ -68,8 +72,17 @@ class MultiStopRouteService:
                 "route_geometry": route_geometry_status,
                 "edge_risk": "RULE_BASED",
                 "traffic": "UNAVAILABLE",
+                "ml_cost_model": self._ml_cost_model_status(request),
             },
         )
+
+    def _ml_cost_model_status(self, request: MultiStopRouteRequest) -> str:
+        if not request.risk_model.use_ml_shadow_cost and not request.risk_model.use_ml_served_cost:
+            return "DISABLED"
+        if self.shadow_cost_model is None or self.shadow_cost_model.model_version == "disabled":
+            return "ML_REQUESTED_BUT_DISABLED" if request.risk_model.use_ml_served_cost else "SHADOW_DISABLED"
+        mode = "SERVING_REQUESTED" if request.risk_model.use_ml_served_cost else "SHADOW_ARTIFACT"
+        return f"{mode}:{self.shadow_cost_model.model_version}"
 
     def _build_legs(self, ordered_stops: list[RouteStop], edge_lookup) -> list[RouteLeg]:
         legs: list[RouteLeg] = []
@@ -168,6 +181,7 @@ def build_default_multi_stop_service() -> MultiStopRouteService:
             primary=OsrmRouteGeometryProvider(base_url=osrm_base_url, timeout_seconds=timeout_seconds),
             fallback=FallbackRouteGeometryProvider(),
         ),
+        shadow_cost_model=load_shadow_cost_model_from_env(),
     )
 
 

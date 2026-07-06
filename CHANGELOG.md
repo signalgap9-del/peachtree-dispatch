@@ -8,6 +8,24 @@ versioning with preview suffixes until the first production launch:
 - `v0.3.x`: dispatch optimization and ML workflow expansion
 - `v1.0.0`: production launch candidate
 
+## [Unreleased]
+
+### Added
+
+- Guarded ML served-cost mode for VRP and multi-stop route optimization.
+- `useMlServedCost`, `mlDelayWeight`, `mlMaxDelaySeconds`, and
+  `mlMinConfidence` cost-model controls.
+- Promotion CLI for converting a release-gated shadow artifact into a served
+  artifact without hand-editing JSON.
+- Workflow status guard for `SERVING_ENABLED` mode.
+
+### Changed
+
+- ML delay can now affect the solver cost matrix only when the artifact is
+  promoted, the release gate passed, `VRP_ML_ALLOW_SERVED_COST=true`, and the
+  request explicitly asks for served ML cost.
+- Missing or unsafe ML serving conditions fail closed to rule-based cost.
+
 ## [v0.1.0-preview] - 2026-07-06
 
 ### Added

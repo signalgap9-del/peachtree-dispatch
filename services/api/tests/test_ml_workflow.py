@@ -9,7 +9,7 @@ from app.vrp.matrix import FixtureMatrixProvider
 from app.vrp.ml.artifact import load_delay_model_artifact, save_delay_model_artifact
 from app.vrp.ml.dataset import SavedRouteTrainingExamplePayload, saved_route_examples_to_delay_dataset
 from app.vrp.ml.features import edge_cost_to_feature_vector
-from app.vrp.ml.shadow_cost_model import ArtifactShadowCostModel, DisabledShadowCostModel
+from app.vrp.ml.shadow_cost_model import ArtifactShadowCostModel, DisabledShadowCostModel, load_shadow_cost_model_from_env
 from app.vrp.ml.trainer import DelayModelTrainingConfig, predict_delay_seconds, train_delay_model
 from app.vrp.ml.workflow import get_ml_workflow_status
 from app.vrp.models import CostModelConfig, DeliveryJob, Depot, EdgeCost, GeoPoint, RoutingMatrix, VRPScenario, Vehicle, scenario_to_nodes
@@ -80,6 +80,7 @@ def test_ml_workflow_status_defaults_to_shadow_disabled() -> None:
         "baseline_trainer",
         "model_artifact",
         "backtest_gate",
+        "served_cost_guard",
     ]
     assert status.training_readiness[0].ready is True
     assert status.training_readiness[1].ready is True
@@ -168,6 +169,89 @@ def test_training_cli_writes_artifact(tmp_path: Path) -> None:
     assert summary["modelVersion"] == "cli-delay-test"
     assert summary["releaseGatePassed"] is True
     assert artifact.trainer_backend == "scikit-learn"
+
+
+def test_promote_cli_marks_gated_artifact_for_served_cost(tmp_path: Path) -> None:
+    input_path = tmp_path / "shadow-delay-model.json"
+    output_path = tmp_path / "served-delay-model.json"
+    examples = [
+        _saved_route_example(index=index, planned_duration=65 + index * 3, risk=20 + index * 4, delay=3 + index * 2)
+        for index in range(1, 9)
+    ]
+    artifact = train_delay_model(
+        saved_route_examples_to_delay_dataset(examples),
+        DelayModelTrainingConfig(model_version="promote-delay-test", min_improvement_over_baseline=-1),
+    ).artifact
+    save_delay_model_artifact(input_path, artifact)
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "scripts/promote_vrp_delay_model.py",
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+        ],
+        check=True,
+        cwd=Path(__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+    )
+    summary = json.loads(completed.stdout)
+    promoted = load_delay_model_artifact(output_path)
+
+    assert summary["promoted"] is True
+    assert summary["servedToUsers"] is True
+    assert promoted.served_to_users is True
+    assert promoted.release_gate.passed is True
+
+
+def test_ml_workflow_status_reports_serving_enabled_for_promoted_artifact(tmp_path: Path, monkeypatch) -> None:
+    artifact_path = tmp_path / "served-delay-model.json"
+    examples = [
+        _saved_route_example(index=index, planned_duration=65 + index * 3, risk=20 + index * 4, delay=3 + index * 2)
+        for index in range(1, 9)
+    ]
+    artifact = train_delay_model(
+        saved_route_examples_to_delay_dataset(examples),
+        DelayModelTrainingConfig(model_version="served-status-test", min_improvement_over_baseline=-1),
+    ).artifact.model_copy(update={"served_to_users": True})
+    save_delay_model_artifact(artifact_path, artifact)
+    monkeypatch.setenv("VRP_ML_MODEL_ARTIFACT", str(artifact_path))
+    monkeypatch.setenv("VRP_ML_WORKFLOW_MODE", "SERVING_ENABLED")
+    monkeypatch.setenv("VRP_ML_ALLOW_SERVED_COST", "true")
+
+    status = get_ml_workflow_status()
+
+    assert status.mode == "SERVING_ENABLED"
+    assert status.served_to_users is True
+    assert status.active_model_version == "served-status-test"
+    assert status.training_readiness[-1].label == "served_cost_guard"
+    assert status.training_readiness[-1].ready is True
+
+
+def test_env_loaded_model_requires_serving_workflow_mode(tmp_path: Path, monkeypatch) -> None:
+    artifact_path = tmp_path / "served-delay-model.json"
+    examples = [
+        _saved_route_example(index=index, planned_duration=65 + index * 3, risk=20 + index * 4, delay=3 + index * 2)
+        for index in range(1, 9)
+    ]
+    artifact = train_delay_model(
+        saved_route_examples_to_delay_dataset(examples),
+        DelayModelTrainingConfig(model_version="env-guard-test", min_improvement_over_baseline=-1),
+    ).artifact.model_copy(update={"served_to_users": True})
+    save_delay_model_artifact(artifact_path, artifact)
+    monkeypatch.setenv("VRP_ML_MODEL_ARTIFACT", str(artifact_path))
+    monkeypatch.setenv("VRP_ML_ALLOW_SERVED_COST", "true")
+    monkeypatch.setenv("VRP_ML_WORKFLOW_MODE", "SHADOW_EVALUATING")
+
+    model = load_shadow_cost_model_from_env()
+    prediction = model.predict(saved_route_examples_to_delay_dataset(examples)[0].feature)
+
+    assert prediction.model_version == "env-guard-test"
+    assert prediction.served_to_users is False
+    assert any("runtime served-cost guard" in item for item in prediction.explanation)
 
 
 def test_artifact_shadow_model_predicts_without_serving_users() -> None:
