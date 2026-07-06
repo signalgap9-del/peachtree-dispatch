@@ -227,7 +227,7 @@ What it should avoid:
 - Hitting paid third-party APIs or live NOAA/Google-style providers without cache controls.
 - Treating Lambda burst scaling as proof that downstream data joins and solver paths are production-ready.
 
-For this portfolio release, the safe default is local stress testing plus small authenticated smoke tests after deploy. A future staging load test should use a bounded tool such as k6 or Artillery, a fixed request budget, low reserved concurrency, and CloudWatch cost alarms.
+For this portfolio release, the safe default is local stress testing plus small authenticated smoke tests after deploy. A future staging load test should use a bounded tool such as k6 or Artillery, a fixed request budget, low reserved concurrency, and CloudWatch cost alarms. The detailed design is documented in [Cloud Load Test Strategy](docs/ops/cloud-load-test-strategy.md).
 
 ## Local Development
 
