@@ -4,11 +4,42 @@ AtmosPath is a climate-aware navigation and route-risk SaaS preview. It combines
 
 - Live preview: https://d23c97ytqgl4xu.cloudfront.net/
 - API health: https://d23c97ytqgl4xu.cloudfront.net/api/health
+- Current release: `v0.1.0-preview` / Phase 1 production hardening
+- Release notes: [CHANGELOG.md](CHANGELOG.md)
 - Architecture notes: [docs/architecture.md](docs/architecture.md)
 - Cost model: [docs/cost-model.md](docs/cost-model.md)
 - ADRs: [docs/adr/](docs/adr/)
+- Codebase size: about 16.2k source/test/IaC/config LOC; about 18.9k tracked text LOC including docs, excluding lockfiles and generated build output.
 
 ![AtmosPath route comparison](docs/screenshots/map-route-live.png)
+
+## Release Snapshot
+
+| Field | Current value |
+| --- | --- |
+| Release | `v0.1.0-preview` |
+| Date | July 6, 2026 |
+| Status | Portfolio beta / production-shaped preview |
+| Primary goal | Weather-aware route comparison with saved-route monitoring and SaaS-style operational controls |
+| Deployment model | Serverless-first AWS preview: CloudFront, private S3, API Gateway, Lambda, Cognito, DynamoDB |
+| Persistence | DynamoDB for low-cost saved routes, saved places, and usage counters; optional PostGIS schema documented for spatial expansion |
+| ML status | Shadow workflow implemented; ML predictions are evaluated but not served as authoritative route costs |
+| Explicitly out of scope | Billing collection, team/workspace SaaS, public commercial launch, production ML serving, always-on Kubernetes/Aurora/Redis |
+
+## Functional Specification
+
+| Module | Implemented behavior | Primary surfaces |
+| --- | --- | --- |
+| Route planning | Search U.S. places, compare fastest/lower-weather-risk/balanced alternatives, explain segment-level risk, reopen shareable directions URLs | `/map`, `/directions`, `POST /directions` |
+| Risk intelligence | Show national weather risk, location risk, weather snapshot/raster artifacts, official alert categories, and route impact context | `/dashboard`, `/alerts`, `GET /risk/national`, `POST /risk/location` |
+| Saved routes | Save private routes, edit name/departure/risk threshold/monitor flag, view current risk and risk history, delete owned routes | `/saved`, `/me/saved/routes`, `/me/saved/routes/{id}/current-risk`, `/me/saved/routes/{id}/risk-history` |
+| Saved places | Save private places, inspect place risk, and enforce owner-scoped reads/writes/deletes | `/saved`, `/locations/{slug}`, `/me/saved/places` |
+| Road events | Discover WZDx roadwork/closure feed registries by state as the foundation for future road-event joins | `GET /road-events/feeds` |
+| Account controls | Expose plan, quota, capacity, readiness signals, daily metered usage, and structured quota errors without enabling paid billing | `/usage`, `/pricing`, `GET /me/account` |
+| VRP foundation | Support multi-stop route planning, route optimization contracts, OR-Tools-backed solver foundation, and risk-weighted edge costs | `POST /routes/multi-stop`, `POST /routes/multi-stop/optimize`, `POST /vrp/solve` |
+| ML workflow | Convert saved-route observations into delay examples, backtest a delay model, load a safe JSON artifact, and record shadow predictions without changing served route decisions | `GET /ml/vrp/workflow/status`, `POST /ml/vrp/delay-model/backtest`, `POST /ml/vrp/delay-model/predict` |
+| Operations | Show frontend runtime health, bundle budgets, local API stress evidence, release gates, runbooks, rollback docs, and cloud load-test strategy | `/status`, `perf/local_api_stress.py`, `docs/ops/`, `docs/runbooks/` |
+| Security | Cognito JWT path, owner-scoped DynamoDB keys, conditional writes/deletes, request IDs, security headers, origin verification, optional PostGIS RLS migration | Spring Platform API, Terraform, `V002__tenant_rls_policies.sql` |
 
 ## Product
 
@@ -296,23 +327,43 @@ Documented for advanced spatial joins:
 
 See [docs/data-model.md](docs/data-model.md) and [docs/relational-data-model.md](docs/relational-data-model.md).
 
-## ML and Optimization Roadmap
+## ML and Optimization Workflow
 
-Current ML status: shadow-model foundation only. It is not served to users yet.
+Current status: implemented as a shadow workflow. The model can be trained,
+backtested, loaded, and evaluated against route edge features, but it does not
+change the route served to users in `v0.1.0-preview`.
 
-Deferred checklist:
+Implemented:
 
-- Real persisted training dataset from route observations.
-- MLflow or equivalent experiment tracking.
-- XGBoost/scikit-learn model comparison beyond the current lightweight shadow model.
-- Offline backtest by route class, hazard category, and vehicle type.
-- Model artifact loading in production with rollback.
-- Shadow prediction comparison in live requests.
-- Edge-level route observation persistence.
-- Real NWS/WZDx/511 edge-risk joins.
-- Time windows, service duration dimension, and vehicle shift constraints.
-- PyVRP adapter and benchmark harness.
-- Frontend dispatch optimizer workflow.
+- Saved-route observation payloads can be converted into delay-model training examples.
+- Feature schema `edge-cost-v1` covers base duration, distance, weather risk, traffic risk, flood risk, alert risk, max risk, primary hazard, and vehicle type.
+- Training uses a lightweight scikit-learn Ridge regression path with a mean-delay baseline comparison.
+- Backtests record MAE, RMSE, p95 absolute error, baseline MAE, improvement over baseline, and release-gate pass/fail reasons.
+- Runtime artifacts are safe JSON files containing coefficients, intercept, feature names, metrics, and release metadata instead of pickle/joblib blobs.
+- `VRP_ML_MODEL_ARTIFACT` can load an artifact-backed shadow model.
+- VRP edge costs can record `ml_delay_seconds` while keeping rule-based costs authoritative.
+- Optional `services/api/requirements-ml.txt` includes MLflow and XGBoost for offline experiments outside the default Lambda runtime.
+
+API and CLI:
+
+- `GET /ml/vrp/workflow/status`
+- `POST /ml/vrp/delay-model/backtest`
+- `POST /ml/vrp/delay-model/predict`
+- `python services/api/scripts/train_vrp_delay_model.py --input <dataset> --output <artifact> --model-version <version>`
+
+Release gate:
+
+- `served_to_users` remains `false`.
+- Rule-based route scoring remains authoritative.
+- A future release must persist more edge-level observations, join real NWS/WZDx/511 edge signals, compare multiple model families, and pass offline backtests before ML affects route choice.
+
+Next ML/optimization work:
+
+- Persist edge-level route observations from saved-route check-ins.
+- Join NWS alert geometry, weather raster samples, WZDx, and 511 road events into edge features.
+- Add time windows, service duration, and vehicle shift constraints.
+- Add PyVRP adapter and SVRPBench-style benchmark harness.
+- Build a frontend Dispatch Optimizer only after the backend constraints and benchmark gates are real.
 
 ## Deployment and Cost Strategy
 
@@ -361,6 +412,7 @@ Not yet ready for open public commercial launch:
 
 ## Documentation
 
+- [Release notes](CHANGELOG.md)
 - [Architecture](docs/architecture.md)
 - [Production risk routing](docs/architecture/production-risk-routing.md)
 - [Weather risk pipeline](docs/architecture/weather-risk.md)
