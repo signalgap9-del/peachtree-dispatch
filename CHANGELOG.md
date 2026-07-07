@@ -16,6 +16,8 @@ versioning with preview suffixes until the first production launch:
   stale public-risk fallback, and `/status` retry/fallback telemetry.
 - User-visible connection banner for offline, slow-network, and stale-data
   modes.
+- Spring Platform API fixed-window rate limiting with in-memory default,
+  optional Redis-backed counters, structured `429` errors, and retry headers.
 - Guarded ML served-cost mode for VRP and multi-stop route optimization.
 - `useMlServedCost`, `mlDelayWeight`, `mlMaxDelaySeconds`, and
   `mlMinConfidence` cost-model controls.

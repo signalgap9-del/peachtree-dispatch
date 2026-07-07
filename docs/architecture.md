@@ -84,6 +84,7 @@ web/                    # React map-first application
 - [Product requirements](requirements.md)
 - [Domain model and API boundary](domain-model.md)
 - [Application resilience](architecture/application-resilience.md)
+- [Backend production hardening](architecture/backend-production-hardening.md)
 - [DynamoDB operational data model](data-model.md)
 - [PostgreSQL/PostGIS data model](relational-data-model.md)
 - [Cost model](cost-model.md)

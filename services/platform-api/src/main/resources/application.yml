@@ -25,6 +25,13 @@ atmospath:
   saved-place-store: ${SAVED_PLACE_STORE:none}
   usage-store: ${USAGE_STORE:memory}
   idempotency-store: ${IDEMPOTENCY_STORE:memory}
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    store: ${RATE_LIMIT_STORE:memory}
+    window: ${RATE_LIMIT_WINDOW:PT1M}
+    public-read-limit-per-minute: ${RATE_LIMIT_PUBLIC_READ_PER_MINUTE:180}
+    mutation-limit-per-minute: ${RATE_LIMIT_MUTATION_PER_MINUTE:30}
+    authenticated-mutation-limit-per-minute: ${RATE_LIMIT_AUTHENTICATED_MUTATION_PER_MINUTE:90}
   dynamodb-table: ${DYNAMODB_TABLE:}
   relational:
     enabled: ${RELATIONAL_STORE_ENABLED:false}

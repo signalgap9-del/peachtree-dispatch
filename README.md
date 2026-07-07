@@ -11,6 +11,7 @@ AtmosPath is a climate-aware navigation and route-risk SaaS preview. It combines
 - Cost model: [docs/cost-model.md](docs/cost-model.md)
 - Research/security basis: [docs/architecture/research-and-security-basis.md](docs/architecture/research-and-security-basis.md)
 - Application resilience: [docs/architecture/application-resilience.md](docs/architecture/application-resilience.md)
+- Backend production hardening: [docs/architecture/backend-production-hardening.md](docs/architecture/backend-production-hardening.md)
 - SaaS hardening checklist: [docs/saas-production-hardening-checklist.md](docs/saas-production-hardening-checklist.md)
 - ADRs: [docs/adr/](docs/adr/)
 - Codebase size: about 19.6k source/test/IaC/config LOC; about 23.9k tracked text LOC including docs, excluding lockfiles and generated build output.
@@ -23,7 +24,7 @@ AtmosPath is a climate-aware navigation and route-risk SaaS preview. It combines
 | --- | --- |
 | What did I build? | A weather-aware navigation SaaS preview that compares route alternatives, surfaces official hazards, saves private route watchlists, and explains risk by route segment. |
 | Why is it hard? | It combines map UX, external weather/road-event data, route optimization, saved-user state, auth boundaries, serverless deployment, observability, cost controls, and ML guardrails without pretending unavailable data is live. |
-| What stack does it prove? | React 19, TypeScript, MapLibre, Spring Boot 3.5, Java 21, FastAPI, Pydantic, OR-Tools, scikit-learn workflow, DynamoDB, Cognito/Google OAuth path, Lambda, API Gateway, CloudFront, S3, Terraform, GitHub Actions. |
+| What stack does it prove? | React 19, TypeScript, MapLibre, Spring Boot 3.5, Java 21, FastAPI, Pydantic, OR-Tools, scikit-learn workflow, DynamoDB, optional Redis rate limiting, Cognito/Google OAuth path, Lambda, API Gateway, CloudFront, S3, Terraform, GitHub Actions. |
 | How do I demo it fast? | Open the live preview, plan Seattle to Miami Beach, select the lower-weather-risk route, search `flood` in Alerts, show Saved/Usage auth boundaries, then open Status for deploy/runtime evidence. |
 
 Two-minute interview script: [docs/demo-playbook.md](docs/demo-playbook.md#two-minute-interview-demo).
@@ -39,7 +40,7 @@ Two-minute interview script: [docs/demo-playbook.md](docs/demo-playbook.md#two-m
 | Deployment model | Serverless-first AWS preview: CloudFront, private S3, API Gateway, Lambda, Cognito, DynamoDB |
 | Persistence | DynamoDB for low-cost saved routes, saved places, and usage counters; optional PostGIS schema documented for spatial expansion |
 | ML status | Shadow workflow plus guarded served-cost mode for VRP/multi-stop routing; serving requires promoted artifact, release gate, environment guard, and request flag |
-| Explicitly out of scope | Billing collection, team/workspace SaaS, public commercial launch, production ML serving, always-on Kubernetes/Aurora/Redis |
+| Explicitly out of scope | Billing collection, team/workspace SaaS, public commercial launch, production ML serving, always-on Kubernetes/Aurora/managed Redis in the default preview |
 
 ## Functional Specification
 
@@ -50,7 +51,7 @@ Two-minute interview script: [docs/demo-playbook.md](docs/demo-playbook.md#two-m
 | Saved routes | Save private routes, edit name/departure/risk threshold/monitor flag, manually refresh monitored risk, view current risk and risk history, delete owned routes | `/saved`, `/me/saved/routes`, `/me/saved/routes/{id}/current-risk`, `/me/saved/routes/{id}/risk-history`, `POST /me/saved/routes/{id}/risk-refresh` |
 | Saved places | Save private places, inspect place risk, and enforce owner-scoped reads/writes/deletes | `/saved`, `/locations/{slug}`, `/me/saved/places` |
 | Road events | Discover WZDx roadwork/closure feed registries by state and optionally join configured WZDx/511 GeoJSON events into VRP edge risk | `GET /road-events/feeds`, `VRP_ROAD_EVENT_FEED_URLS` |
-| Account controls | Expose plan, quota, capacity, readiness signals, daily metered usage, and structured quota errors without enabling paid billing | `/usage`, `/pricing`, `GET /me/account` |
+| Account controls | Expose plan, quota, capacity, readiness signals, daily metered usage, app-level rate limits, and structured quota errors without enabling paid billing | `/usage`, `/pricing`, `GET /me/account` |
 | VRP foundation | Support multi-stop route planning, route optimization contracts, OR-Tools-backed solver foundation, and risk-weighted edge costs | `POST /routes/multi-stop`, `POST /routes/multi-stop/optimize`, `POST /vrp/solve` |
 | ML workflow | Convert saved-route observations into delay examples, backtest a delay model, load a safe JSON artifact, record shadow predictions, optionally apply promoted ML delay to VRP/multi-stop solver costs behind guardrails, and run a local served-cost demo | `GET /ml/vrp/workflow/status`, `POST /ml/vrp/delay-model/backtest`, `POST /ml/vrp/delay-model/predict`, `scripts/run_vrp_served_cost_demo.py` |
 | Operations | Show frontend runtime health, application resilience, bundle budgets, local API stress evidence, release gates, runbooks, rollback docs, and cloud load-test strategy | `/status`, `perf/local_api_stress.py`, `docs/ops/`, `docs/runbooks/` |
@@ -156,6 +157,7 @@ Implemented hardening:
 - Spring Security resource server support for Cognito JWTs.
 - `/api/v1/me/**` authenticated when auth is enabled.
 - Public map preview endpoints remain available but are server-side quota-limited.
+- Spring API fixed-window rate limiting protects high-cost public reads and route-risk calls, exports Micrometer allow/deny counters, and can switch to Redis-backed counters with `RATE_LIMIT_STORE=redis`; the default preview stays in-memory to avoid recurring Redis cost.
 - CloudFront origin verification via `X-Origin-Verify`.
 - Request correlation via `X-Request-Id`.
 - API security headers: CSP, frame deny, referrer policy.
@@ -197,7 +199,7 @@ Deferred but tracked:
 | Area | Technologies |
 | --- | --- |
 | Frontend | React 19, TypeScript, Vite, MapLibre GL, Lucide, Playwright, axe-core |
-| Platform API | Java 21, Spring Boot 3.5, Spring Security, OAuth2 Resource Server, AWS SDK v2 |
+| Platform API | Java 21, Spring Boot 3.5, Spring Security, OAuth2 Resource Server, Spring Data Redis adapter, AWS SDK v2 |
 | Risk Engine | Python 3.11/3.12, FastAPI, Pydantic, OSRM-style routing, risk scoring |
 | Optimization | OR-Tools foundation, multi-stop route planning, VRP API contracts, ML shadow model scaffold |
 | Data | DynamoDB operational store, S3 snapshots/raster artifacts, optional PostgreSQL/PostGIS expansion |
@@ -456,6 +458,7 @@ Not yet ready for open public commercial launch:
 - [SaaS production hardening checklist](docs/saas-production-hardening-checklist.md)
 - [Research and security basis](docs/architecture/research-and-security-basis.md)
 - [Application resilience](docs/architecture/application-resilience.md)
+- [Backend production hardening](docs/architecture/backend-production-hardening.md)
 - [Production risk routing](docs/architecture/production-risk-routing.md)
 - [Weather risk pipeline](docs/architecture/weather-risk.md)
 - [WZDx road-event feed discovery](docs/architecture/road-events-wzdx-feeds.md)
