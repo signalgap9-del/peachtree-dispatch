@@ -1,4 +1,4 @@
-import { AlertTriangle, Activity, Gauge, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Activity, Gauge, RefreshCw, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import type { DataStatus, Navigate } from "./App";
@@ -10,6 +10,9 @@ import {
   type ClientIssue,
   type PerformanceSnapshot,
 } from "./telemetry";
+import type { ResilienceSnapshot } from "./resilience";
+import { isSlowNetwork } from "./resilience";
+import { useResilienceSnapshot } from "./useResilienceSnapshot";
 
 type Props = {
   navigate: Navigate;
@@ -28,6 +31,7 @@ type SourceRow = {
 export function OperationalStatusPage({ navigate, dataStatus, national, weatherSnapshot, weatherRaster }: Props) {
   const [issues, setIssues] = useState<ClientIssue[]>(() => readClientIssues());
   const [performance, setPerformance] = useState<PerformanceSnapshot | null>(() => readPerformanceSnapshot());
+  const resilience = useResilienceSnapshot();
   const sourceRows = useMemo(() => buildSourceRows(national, weatherSnapshot, weatherRaster), [national, weatherRaster, weatherSnapshot]);
 
   useEffect(() => {
@@ -81,6 +85,10 @@ export function OperationalStatusPage({ navigate, dataStatus, national, weatherS
           <StatusSectionHeader icon={<Gauge size={20} />} title="Performance snapshot" meta={performance?.at ? `Updated ${formatShortTime(performance.at)}` : "Waiting for browser metrics"} />
           {performance ? <PerformanceGrid snapshot={performance} /> : <EmptyOpsState title="No browser metrics yet" detail="Navigate through the app once and this panel will fill from PerformanceObserver data." />}
         </div>
+        <div className="surface status-panel resilience-panel">
+          <StatusSectionHeader icon={<RefreshCw size={20} />} title="API resiliency" meta={resilience.lastSuccessfulAt ? `Last success ${formatShortTime(resilience.lastSuccessfulAt)}` : "Waiting for API activity"} />
+          <ResilienceGrid snapshot={resilience} />
+        </div>
       </section>
 
       <section className="surface status-panel">
@@ -127,6 +135,20 @@ function PerformanceGrid({ snapshot }: { snapshot: PerformanceSnapshot }) {
   );
 }
 
+function ResilienceGrid({ snapshot }: { snapshot: ResilienceSnapshot }) {
+  const metrics = [
+    { label: "Network", value: snapshot.online ? networkLabel(snapshot) : "offline", tone: snapshot.online ? isSlowNetwork(snapshot) ? "moderate" : "low" : "high", target: "browser connectivity" },
+    { label: "Retries this session", value: `${snapshot.retryCount}`, tone: snapshot.retryCount > 0 ? "moderate" : "low", target: "safe reads only" },
+    { label: "Stale fallbacks", value: `${snapshot.staleFallbackCount}`, tone: snapshot.staleFallbackCount > 0 ? "moderate" : "low", target: "public risk cache" },
+    { label: "Last stale key", value: snapshot.lastStaleKey ?? "none", tone: snapshot.lastStaleKey ? "moderate" : "low", target: snapshot.lastStaleCachedAt ? `cached ${formatShortTime(snapshot.lastStaleCachedAt)}` : "no fallback used" },
+  ];
+  return (
+    <div className="performance-grid resilience-grid">
+      {metrics.map((metric) => <article key={metric.label}><strong>{metric.label}</strong><b className={metric.tone}>{metric.value}</b><small>{metric.target}</small></article>)}
+    </div>
+  );
+}
+
 function EmptyOpsState({ title, detail }: { title: string; detail: string }) {
   return <div className="ops-empty"><Gauge size={22} /><strong>{title}</strong><small>{detail}</small></div>;
 }
@@ -162,6 +184,11 @@ function formatMs(value?: number) {
 
 function formatShortTime(value: string) {
   return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" }).format(new Date(value));
+}
+
+function networkLabel(snapshot: ResilienceSnapshot) {
+  if (snapshot.saveData) return "save-data";
+  return snapshot.effectiveType ?? "online";
 }
 
 function scoreLcp(value?: number) {

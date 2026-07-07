@@ -18,6 +18,7 @@ import { api } from "./api";
 import { authConfigured, completeLogin, currentUser, googleAuthConfigured, login, loginWithGoogle, logout, type AuthUser } from "./auth";
 import { useI18n } from "./i18n";
 import { LanguageToggle } from "./LanguageToggle";
+import { NetworkStatusBanner } from "./NetworkStatusBanner";
 import { OperationalStatusPage } from "./OperationalStatusPage";
 import { AlertsPage, DashboardPage, HomePage, PlaceDetailPage, PricingPage, SavedPage, UsagePage } from "./ProductPages";
 import type { NationalRiskOverview, NationalWeatherSnapshot, WeatherRasterManifest } from "./types";
@@ -91,6 +92,7 @@ function AppShell() {
   return (
     <div className={`product-app ${path === "/map" || path === "/directions" ? "map-active" : ""}`}>
       <AppHeader path={path} navigate={navigate} user={user} onUserChange={setUser} national={nationalRisk} weatherSnapshot={weatherSnapshot} />
+      <NetworkStatusBanner />
       <Routes>
         <Route path="/" element={<HomePage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} dataStatus={dataStatus} />} />
         <Route path="/dashboard" element={<DashboardPage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} dataStatus={dataStatus} />} />

@@ -34,9 +34,11 @@ test("status page exposes source health, frontend performance, and client issue 
   await expect(page.getByText("NWS alerts")).toBeVisible();
   await expect(page.getByText("3 active alerts / 2 severe")).toBeVisible();
   await expect(page.getByText("Performance snapshot")).toBeVisible();
-  await expect(page.locator(".performance-grid article")).toHaveCount(4);
-  await expect(page.locator(".performance-grid").getByText("LCP")).toBeVisible();
-  await expect(page.locator(".performance-grid").getByText("good <= 2,500 ms")).toBeVisible();
+  const performancePanel = page.locator(".status-panel").filter({ hasText: "Performance snapshot" });
+  await expect(performancePanel.locator(".performance-grid article")).toHaveCount(4);
+  await expect(performancePanel.getByText("LCP")).toBeVisible();
+  await expect(performancePanel.getByText("good <= 2,500 ms")).toBeVisible();
+  await expect(page.getByText("API resiliency")).toBeVisible();
   await expect(page.getByText("Fixture API failure for observability contract")).toBeVisible();
   await expect(page.getByText("request req_fixture")).toBeVisible();
 });

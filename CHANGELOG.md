@@ -12,6 +12,10 @@ versioning with preview suffixes until the first production launch:
 
 ### Added
 
+- Application resilience layer for safe public API retries, bounded timeouts,
+  stale public-risk fallback, and `/status` retry/fallback telemetry.
+- User-visible connection banner for offline, slow-network, and stale-data
+  modes.
 - Guarded ML served-cost mode for VRP and multi-stop route optimization.
 - `useMlServedCost`, `mlDelayWeight`, `mlMaxDelaySeconds`, and
   `mlMinConfidence` cost-model controls.

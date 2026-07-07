@@ -10,6 +10,7 @@ AtmosPath is a climate-aware navigation and route-risk SaaS preview. It combines
 - Demo playbook: [docs/demo-playbook.md](docs/demo-playbook.md)
 - Cost model: [docs/cost-model.md](docs/cost-model.md)
 - Research/security basis: [docs/architecture/research-and-security-basis.md](docs/architecture/research-and-security-basis.md)
+- Application resilience: [docs/architecture/application-resilience.md](docs/architecture/application-resilience.md)
 - SaaS hardening checklist: [docs/saas-production-hardening-checklist.md](docs/saas-production-hardening-checklist.md)
 - ADRs: [docs/adr/](docs/adr/)
 - Codebase size: about 19.6k source/test/IaC/config LOC; about 23.9k tracked text LOC including docs, excluding lockfiles and generated build output.
@@ -52,7 +53,7 @@ Two-minute interview script: [docs/demo-playbook.md](docs/demo-playbook.md#two-m
 | Account controls | Expose plan, quota, capacity, readiness signals, daily metered usage, and structured quota errors without enabling paid billing | `/usage`, `/pricing`, `GET /me/account` |
 | VRP foundation | Support multi-stop route planning, route optimization contracts, OR-Tools-backed solver foundation, and risk-weighted edge costs | `POST /routes/multi-stop`, `POST /routes/multi-stop/optimize`, `POST /vrp/solve` |
 | ML workflow | Convert saved-route observations into delay examples, backtest a delay model, load a safe JSON artifact, record shadow predictions, optionally apply promoted ML delay to VRP/multi-stop solver costs behind guardrails, and run a local served-cost demo | `GET /ml/vrp/workflow/status`, `POST /ml/vrp/delay-model/backtest`, `POST /ml/vrp/delay-model/predict`, `scripts/run_vrp_served_cost_demo.py` |
-| Operations | Show frontend runtime health, bundle budgets, local API stress evidence, release gates, runbooks, rollback docs, and cloud load-test strategy | `/status`, `perf/local_api_stress.py`, `docs/ops/`, `docs/runbooks/` |
+| Operations | Show frontend runtime health, application resilience, bundle budgets, local API stress evidence, release gates, runbooks, rollback docs, and cloud load-test strategy | `/status`, `perf/local_api_stress.py`, `docs/ops/`, `docs/runbooks/` |
 | Security | Cognito JWT path, owner-scoped DynamoDB keys, idempotent mutation keys, conditional writes/deletes, request IDs, security headers, origin verification, optional PostGIS RLS migration | Spring Platform API, Terraform, `V002__tenant_rls_policies.sql` |
 
 ## Product
@@ -70,6 +71,7 @@ Current capabilities:
 - Saved routes and saved places with monitor settings, risk threshold, current risk, and risk history.
 - SaaS account summary with plan, quota, saved asset capacity, and readiness signals.
 - Operational status page for live source health, frontend runtime issues, and browser performance snapshots.
+- Application-level resilience for unstable connections: safe API retries, short timeouts, stale public-risk fallback, and user-visible offline/slow/stale data state.
 - Google OAuth/Cognito integration path for real user accounts.
 - Production-shaped public preview that keeps core map flows available without login while private watchlist data requires authentication.
 - Cost-aware serverless AWS deployment with CloudFront, private S3, API Gateway, Lambda, Cognito, DynamoDB, and optional PostGIS expansion.
@@ -115,8 +117,9 @@ flowchart LR
 2. CloudFront forwards `/api/*` to API Gateway.
 3. Spring Boot Platform API enforces JWT authentication for `/me/**`, derives tenant context, applies plan/usage limits, and stores saved user data.
 4. Python FastAPI Risk Engine performs place search, route planning, location risk scoring, national alert summaries, WZDx feed discovery, optional road-event edge-risk joins, and VRP foundation workflows.
-5. Cached risk-engine reads reduce repeated provider calls and lower cloud cost.
-6. DynamoDB remains the low-cost operational store; PostgreSQL/PostGIS is documented as the expansion path for spatial joins and analytics.
+5. The frontend API client retries safe transient failures, falls back to short-lived cached public risk snapshots when appropriate, and exposes evidence at `/status`.
+6. Cached risk-engine reads reduce repeated provider calls and lower cloud cost.
+7. DynamoDB remains the low-cost operational store; PostgreSQL/PostGIS is documented as the expansion path for spatial joins and analytics.
 
 ## SaaS Account Layer
 
@@ -162,7 +165,7 @@ Implemented hardening:
 - Optional PostGIS schema includes owner-based RLS policies and runtime `app.user_id` context execution.
 - External provider calls use an outbound allowlist, HTTPS enforcement, redirect blocking, and default rejection of cloud metadata, localhost, and private-network targets.
 - No long-lived AWS keys are required; deployment is designed for GitHub Actions OIDC.
-- Frontend E2E covers marker text XSS hardening and unavailable-auth messaging.
+- Frontend E2E covers marker text XSS hardening, unavailable-auth messaging, safe retry recovery, and stale public-risk fallback.
 - Frontend error boundary prevents blank-screen failure and records render errors in session-scoped operational telemetry.
 
 Known next security work:
@@ -214,7 +217,7 @@ Last local verification: July 7, 2026.
 | Frontend build | `npm run build --prefix web` | passed |
 | Frontend bundle budget | `npm run perf:budget --prefix web` | passed |
 | Design rules | `npm run design:lint --prefix web` | 0 errors, 0 warnings |
-| Playwright E2E | `npm run test:e2e --prefix web` | 26 passed |
+| Playwright E2E | `npm run test:e2e --prefix web` | 28 passed |
 | Frontend dependency audit | `npm run audit --prefix web` | 0 high vulnerabilities |
 
 ### Frontend Performance Budget
@@ -234,7 +237,7 @@ Latest result:
 | Map route chunk gzip | 9.59 kB / 45.00 kB |
 | CSS gzip | 21.78 kB / 90.00 kB |
 
-Runtime frontend observability is exposed at `/status`. It shows live source status, the most recent browser performance snapshot from `PerformanceObserver`, and session-scoped API/network/render issues captured without sending secrets to third-party telemetry.
+Runtime frontend observability is exposed at `/status`. It shows live source status, API retry and stale-fallback counts, the most recent browser performance snapshot from `PerformanceObserver`, and session-scoped API/network/render issues captured without sending secrets to third-party telemetry.
 
 ### Local Stress Test
 
@@ -452,6 +455,7 @@ Not yet ready for open public commercial launch:
 - [Demo playbook](docs/demo-playbook.md)
 - [SaaS production hardening checklist](docs/saas-production-hardening-checklist.md)
 - [Research and security basis](docs/architecture/research-and-security-basis.md)
+- [Application resilience](docs/architecture/application-resilience.md)
 - [Production risk routing](docs/architecture/production-risk-routing.md)
 - [Weather risk pipeline](docs/architecture/weather-risk.md)
 - [WZDx road-event feed discovery](docs/architecture/road-events-wzdx-feeds.md)
