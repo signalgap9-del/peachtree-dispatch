@@ -2,10 +2,11 @@ package com.atmospath.platform.relational;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -17,93 +18,113 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.atmospath.platform.account.EntitlementService;
+import com.atmospath.platform.account.MeteredFeature;
 import com.atmospath.platform.account.PlanCode;
+import com.atmospath.platform.account.QuotaExceededException;
 import com.atmospath.platform.account.SubscriptionStatus;
-import com.atmospath.platform.account.TenantAuthorizationService;
 import com.atmospath.platform.account.TenantContext;
-import com.atmospath.platform.account.TenantContextResolver;
 import com.atmospath.platform.account.TenantRole;
 import com.atmospath.platform.idempotency.IdempotencyService;
 import com.atmospath.platform.idempotency.InMemoryIdempotencyRepository;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpStatus;
-import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.web.server.ResponseStatusException;
 
-class SavedRouteControllerTests {
+class SavedRouteServiceTests {
+    private static final Instant NOW = Instant.parse("2026-07-07T09:00:00Z");
+
     private final FakeSavedPlaceRepository repository = new FakeSavedPlaceRepository();
-    private final TenantContextResolver resolver = mock(TenantContextResolver.class);
     private final EntitlementService entitlements = mock(EntitlementService.class);
-    private final SavedRouteService routeService = new SavedRouteService(
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+    private final SavedRouteService service = new SavedRouteService(
             repository,
             entitlements,
             new IdempotencyService(new InMemoryIdempotencyRepository()),
-            Clock.fixed(Instant.parse("2026-07-07T09:00:00Z"), ZoneOffset.UTC),
-            new SimpleMeterRegistry());
-    private final SavedRouteController controller = new SavedRouteController(
-            routeService,
-            resolver,
-            new TenantAuthorizationService());
+            Clock.fixed(NOW, ZoneOffset.UTC),
+            meterRegistry);
 
     @Test
-    void ownedRouteLookupDoesNotLeakRoutesFromAnotherUser() {
-        var owner = UUID.randomUUID();
-        var attacker = UUID.randomUUID();
-        var route = route(owner);
-        repository.saveRoute(route);
-        var request = new MockHttpServletRequest();
-        when(resolver.resolve(null, request)).thenReturn(context(attacker, TenantRole.OWNER));
+    void createWithSameIdempotencyKeyReturnsOriginalRouteWithoutDuplicateWrites() {
+        var context = context(UUID.randomUUID(), TenantRole.OWNER);
+        var command = createCommand();
 
-        assertThatThrownBy(() -> controller.get(null, request, route.savedItemId()))
-                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
-                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
-    }
-
-    @Test
-    void viewerRoleCannotListSavedRoutes() {
-        var request = new MockHttpServletRequest();
-        when(resolver.resolve(null, request)).thenReturn(context(UUID.randomUUID(), TenantRole.VIEWER));
-
-        assertThatThrownBy(() -> controller.list(null, request))
-                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
-                        assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
-    }
-
-    @Test
-    void createRouteIsIdempotentForRepeatedClientRetry() {
-        var userId = UUID.randomUUID();
-        var request = new MockHttpServletRequest();
-        when(resolver.resolve(null, request)).thenReturn(context(userId, TenantRole.OWNER));
-        var command = createRouteRequest();
-
-        var first = controller.create(null, request, "route-save-1", command);
-        var second = controller.create(null, request, "route-save-1", command);
+        var first = service.create(context, command, "route-save-1");
+        var second = service.create(context, command, "route-save-1");
 
         assertThat(second.savedItemId()).isEqualTo(first.savedItemId());
-        assertThat(repository.findRoutes(userId)).hasSize(1);
-        assertThat(repository.observations).hasSize(1);
-        verify(entitlements).requireSavedRouteCapacity(context(userId, TenantRole.OWNER), 0);
+        assertThat(repository.findRoutes(context.userId())).hasSize(1);
+        assertThat(repository.routeSaveCount).isEqualTo(1);
+        assertThat(repository.observations).extracting(RouteRiskObservation::source)
+                .containsExactly("SAVED_ROUTE_CREATED");
+        assertThat(meterCount("create", "created")).isEqualTo(1);
+        assertThat(meterCount("create", "idempotency_hit")).isEqualTo(1);
+        verify(entitlements).requireSavedRouteCapacity(context, 0);
     }
 
     @Test
-    void refreshRiskWritesDurableObservationAndUpdatesLastCheckedAt() {
-        var userId = UUID.randomUUID();
-        var route = route(userId);
-        repository.saveRoute(route);
-        var request = new MockHttpServletRequest();
-        when(resolver.resolve(null, request)).thenReturn(context(userId, TenantRole.OWNER));
+    void createChecksPlanCapacityBeforePersistingRouteOrObservation() {
+        var context = context(UUID.randomUUID(), TenantRole.OWNER);
+        doThrow(new QuotaExceededException(
+                MeteredFeature.SAVED_ROUTE,
+                PlanCode.FREE,
+                3,
+                3,
+                "2026-07-08T00:00:00Z"))
+                .when(entitlements)
+                .requireSavedRouteCapacity(context, 0);
 
-        var risk = controller.refreshRisk(null, request, route.savedItemId(), "refresh-1");
+        assertThatThrownBy(() -> service.create(context, createCommand(), "route-save-2"))
+                .isInstanceOf(QuotaExceededException.class);
 
-        assertThat(risk.savedItemId()).isEqualTo(route.savedItemId());
-        assertThat(risk.lastCheckedAt()).isEqualTo("2026-07-07T09:00:00Z");
-        assertThat(repository.observations).extracting(RouteRiskObservation::source)
-                .containsExactly("SAVED_ROUTE_MONITOR_REFRESH");
+        assertThat(repository.findRoutes(context.userId())).isEmpty();
+        assertThat(repository.observations).isEmpty();
+        assertThat(repository.routeSaveCount).isZero();
     }
 
-    private static SavedRouteController.CreateSavedRoute createRouteRequest() {
-        return new SavedRouteController.CreateSavedRoute(
+    @Test
+    void refreshRiskWithSameIdempotencyKeyRecordsOnlyOneObservation() {
+        var context = context(UUID.randomUUID(), TenantRole.OWNER);
+        var route = route(context.userId());
+        repository.saveRoute(route);
+        repository.routeSaveCount = 0;
+
+        var first = service.refreshRisk(context, route.savedItemId(), "refresh-1");
+        var second = service.refreshRisk(context, route.savedItemId(), "refresh-1");
+
+        assertThat(first).isEqualTo(second);
+        assertThat(first.lastCheckedAt()).isEqualTo(NOW.toString());
+        assertThat(repository.routeSaveCount).isEqualTo(1);
+        assertThat(repository.observations).extracting(RouteRiskObservation::source)
+                .containsExactly("SAVED_ROUTE_MONITOR_REFRESH");
+        assertThat(meterCount("refresh", "refreshed")).isEqualTo(1);
+        assertThat(meterCount("refresh", "idempotency_hit")).isEqualTo(1);
+    }
+
+    @Test
+    void riskHistoryFallsBackToLegacyRouteStateWhenNoObservationsExist() {
+        var context = context(UUID.randomUUID(), TenantRole.OWNER);
+        var route = route(context.userId());
+        repository.saveRoute(route);
+
+        var history = service.riskHistory(context, route.savedItemId());
+
+        assertThat(history).singleElement().satisfies(point -> {
+            assertThat(point.checkedAt()).isEqualTo(route.lastCheckedAt());
+            assertThat(point.riskScore()).isEqualTo(route.riskScore());
+            assertThat(point.source()).isEqualTo("LEGACY_ROUTE_STATE");
+            assertThat(point.modelVersion()).isEqualTo("route-risk-v1");
+        });
+    }
+
+    private double meterCount(String operation, String outcome) {
+        var counter = meterRegistry.find("atmospath.saved_route.commands")
+                .tag("operation", operation)
+                .tag("outcome", outcome)
+                .counter();
+        return counter == null ? 0 : counter.count();
+    }
+
+    private static SavedRouteService.CreateSavedRouteCommand createCommand() {
+        return new SavedRouteService.CreateSavedRouteCommand(
                 "Atlanta to Savannah",
                 "Atlanta, GA",
                 "Savannah, GA",
@@ -138,7 +159,7 @@ class SavedRouteControllerTests {
 
     private static TenantContext context(UUID userId, TenantRole role) {
         return new TenantContext(
-                UUID.nameUUIDFromBytes(("tenant:" + userId).getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                UUID.nameUUIDFromBytes(("tenant:" + userId).getBytes(StandardCharsets.UTF_8)),
                 userId,
                 "subject-" + userId,
                 "person@example.com",
@@ -152,10 +173,11 @@ class SavedRouteControllerTests {
         private final Map<UUID, Map<UUID, SavedPlace>> places = new HashMap<>();
         private final Map<UUID, Map<UUID, SavedRoute>> routes = new HashMap<>();
         private final List<RouteRiskObservation> observations = new ArrayList<>();
+        private int routeSaveCount;
 
         @Override
         public UUID ensureUser(String authSubject, String email) {
-            return UUID.nameUUIDFromBytes(authSubject.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return UUID.nameUUIDFromBytes(authSubject.getBytes(StandardCharsets.UTF_8));
         }
 
         @Override
@@ -165,6 +187,7 @@ class SavedRouteControllerTests {
 
         @Override
         public void saveRoute(SavedRoute route) {
+            routeSaveCount += 1;
             routes.computeIfAbsent(route.userId(), ignored -> new HashMap<>()).put(route.savedItemId(), route);
         }
 

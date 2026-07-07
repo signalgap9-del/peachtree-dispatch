@@ -18,6 +18,9 @@ versioning with preview suffixes until the first production launch:
   modes.
 - Spring Platform API fixed-window rate limiting with in-memory default,
   optional Redis-backed counters, structured `429` errors, and retry headers.
+- Saved-route service layer for create/update/delete/risk-refresh orchestration,
+  with idempotency-hit metrics, saved-route command metrics, and capacity-gate
+  tests.
 - Guarded ML served-cost mode for VRP and multi-stop route optimization.
 - `useMlServedCost`, `mlDelayWeight`, `mlMaxDelaySeconds`, and
   `mlMinConfidence` cost-model controls.

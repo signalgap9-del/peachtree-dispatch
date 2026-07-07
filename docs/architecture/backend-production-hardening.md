@@ -9,11 +9,13 @@ as an operations-ready Spring service, not just a demo UI.
 | --- | --- | --- |
 | Auth boundary | Cognito JWT resource server path for `/api/v1/me/**` | `SecurityConfig`, controller tests |
 | Ownership | Saved data is keyed by authenticated user and conditionally deleted | DynamoDB repository tests |
+| Service boundary | Saved-route create/update/refresh/history orchestration lives outside controllers | `SavedRouteServiceTests` |
 | Idempotency | Mutation retries use tenant-scoped hashed `Idempotency-Key` records | `IdempotencyService`, DynamoDB tests |
 | Quotas | Plan and usage limits enforce route/search/location/saved capacity | `EntitlementServiceTests` |
 | Rate limiting | Spring filter applies fixed-window limits before expensive route/risk calls | `RateLimitFilterTests` |
 | Optional Redis | `RATE_LIMIT_STORE=redis` switches rate counters from in-memory to Redis | `RedisRateLimitRepository` |
 | Metrics | Rate-limit allow/deny outcomes are counted by bucket | `atmospath.rate_limit.requests` |
+| Saved-route metrics | Saved-route command outcomes count create/update/delete/refresh/idempotency hits | `atmospath.saved_route.commands` |
 | Request tracing | `X-Request-Id` is propagated through responses and error envelopes | `RequestIdFilterTests` |
 | Origin protection | CloudFront origin verification rejects direct origin traffic when configured | `OriginVerificationFilterTests` |
 | Structured errors | API errors include code, message, requestId, and safe details | `GlobalApiExceptionHandler` |
@@ -61,16 +63,17 @@ RATE_LIMIT_WINDOW=PT1M
 
 ## Next Backend Hardening Slices
 
-1. Add a local PostgreSQL/JPA slice for route observation persistence behind a
-   non-default profile, with Testcontainers when Docker is available and a
-   fallback unit test for CI environments without Docker.
-2. Move saved-route create/update orchestration from controllers into a
-   transaction-oriented service layer so capacity, idempotency, and persistence
-   boundaries are easier to review.
-3. Add concurrency tests for duplicate idempotency keys and saved-route capacity
-   exhaustion.
-4. Add Micrometer counters for rate-limit allow/deny outcomes, quota denials,
-   and idempotency hits.
+1. Add a non-default local PostgreSQL/JPA or Testcontainers slice only when the
+   team wants relational transaction exercises in CI. The deployed preview
+   already has a PostGIS/RLS migration path and keeps DynamoDB as the low-cost
+   operational store.
+2. Add an in-flight idempotency lock state if cloud load tests show parallel
+   duplicate mutation races. Sequential retry dedupe and saved-route capacity
+   gates are covered today by service tests.
+3. Add quota-denial counters alongside the current rate-limit and saved-route
+   command counters.
+4. Move larger multi-stop optimization runs behind an async job API before
+   raising cloud stress-test concurrency.
 
 The roadmap intentionally avoids enabling always-on Kubernetes, Aurora, or
 managed Redis in the default preview environment.

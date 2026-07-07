@@ -15,7 +15,7 @@ AtmosPath is not a delivery-dispatch, fleet-management, or CRM product.
 | --- | --- | --- |
 | Frontend | React, TypeScript, Vite, MapLibre | Map-first responsive product |
 | Edge | CloudFront, private S3 origin | CDN, TLS, origin protection, geo restriction |
-| Public API | Spring Boot, Java 21 | Enterprise API boundary and orchestration |
+| Public API | Spring Boot, Java 21 | Enterprise API boundary, service-layer orchestration, auth, quotas |
 | Risk engine | FastAPI, Python | Provider adapters and explainable geospatial scoring |
 | Weather pipeline | HRRR/MRMS inputs, S3 raster artifacts | National-scale data engineering |
 | Workflows | SQS, Lambda, partial batch failures | Buffered jobs, retries, DLQ |

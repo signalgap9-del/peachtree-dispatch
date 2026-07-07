@@ -14,7 +14,7 @@ AtmosPath is a climate-aware navigation and route-risk SaaS preview. It combines
 - Backend production hardening: [docs/architecture/backend-production-hardening.md](docs/architecture/backend-production-hardening.md)
 - SaaS hardening checklist: [docs/saas-production-hardening-checklist.md](docs/saas-production-hardening-checklist.md)
 - ADRs: [docs/adr/](docs/adr/)
-- Codebase size: about 19.6k source/test/IaC/config LOC; about 23.9k tracked text LOC including docs, excluding lockfiles and generated build output.
+- Codebase size: about 19.1k source/test/IaC/config LOC; about 22.6k tracked text LOC including docs, excluding lockfiles and generated build output.
 
 ![AtmosPath route comparison](docs/screenshots/map-route-live.png)
 
@@ -24,7 +24,7 @@ AtmosPath is a climate-aware navigation and route-risk SaaS preview. It combines
 | --- | --- |
 | What did I build? | A weather-aware navigation SaaS preview that compares route alternatives, surfaces official hazards, saves private route watchlists, and explains risk by route segment. |
 | Why is it hard? | It combines map UX, external weather/road-event data, route optimization, saved-user state, auth boundaries, serverless deployment, observability, cost controls, and ML guardrails without pretending unavailable data is live. |
-| What stack does it prove? | React 19, TypeScript, MapLibre, Spring Boot 3.5, Java 21, FastAPI, Pydantic, OR-Tools, scikit-learn workflow, DynamoDB, optional Redis rate limiting, Cognito/Google OAuth path, Lambda, API Gateway, CloudFront, S3, Terraform, GitHub Actions. |
+| What stack does it prove? | React 19, TypeScript, MapLibre, Spring Boot 3.5 service-layer API, Java 21, FastAPI, Pydantic, OR-Tools, scikit-learn workflow, DynamoDB, optional Redis rate limiting, Cognito/Google OAuth path, Lambda, API Gateway, CloudFront, S3, Terraform, GitHub Actions. |
 | How do I demo it fast? | Open the live preview, plan Seattle to Miami Beach, select the lower-weather-risk route, search `flood` in Alerts, show Saved/Usage auth boundaries, then open Status for deploy/runtime evidence. |
 
 Two-minute interview script: [docs/demo-playbook.md](docs/demo-playbook.md#two-minute-interview-demo).
@@ -143,6 +143,8 @@ Implemented account features:
 - Daily quota counters for route planning, place search, location risk, and alert search.
 - Saved route and saved place capacity checks.
 - `Idempotency-Key` support for saved route/place create and saved-route risk refresh retries.
+- Saved-route create/update/delete/risk-refresh orchestration runs through a service layer, keeping controllers as thin HTTP/auth boundaries.
+- Saved-route command metrics record create/update/delete/refresh outcomes and idempotency hits through `atmospath.saved_route.commands`.
 - Structured API error envelope with `code`, `message`, `requestId`, and quota details.
 - Request ID propagation through `X-Request-Id`.
 - Usage and pricing pages in the web app.
@@ -158,6 +160,7 @@ Implemented hardening:
 - `/api/v1/me/**` authenticated when auth is enabled.
 - Public map preview endpoints remain available but are server-side quota-limited.
 - Spring API fixed-window rate limiting protects high-cost public reads and route-risk calls, exports Micrometer allow/deny counters, and can switch to Redis-backed counters with `RATE_LIMIT_STORE=redis`; the default preview stays in-memory to avoid recurring Redis cost.
+- Saved-route mutations are owner-scoped, quota-checked before persistence, idempotency-aware for safe client retries, and covered by service-level tests.
 - CloudFront origin verification via `X-Origin-Verify`.
 - Request correlation via `X-Request-Id`.
 - API security headers: CSP, frame deny, referrer policy.
@@ -212,7 +215,7 @@ Last local verification: July 7, 2026.
 
 | Layer | Command | Result |
 | --- | --- | --- |
-| Spring Platform API | `powershell -ExecutionPolicy Bypass -File ..\..\scripts\mvn.ps1 --batch-mode test` | 45 passed |
+| Spring Platform API | `powershell -ExecutionPolicy Bypass -File ..\..\scripts\mvn.ps1 --batch-mode test` | 53 passed |
 | Python Risk Engine | `cd services/api; python -m pytest -q` | 78 passed, 4 warnings |
 | ML served-cost demo | `cd services/api; python scripts/run_vrp_served_cost_demo.py --artifact-dir ..\..\tmp\demo-vrp-ml --model-version demo-served-delay-v1` | passed; feasible route, no dropped jobs, promoted ML edge delay explained |
 | Frontend lint | `npm run lint --prefix web` | passed |
