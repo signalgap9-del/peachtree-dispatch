@@ -21,6 +21,8 @@ versioning with preview suffixes until the first production launch:
 - Saved-route service layer for create/update/delete/risk-refresh orchestration,
   with idempotency-hit metrics, saved-route command metrics, and capacity-gate
   tests.
+- Quota-denial Micrometer metrics for daily feature usage and saved-asset
+  capacity boundaries.
 - Guarded ML served-cost mode for VRP and multi-stop route optimization.
 - `useMlServedCost`, `mlDelayWeight`, `mlMaxDelaySeconds`, and
   `mlMinConfidence` cost-model controls.

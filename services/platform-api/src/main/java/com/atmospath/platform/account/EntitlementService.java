@@ -6,11 +6,14 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
 public class EntitlementService {
+    private static final String QUOTA_DENIAL_METRIC = "atmospath.quota.denials";
     private static final List<MeteredFeature> DAILY_FEATURES = List.of(
             MeteredFeature.ROUTE_PLAN,
             MeteredFeature.PLACE_SEARCH,
@@ -19,15 +22,21 @@ public class EntitlementService {
 
     private final UsageRepository usageRepository;
     private final Clock clock;
+    private final MeterRegistry meterRegistry;
 
     @Autowired
-    public EntitlementService(UsageRepository usageRepository) {
-        this(usageRepository, Clock.systemUTC());
+    public EntitlementService(UsageRepository usageRepository, MeterRegistry meterRegistry) {
+        this(usageRepository, Clock.systemUTC(), meterRegistry);
     }
 
     EntitlementService(UsageRepository usageRepository, Clock clock) {
+        this(usageRepository, clock, new SimpleMeterRegistry());
+    }
+
+    EntitlementService(UsageRepository usageRepository, Clock clock, MeterRegistry meterRegistry) {
         this.usageRepository = usageRepository;
         this.clock = clock;
+        this.meterRegistry = meterRegistry;
     }
 
     public FeatureUsage consume(TenantContext context, MeteredFeature feature) {
@@ -36,6 +45,7 @@ public class EntitlementService {
         var today = today();
         var used = usageRepository.incrementAndGet(context.tenantId(), feature, today);
         if (used > limit) {
+            recordQuotaDenied(feature, context.plan(), "daily");
             throw new QuotaExceededException(feature, context.plan(), used, limit, resetInstant());
         }
         return FeatureUsage.of(feature, used, limit, resetInstant());
@@ -68,8 +78,17 @@ public class EntitlementService {
     private void requireCapacity(TenantContext context, MeteredFeature feature, int currentCount) {
         var limit = PlanLimits.forPlan(context.plan()).limitFor(feature);
         if (currentCount >= limit) {
+            recordQuotaDenied(feature, context.plan(), "capacity");
             throw new QuotaExceededException(feature, context.plan(), currentCount, limit, resetInstant());
         }
+    }
+
+    private void recordQuotaDenied(MeteredFeature feature, PlanCode plan, String boundary) {
+        meterRegistry.counter(
+                QUOTA_DENIAL_METRIC,
+                "feature", feature.name(),
+                "plan", plan.name(),
+                "boundary", boundary).increment();
     }
 
     private List<AccountSummary.ReadinessSignal> readiness(TenantContext context) {

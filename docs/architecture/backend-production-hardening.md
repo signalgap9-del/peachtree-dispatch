@@ -12,6 +12,7 @@ as an operations-ready Spring service, not just a demo UI.
 | Service boundary | Saved-route create/update/refresh/history orchestration lives outside controllers | `SavedRouteServiceTests` |
 | Idempotency | Mutation retries use tenant-scoped hashed `Idempotency-Key` records | `IdempotencyService`, DynamoDB tests |
 | Quotas | Plan and usage limits enforce route/search/location/saved capacity | `EntitlementServiceTests` |
+| Quota-denial metrics | Daily and capacity quota denials are counted by feature, plan, and boundary | `atmospath.quota.denials` |
 | Rate limiting | Spring filter applies fixed-window limits before expensive route/risk calls | `RateLimitFilterTests` |
 | Optional Redis | `RATE_LIMIT_STORE=redis` switches rate counters from in-memory to Redis | `RedisRateLimitRepository` |
 | Metrics | Rate-limit allow/deny outcomes are counted by bucket | `atmospath.rate_limit.requests` |
@@ -70,9 +71,7 @@ RATE_LIMIT_WINDOW=PT1M
 2. Add an in-flight idempotency lock state if cloud load tests show parallel
    duplicate mutation races. Sequential retry dedupe and saved-route capacity
    gates are covered today by service tests.
-3. Add quota-denial counters alongside the current rate-limit and saved-route
-   command counters.
-4. Move larger multi-stop optimization runs behind an async job API before
+3. Move larger multi-stop optimization runs behind an async job API before
    raising cloud stress-test concurrency.
 
 The roadmap intentionally avoids enabling always-on Kubernetes, Aurora, or

@@ -145,6 +145,7 @@ Implemented account features:
 - `Idempotency-Key` support for saved route/place create and saved-route risk refresh retries.
 - Saved-route create/update/delete/risk-refresh orchestration runs through a service layer, keeping controllers as thin HTTP/auth boundaries.
 - Saved-route command metrics record create/update/delete/refresh outcomes and idempotency hits through `atmospath.saved_route.commands`.
+- Quota-denial metrics count daily usage and saved-asset capacity rejections through `atmospath.quota.denials`.
 - Structured API error envelope with `code`, `message`, `requestId`, and quota details.
 - Request ID propagation through `X-Request-Id`.
 - Usage and pricing pages in the web app.

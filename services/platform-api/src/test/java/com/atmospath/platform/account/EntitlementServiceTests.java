@@ -8,13 +8,16 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
 class EntitlementServiceTests {
     private final InMemoryUsageRepository usageRepository = new InMemoryUsageRepository();
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
     private final EntitlementService service = new EntitlementService(
             usageRepository,
-            Clock.fixed(Instant.parse("2026-07-04T12:00:00Z"), ZoneOffset.UTC));
+            Clock.fixed(Instant.parse("2026-07-04T12:00:00Z"), ZoneOffset.UTC),
+            meterRegistry);
 
     @Test
     void consumesDailyRoutePlanQuotaAndReportsRemaining() {
@@ -44,6 +47,7 @@ class EntitlementServiceTests {
                     assertThat(quota.limit()).isEqualTo(30);
                     assertThat(quota.plan()).isEqualTo(PlanCode.FREE);
                 });
+        assertThat(quotaDenialCount(MeteredFeature.ROUTE_PLAN, "daily")).isEqualTo(1);
     }
 
     @Test
@@ -73,6 +77,16 @@ class EntitlementServiceTests {
                 .isInstanceOf(QuotaExceededException.class)
                 .satisfies(exception -> assertThat(((QuotaExceededException) exception).feature())
                         .isEqualTo(MeteredFeature.SAVED_ROUTE));
+        assertThat(quotaDenialCount(MeteredFeature.SAVED_ROUTE, "capacity")).isEqualTo(1);
+    }
+
+    private double quotaDenialCount(MeteredFeature feature, String boundary) {
+        var counter = meterRegistry.find("atmospath.quota.denials")
+                .tag("feature", feature.name())
+                .tag("plan", PlanCode.FREE.name())
+                .tag("boundary", boundary)
+                .counter();
+        return counter == null ? 0 : counter.count();
     }
 
     private static TenantContext tenant(PlanCode plan) {
