@@ -25,6 +25,39 @@ The `Deploy Dev` workflow:
 The workflow uses GitHub Actions OIDC end to end. It does not depend on a local
 AWS browser session.
 
+## Dev Post-Deploy Verification
+
+The deploy workflow already runs automated smoke checks. For a release
+stabilization pass, also verify from a local shell:
+
+```powershell
+$base = "https://d23c97ytqgl4xu.cloudfront.net"
+Invoke-WebRequest "$base/" -UseBasicParsing | Select-Object StatusCode
+Invoke-RestMethod "$base/api/health"
+Invoke-RestMethod "$base/api/risk/weather-raster" | Select-Object generated_at, expires_at, url
+```
+
+Then open:
+
+- `$base/map?origin=Seattle&destination=Miami%20Beach`
+- `$base/alerts?q=flood`
+- `$base/status`
+
+Expected result:
+
+- web returns HTTP 200;
+- API health returns `healthy`;
+- weather-raster manifest includes `generated_at`, `expires_at`, and `url`;
+- route planning returns alternatives;
+- `/status` shows source health and, after the current workflow change, the
+  deployed `VITE_GIT_SHA`.
+
+Known-good dev deploy before this stabilization pass:
+
+- commit `61a3d97d3cf3b0563a2eb8bfdb9475a27c0cb7e1`
+- GitHub Actions run: https://github.com/signalgap9-del/peachtree-dispatch/actions/runs/28837589265
+- conclusion: success
+
 ## Production Promotion
 
 The `Promote Production` workflow accepts an immutable image URI that already

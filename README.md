@@ -16,6 +16,17 @@ AtmosPath is a climate-aware navigation and route-risk SaaS preview. It combines
 
 ![AtmosPath route comparison](docs/screenshots/map-route-live.png)
 
+## 30-Second Version
+
+| Question | Answer |
+| --- | --- |
+| What did I build? | A weather-aware navigation SaaS preview that compares route alternatives, surfaces official hazards, saves private route watchlists, and explains risk by route segment. |
+| Why is it hard? | It combines map UX, external weather/road-event data, route optimization, saved-user state, auth boundaries, serverless deployment, observability, cost controls, and ML guardrails without pretending unavailable data is live. |
+| What stack does it prove? | React 19, TypeScript, MapLibre, Spring Boot 3.5, Java 21, FastAPI, Pydantic, OR-Tools, scikit-learn workflow, DynamoDB, Cognito/Google OAuth path, Lambda, API Gateway, CloudFront, S3, Terraform, GitHub Actions. |
+| How do I demo it fast? | Open the live preview, plan Seattle to Miami Beach, select the lower-weather-risk route, search `flood` in Alerts, show Saved/Usage auth boundaries, then open Status for deploy/runtime evidence. |
+
+Two-minute interview script: [docs/demo-playbook.md](docs/demo-playbook.md#two-minute-interview-demo).
+
 ## Release Snapshot
 
 | Field | Current value |
@@ -67,13 +78,19 @@ No fake data policy: if live data is unavailable, the UI shows degraded/unavaila
 
 ## Screenshots
 
+These screenshots are captured from the actual app with Playwright, not AI-generated mockups. Regenerate them with `npm run screenshots:release --prefix web` after starting a local preview, or set `SCREENSHOT_BASE_URL` to a deployed URL.
+
 | Home | Dashboard |
 | --- | --- |
 | ![AtmosPath home](docs/screenshots/home-live.png) | ![AtmosPath dashboard](docs/screenshots/dashboard-live.png) |
 
-| Route comparison | Mobile |
+| Route comparison | Operational status |
 | --- | --- |
-| ![AtmosPath live route](docs/screenshots/map-route-live.png) | ![AtmosPath mobile](docs/screenshots/home-mobile-live.png) |
+| ![AtmosPath live route](docs/screenshots/map-route-live.png) | ![AtmosPath status](docs/screenshots/status-live.png) |
+
+| Mobile |
+| --- |
+| ![AtmosPath mobile](docs/screenshots/home-mobile-live.png) |
 
 ## Architecture
 

@@ -83,7 +83,7 @@ jobs:
           DISTRIBUTION=$(terraform -chdir=infra/environments/dev output -raw cloudfront_distribution_id)
           cd web
           npm ci
-          VITE_API_URL="$API_URL" VITE_COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" VITE_COGNITO_DOMAIN="$COGNITO_DOMAIN" VITE_GOOGLE_AUTH_ENABLED="$GOOGLE_AUTH_ENABLED" npm run build
+          VITE_API_URL="$API_URL" VITE_COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" VITE_COGNITO_DOMAIN="$COGNITO_DOMAIN" VITE_GOOGLE_AUTH_ENABLED="$GOOGLE_AUTH_ENABLED" VITE_GIT_SHA="${GITHUB_SHA}" npm run build
           aws s3 sync dist "s3://$BUCKET" --delete
           aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION" --paths "/*"
       - name: Smoke test

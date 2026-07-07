@@ -1,8 +1,8 @@
 # AtmosPath Demo Playbook
 
-Date: 2026-07-06
+Date: 2026-07-07
 
-This playbook is the five-to-ten minute path for showing AtmosPath as a real
+This playbook is the two-to-ten minute path for showing AtmosPath as a real
 portfolio SaaS preview without creating surprise cloud cost.
 
 ## Demo Goal
@@ -14,6 +14,92 @@ Show that the product is more than a static map:
 - it can save and monitor private routes;
 - it has SaaS-style auth, quotas, operational status, and release gates;
 - it has a guarded ML workflow that can affect route cost only after promotion.
+
+## Two-Minute Interview Demo
+
+Use this when the interviewer says "show me what it does."
+
+### 0:00-0:20 - Frame the Product
+
+Open `https://d23c97ytqgl4xu.cloudfront.net/`.
+
+Say:
+
+> AtmosPath is a weather-aware navigation SaaS preview. Instead of optimizing
+> only for fastest route, it compares route alternatives against weather,
+> official alerts, and road-event risk so a driver can choose the lower-risk
+> corridor.
+
+Point at:
+
+- national outlook
+- active hazards
+- highest-risk monitored points
+
+### 0:20-0:55 - Route Risk Comparison
+
+Open `/map?origin=Seattle&destination=Miami%20Beach`.
+
+Show:
+
+- Fastest vs. lower-weather-risk vs. balanced alternatives.
+- Segment risk strip.
+- Risk inspector showing route checkpoints, NWS/weather source status, and
+  selected-route risk score.
+
+Say:
+
+> The route engine keeps the familiar map UX, but adds a risk-adjusted cost
+> model. The backend can also join configured WZDx/511 road events into edge
+> traffic risk for VRP and multi-stop planning.
+
+### 0:55-1:20 - Alert Intelligence
+
+Open `/alerts?q=flood`.
+
+Show:
+
+- live alert search
+- hazard categories
+- route-impact language
+
+Say:
+
+> Alerts are searchable operational objects, not static text. The UI is designed
+> for questions like "what flood warnings affect my route or city?"
+
+### 1:20-1:40 - SaaS Boundary
+
+Open `/saved`, then `/usage`.
+
+Show:
+
+- unauthenticated saved-data boundary, or saved routes if logged in
+- plan/capacity/usage meters
+
+Say:
+
+> Private watchlists sit behind Cognito/JWT. The Spring Boot platform API derives
+> user scope server-side, enforces saved-route quotas, and supports
+> Idempotency-Key so client retries do not duplicate saved routes.
+
+### 1:40-2:00 - Operations Evidence
+
+Open `/status`, then point to the README verification table.
+
+Say:
+
+> I treated this like a small production release: CloudFront/S3/API
+> Gateway/Lambda/DynamoDB through Terraform, GitHub Actions OIDC deploys,
+> runtime status, local stress evidence, rollback docs, and test gates across
+> React, Spring Boot, and FastAPI.
+
+If asked for the GitHub proof, show:
+
+- `README.md` 30-second version
+- `docs/architecture/`
+- `docs/ops/cloud-load-test-strategy.md`
+- latest GitHub Actions Deploy Dev run
 
 ## Local Demo
 
@@ -98,6 +184,27 @@ Show these pages:
    route impact term.
 5. Saved: private saved routes and saved places after login.
 6. Status: source health, frontend runtime telemetry, and performance snapshot.
+
+## Post-Deploy Smoke Check
+
+After a `main` deploy, verify:
+
+```powershell
+$base = "https://d23c97ytqgl4xu.cloudfront.net"
+Invoke-RestMethod "$base/api/health"
+Invoke-RestMethod "$base/api/risk/weather-raster" | Select-Object generated_at, expires_at, url
+Invoke-WebRequest "$base/" -UseBasicParsing | Select-Object StatusCode
+```
+
+Then open `/status`. When the deploy workflow has set `VITE_GIT_SHA`, the Build
+mode row should show the deployed commit SHA.
+
+Known-good dev deploy before this stabilization pass:
+
+- SHA: `61a3d97d3cf3b0563a2eb8bfdb9475a27c0cb7e1`
+- Workflow: `Deploy Dev`
+- Status: success
+- Run: https://github.com/signalgap9-del/peachtree-dispatch/actions/runs/28837589265
 
 ## Security Demo Talking Points
 
