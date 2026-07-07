@@ -683,7 +683,7 @@ export function PlaceDetailPage({ navigate, slug, weatherRaster }: { navigate: N
         <div><h1>{place.city}, {place.state}</h1><span>{risk ? `Updated ${formatTime(risk.generated_at)}` : loading ? "Loading live risk..." : "Live risk unavailable"}</span></div>
         <Metric label="Composite risk" value={risk ? `${risk.score}` : "--"} meta={risk?.level ?? "No live value"} tone={risk ? riskLevel(risk.score) : "low"} />
         <Metric label="Temperature" value={risk ? `${Math.round(risk.weather.temperature_f)}°F` : "--"} meta={risk?.weather.source ?? "Awaiting provider"} tone="low" />
-        <Metric label="Wind" value={risk ? `${Math.round(risk.weather.wind_speed_mph)} mph` : "--"} meta={risk ? `${Math.round(risk.weather.precipitation_probability)}% precipitation` : "No live value"} tone="moderate" />
+        <Metric label="Surface" value={risk ? surfaceConditionLabel(risk.weather) : "--"} meta={risk ? windLabel(risk.weather) : "No live value"} tone="moderate" />
         <div className="place-actions"><button className="button primary" onClick={() => navigate("/directions")}>Plan a route</button><button className="button secondary" onClick={() => savePlace(place, risk?.score)}><Bookmark size={15} /> Save place</button></div>
       </section>
       {!risk && <DataNotice status={loading ? "loading" : "degraded"} hasData={false} />}
@@ -697,7 +697,7 @@ export function PlaceDetailPage({ navigate, slug, weatherRaster }: { navigate: N
       </section>
       <section className="place-bottom">
         <div className="surface active-place-alerts"><SectionHeader title="Active alerts" action="View all alerts" onAction={() => navigate("/alerts")} />{risk?.alerts.map((alert) => <button key={alert.alert_id} onClick={() => navigate("/alerts")}><AlertTriangle size={16} /><span>{alert.event}</span><small>{alert.area}</small><ChevronRight size={15} /></button>)}{risk && !risk.alerts.length && <EmptyState title="No active alerts" detail="No NWS alerts intersect this place." />}</div>
-        <div className="surface live-context"><strong>Live conditions</strong>{risk ? <><span><CloudRain /> {Math.round(risk.weather.temperature_f)}°F</span><span><Droplets /> {Math.round(risk.weather.precipitation_probability)}% rain</span><span><Wind /> {Math.round(risk.weather.wind_speed_mph)} mph</span></> : <span>Unavailable</span>}</div>
+        <div className="surface live-context"><strong>Live conditions</strong>{risk ? <><span><CloudRain /> {Math.round(risk.weather.temperature_f)}°F</span><span><Droplets /> {surfaceConditionLabel(risk.weather)}</span><span><Wind /> {windLabel(risk.weather)}</span></> : <span>Unavailable</span>}</div>
       </section>
     </main>
   );
@@ -1009,26 +1009,35 @@ function weatherSummary(point: WeatherRisk) {
 }
 
 function conditionLabel(point: WeatherRisk) {
-  if (point.precipitation_probability >= 80) return "Rain likely";
-  if (point.precipitation_probability >= 55) return "Rain possible";
-  if (point.precipitation_probability >= 25) return "Some moisture signal";
-  return "No rain signal";
+  if (point.risk_score >= 80 && point.precipitation_probability >= 70) return "Storm/flood risk";
+  if (point.precipitation_probability >= 80) return "Wet pavement likely";
+  if (point.precipitation_probability >= 55) return "Wet pavement possible";
+  if (point.precipitation_probability >= 25) return "Moisture signal";
+  return "Dry road signal";
 }
 
 function roadImpactLabel(point: WeatherRisk) {
   if (point.risk_score >= 80) return "Avoid if possible";
-  if (point.precipitation_probability >= 80 || point.wind_speed_mph >= 25) return "High caution";
+  if (point.precipitation_probability >= 80 || point.wind_speed_mph >= 25) return "Reroute if flexible";
   if (point.precipitation_probability >= 55 || point.wind_speed_mph >= 18) return "Slow down";
   if (blackIceScore(point) >= 25) return "Ice watch";
   return "Normal caution";
 }
 
+function surfaceConditionLabel(point: WeatherRisk) {
+  if (blackIceScore(point) >= 25) return "Icy surface risk";
+  if (point.precipitation_probability >= 80) return "Wet surface likely";
+  if (point.precipitation_probability >= 55) return "Wet surface possible";
+  if (point.precipitation_probability >= 25) return "Patchy moisture";
+  return "Mostly dry";
+}
+
 function windLabel(point: WeatherRisk) {
   const wind = Math.round(point.wind_speed_mph);
-  if (wind >= 30) return `${wind} mph high wind`;
-  if (wind >= 20) return `${wind} mph gusty`;
-  if (wind >= 12) return `${wind} mph breeze`;
-  return `${wind} mph light`;
+  if (wind >= 30) return `${wind} mph crosswind risk`;
+  if (wind >= 20) return `${wind} mph gust caution`;
+  if (wind >= 12) return `${wind} mph steady wind`;
+  return `${wind} mph light wind`;
 }
 
 function formatDistance(miles: number) {

@@ -23,7 +23,7 @@ import { RouteSegmentRiskStrip } from "./components/RouteSegmentRiskStrip";
 import { NetworkMap } from "./NetworkMap";
 import { deriveRouteDecision } from "./routeDecision";
 import { deriveRouteRiskSegments } from "./routeSegments";
-import type { DirectionsPlan, LocationRisk, NationalRiskOverview, NationalWeatherSnapshot, Place, RouteAlternative, VehicleType, WeatherRasterManifest } from "./types";
+import type { DirectionsPlan, LocationRisk, NationalRiskOverview, NationalWeatherSnapshot, Place, RouteAlternative, VehicleType, WeatherRasterManifest, WeatherRisk } from "./types";
 import { notify } from "./ui";
 
 type Field = "origin" | "destination";
@@ -309,7 +309,7 @@ function RiskInspector({ national, selected, plan, route, selectedAlternative, s
     <aside className="risk-dashboard">
       <div className="risk-dashboard-head"><div><span>{plan ? "Selected route" : "Live U.S. risk"}</span><h2>{plan ? selectedAlternativeLabel(selectedAlternative) : selected ? selected.place.city : "National outlook"}</h2></div><ShieldAlert size={20} /></div>
       <div className={`risk-score ${riskClass(plan ? riskClassFromScore(plan.risk_score) : selected?.level ?? national?.level)}`}><strong>{plan?.risk_score ?? selected?.score ?? national?.score ?? "–"}</strong><div><span>{plan ? "Route risk" : selected?.level ?? national?.level ?? "Loading"}</span><small>{plan ? `${plan.weather.filter((sample) => sample.data_status !== "UNAVAILABLE").length}/${plan.weather.length} route checkpoints live` : selected?.summary ?? `${national?.active_alerts ?? 0} active NWS alerts`}</small></div></div>
-      {plan && <div className="inspector-route"><strong>Risk by route checkpoint</strong><p>Live provider checkpoints used by model {route?.model_version ?? plan.model_version ?? "route-risk"}.</p>{sampledWeather(plan).map((sample) => <div key={sample.id}><i className={sample.data_status === "UNAVAILABLE" ? "high" : riskClassFromScore(sample.risk_score)} /><span><strong>{sample.city}</strong><small>{sample.data_status === "UNAVAILABLE" ? "Weather provider unavailable" : `${Math.round(sample.precipitation_probability)}% precipitation / ${Math.round(sample.wind_speed_mph)} mph wind`}</small></span><em>{sample.data_status === "UNAVAILABLE" ? "N/A" : sample.risk_score}</em></div>)}</div>}
+      {plan && <div className="inspector-route"><strong>Risk by route checkpoint</strong><p>Live provider checkpoints used by model {route?.model_version ?? plan.model_version ?? "route-risk"}.</p>{sampledWeather(plan).map((sample) => <div key={sample.id}><i className={sample.data_status === "UNAVAILABLE" ? "high" : riskClassFromScore(sample.risk_score)} /><span><strong>{sample.city}</strong><small>{sample.data_status === "UNAVAILABLE" ? "Weather provider unavailable" : checkpointCondition(sample)}</small></span><em>{sample.data_status === "UNAVAILABLE" ? "N/A" : sample.risk_score}</em></div>)}</div>}
       {!plan && <div className="national-stats"><div><strong>{national?.active_alerts ?? "–"}</strong><span>Active alerts</span></div><div><strong>{national?.severe_alerts ?? "–"}</strong><span>Severe</span></div><div><strong>{national?.alerts_with_geometry ?? "–"}</strong><span>Mapped</span></div></div>}
       {selected && <div className="factor-grid"><RiskFactor label="Flood" value={selected.factors.flood} icon={<CloudRain size={14} />} /><RiskFactor label="Rain" value={selected.factors.precipitation} icon={<CloudRain size={14} />} /><RiskFactor label="Wind" value={selected.factors.wind} icon={<Navigation size={14} />} /><RiskFactor label="Heat" value={selected.factors.heat} icon={<Flame size={14} />} /></div>}
       <div className="inspector-actions"><button className={showWeather ? "active" : ""} onClick={() => setShowWeather(!showWeather)}>Weather layer</button><button onClick={() => navigate("/alerts")}>View alerts</button></div>
@@ -340,6 +340,14 @@ function riskClassFromScore(score: number) {
   if (score >= 55) return "high";
   if (score >= 30) return "moderate";
   return "low";
+}
+
+function checkpointCondition(sample: WeatherRisk) {
+  const precipitation = Math.round(sample.precipitation_probability);
+  const wind = Math.round(sample.wind_speed_mph);
+  const surface = precipitation >= 80 ? "Wet surface likely" : precipitation >= 55 ? "Wet surface possible" : precipitation >= 25 ? "Patchy moisture" : "Mostly dry";
+  const windNote = wind >= 30 ? "crosswind risk" : wind >= 20 ? "gust caution" : "steady wind";
+  return `${surface} / ${wind} mph ${windNote}`;
 }
 
 function selectedAlternativeLabel(alternative: Alternative) {
