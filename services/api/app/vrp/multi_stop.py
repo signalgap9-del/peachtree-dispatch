@@ -4,7 +4,7 @@ import itertools
 import os
 
 from .cost_model import build_risk_adjusted_matrix, edge_cost_lookup
-from .edge_risk import EdgeRiskProvider, RuleBasedEdgeRiskProvider
+from .edge_risk import EdgeRiskProvider, build_default_edge_risk_provider
 from .geometry import FallbackRouteGeometryProvider, OsrmRouteGeometryProvider, ResilientRouteGeometryProvider, RouteGeometryProvider
 from .matrix import RoutingMatrixProvider, build_default_matrix_provider
 from .ml.shadow_cost_model import ShadowCostModel, load_shadow_cost_model_from_env
@@ -70,7 +70,7 @@ class MultiStopRouteService:
             source_status={
                 "routing_matrix": matrix.source_status,
                 "route_geometry": route_geometry_status,
-                "edge_risk": "RULE_BASED",
+                "edge_risk": getattr(self.edge_risk_provider, "source_status", "RULE_BASED"),
                 "traffic": "UNAVAILABLE",
                 "ml_cost_model": self._ml_cost_model_status(request),
             },
@@ -176,7 +176,7 @@ def build_default_multi_stop_service() -> MultiStopRouteService:
     timeout_seconds = float(os.environ.get("OSRM_TIMEOUT_SECONDS", "12"))
     return MultiStopRouteService(
         matrix_provider=build_default_matrix_provider(),
-        edge_risk_provider=RuleBasedEdgeRiskProvider(),
+        edge_risk_provider=build_default_edge_risk_provider(),
         geometry_provider=ResilientRouteGeometryProvider(
             primary=OsrmRouteGeometryProvider(base_url=osrm_base_url, timeout_seconds=timeout_seconds),
             fallback=FallbackRouteGeometryProvider(),

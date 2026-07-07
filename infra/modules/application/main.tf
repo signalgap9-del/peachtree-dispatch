@@ -766,6 +766,7 @@ resource "aws_lambda_function" "api" {
       DYNAMODB_TABLE               = aws_dynamodb_table.operational.name
       SAVED_PLACE_STORE            = "dynamodb"
       USAGE_STORE                  = "dynamodb"
+      IDEMPOTENCY_STORE            = "dynamodb"
       OPTIMIZATION_QUEUE_URL       = aws_sqs_queue.optimization.url
       ENVIRONMENT                  = var.environment
       CORS_ORIGINS                 = "https://invalid.local"

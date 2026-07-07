@@ -18,6 +18,8 @@ class RuleBasedEdgeRiskProvider:
     behind this same interface.
     """
 
+    source_status = "RULE_BASED"
+
     def score_edge(self, origin: GeoNode, destination: GeoNode) -> EdgeRisk:
         midpoint_lat = (origin.latitude + destination.latitude) / 2
         midpoint_lon = (origin.longitude + destination.longitude) / 2
@@ -42,6 +44,7 @@ class RuleBasedEdgeRiskProvider:
 class ConstantEdgeRiskProvider:
     def __init__(self, risk_score: int = 0):
         self.risk_score = risk_score
+        self.source_status = "CONSTANT_FIXTURE"
 
     def score_edge(self, origin: GeoNode, destination: GeoNode) -> EdgeRisk:
         return EdgeRisk(
@@ -50,3 +53,9 @@ class ConstantEdgeRiskProvider:
             source_coverage=1.0,
             explanation=[f"constant fixture risk {self.risk_score}"],
         )
+
+
+def build_default_edge_risk_provider() -> EdgeRiskProvider:
+    from .road_event_risk import build_default_road_event_edge_risk_provider
+
+    return build_default_road_event_edge_risk_provider(RuleBasedEdgeRiskProvider())

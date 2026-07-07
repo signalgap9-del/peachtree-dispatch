@@ -53,7 +53,7 @@ def handler(event: dict, context: object) -> dict:
         examples = [SavedRouteTrainingExamplePayload.model_validate(item) for item in body.get("examples", [])]
         config = DelayModelTrainingConfig.model_validate(body.get("config", {}))
         result = train_delay_model(saved_route_examples_to_delay_dataset(examples), config)
-    elif method == "GET" and path == "/network":
+    elif method == "GET" and path in {"/network", "/legacy/dispatch/network"}:
         # The public weather and routing API must not import the legacy
         # multi-stop optimizer or initialize its persistence layer at startup.
         from .network import build_network

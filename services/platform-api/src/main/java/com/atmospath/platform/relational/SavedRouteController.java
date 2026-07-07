@@ -1,11 +1,13 @@
 package com.atmospath.platform.relational;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
 import com.atmospath.platform.account.EntitlementService;
 import com.atmospath.platform.account.TenantAuthorizationService;
 import com.atmospath.platform.account.TenantContextResolver;
+import com.atmospath.platform.idempotency.IdempotencyService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
@@ -26,6 +28,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,20 +37,26 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/me/saved/routes")
 @ConditionalOnProperty(name = "atmospath.auth.enabled", havingValue = "true")
 public class SavedRouteController {
+    private static final String CREATE_OPERATION = "saved-route:create";
+    private static final String REFRESH_OPERATION_PREFIX = "saved-route:refresh:";
+
     private final SavedPlaceRepository repository;
     private final TenantContextResolver tenantContextResolver;
     private final EntitlementService entitlements;
     private final TenantAuthorizationService tenantAuthorization;
+    private final IdempotencyService idempotencyService;
 
     public SavedRouteController(
             SavedPlaceRepository repository,
             TenantContextResolver tenantContextResolver,
             EntitlementService entitlements,
-            TenantAuthorizationService tenantAuthorization) {
+            TenantAuthorizationService tenantAuthorization,
+            IdempotencyService idempotencyService) {
         this.repository = repository;
         this.tenantContextResolver = tenantContextResolver;
         this.entitlements = entitlements;
         this.tenantAuthorization = tenantAuthorization;
+        this.idempotencyService = idempotencyService;
     }
 
     @GetMapping
@@ -62,9 +71,15 @@ public class SavedRouteController {
     SavedRoute create(
             @AuthenticationPrincipal Jwt jwt,
             HttpServletRequest servletRequest,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody CreateSavedRoute request) {
         var context = tenantContextResolver.resolve(jwt, servletRequest);
         tenantAuthorization.requireSavedAssetAccess(context);
+        var existingResourceId = idempotencyService.findExistingResource(context, CREATE_OPERATION, idempotencyKey);
+        if (existingResourceId.isPresent()) {
+            return repository.findRoute(context.userId(), existingResourceId.get())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Idempotent saved route is not available."));
+        }
         entitlements.requireSavedRouteCapacity(context, repository.findRoutes(context.userId()).size());
         var route = new SavedRoute(
                 UUID.randomUUID(),
@@ -87,6 +102,7 @@ public class SavedRouteController {
                 "STABLE");
         repository.saveRoute(route);
         repository.recordRouteRiskObservation(RouteRiskObservation.fromRoute(route, "SAVED_ROUTE_CREATED"));
+        idempotencyService.recordResource(context, CREATE_OPERATION, idempotencyKey, route.savedItemId());
         return route;
     }
 
@@ -129,13 +145,50 @@ public class SavedRouteController {
     @GetMapping("/{savedItemId}/current-risk")
     SavedRouteRisk currentRisk(@AuthenticationPrincipal Jwt jwt, HttpServletRequest servletRequest, @PathVariable UUID savedItemId) {
         var route = findOwnedRoute(jwt, servletRequest, savedItemId);
-        return new SavedRouteRisk(
+        return toRisk(route);
+    }
+
+    @PostMapping("/{savedItemId}/risk-refresh")
+    SavedRouteRisk refreshRisk(
+            @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest servletRequest,
+            @PathVariable UUID savedItemId,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        var context = tenantContextResolver.resolve(jwt, servletRequest);
+        tenantAuthorization.requireSavedAssetAccess(context);
+        var operation = REFRESH_OPERATION_PREFIX + savedItemId;
+        var existingRefresh = idempotencyService.findExistingResource(context, operation, idempotencyKey);
+        var route = repository.findRoute(context.userId(), savedItemId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Saved route not found"));
+        if (existingRefresh.isPresent()) {
+            if (!existingRefresh.get().equals(savedItemId)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Idempotent saved route refresh conflicts with another route.");
+            }
+            return toRisk(route);
+        }
+        var refreshed = new SavedRoute(
                 route.savedItemId(),
+                route.userId(),
+                route.name(),
+                route.originName(),
+                route.destinationName(),
+                route.vehicleType(),
+                route.distanceMiles(),
+                route.durationMinutes(),
+                route.climateDelayMinutes(),
                 route.riskScore(),
-                route.riskScore() >= route.riskThreshold(),
-                route.lastCheckedAt(),
+                route.coordinates(),
+                route.generatedAt(),
+                route.usualDepartureTime(),
+                route.riskThreshold(),
+                route.monitorEnabled(),
+                Instant.now().toString(),
                 route.activeHazards(),
                 route.riskTrend());
+        repository.saveRoute(refreshed);
+        repository.recordRouteRiskObservation(RouteRiskObservation.fromRoute(refreshed, "SAVED_ROUTE_MONITOR_REFRESH"));
+        idempotencyService.recordResource(context, operation, idempotencyKey, refreshed.savedItemId());
+        return toRisk(refreshed);
     }
 
     @GetMapping("/{savedItemId}/risk-history")
@@ -175,6 +228,16 @@ public class SavedRouteController {
         tenantAuthorization.requireSavedAssetAccess(context);
         return repository.findRoute(context.userId(), savedItemId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Saved route not found"));
+    }
+
+    private static SavedRouteRisk toRisk(SavedRoute route) {
+        return new SavedRouteRisk(
+                route.savedItemId(),
+                route.riskScore(),
+                route.riskScore() >= route.riskThreshold(),
+                route.lastCheckedAt(),
+                route.activeHazards(),
+                route.riskTrend());
     }
 
     record CreateSavedRoute(

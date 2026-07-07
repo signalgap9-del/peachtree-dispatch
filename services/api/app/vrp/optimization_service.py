@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 
 from .cost_model import build_risk_adjusted_matrix
-from .edge_risk import EdgeRiskProvider, RuleBasedEdgeRiskProvider
+from .edge_risk import EdgeRiskProvider, build_default_edge_risk_provider
 from .matrix import RoutingMatrixProvider, build_default_matrix_provider
 from .ml.shadow_cost_model import ShadowCostModel, load_shadow_cost_model_from_env
 from .models import VRPScenario, VRPSolution, scenario_to_nodes
@@ -42,7 +42,7 @@ class VRPOptimizationService:
         solution.source_status.update(
             {
                 "routing_matrix": matrix.source_status,
-                "edge_risk": "RULE_BASED",
+                "edge_risk": getattr(self.edge_risk_provider, "source_status", "RULE_BASED"),
                 "ml_cost_model": self._ml_cost_model_status(scenario),
             }
         )
@@ -60,7 +60,7 @@ class VRPOptimizationService:
 def build_default_vrp_service() -> VRPOptimizationService:
     return VRPOptimizationService(
         matrix_provider=build_default_matrix_provider(),
-        edge_risk_provider=RuleBasedEdgeRiskProvider(),
+        edge_risk_provider=build_default_edge_risk_provider(),
         solvers={"ortools": ORToolsVRPSolver(time_limit_seconds=int(os.environ.get("VRP_SOLVER_TIME_LIMIT_SECONDS", "5")))},
         shadow_cost_model=load_shadow_cost_model_from_env(),
     )

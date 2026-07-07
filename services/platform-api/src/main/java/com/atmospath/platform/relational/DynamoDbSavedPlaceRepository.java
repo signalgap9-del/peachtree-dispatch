@@ -136,6 +136,21 @@ public class DynamoDbSavedPlaceRepository implements SavedPlaceRepository {
     }
 
     @Override
+    public Optional<SavedPlace> findPlace(UUID userId, UUID savedItemId) {
+        var response = client.getItem(GetItemRequest.builder()
+                .tableName(tableName)
+                .key(Map.of(
+                        "PK", string(userKey(userId)),
+                        "SK", string(SAVED_PLACE_PREFIX + savedItemId)))
+                .consistentRead(true)
+                .build());
+        if (!response.hasItem()) {
+            return Optional.empty();
+        }
+        return Optional.of(toSavedPlace(response.item()));
+    }
+
+    @Override
     public List<SavedRoute> findRoutes(UUID userId) {
         var response = client.query(QueryRequest.builder()
                 .tableName(tableName)

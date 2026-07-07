@@ -167,6 +167,29 @@ class DynamoDbSavedPlaceRepositoryTests {
     }
 
     @Test
+    void readsSingleSavedPlaceByOwnedCompositeKey() {
+        var savedItemId = UUID.randomUUID();
+        var userId = UUID.randomUUID();
+        var item = new HashMap<String, AttributeValue>();
+        item.put("savedItemId", string(savedItemId.toString()));
+        item.put("userId", string(userId.toString()));
+        item.put("name", string("Miami Beach"));
+        item.put("longitude", number("-80.13"));
+        item.put("latitude", number("25.7907"));
+        item.put("currentRiskScore", number("37"));
+        when(client.getItem(any(GetItemRequest.class))).thenReturn(GetItemResponse.builder().item(item).build());
+
+        assertThat(repository.findPlace(userId, savedItemId))
+                .contains(new SavedPlace(savedItemId, userId, "Miami Beach", -80.13, 25.7907, 37));
+
+        var captor = ArgumentCaptor.forClass(GetItemRequest.class);
+        verify(client).getItem(captor.capture());
+        assertThat(captor.getValue().consistentRead()).isTrue();
+        assertThat(captor.getValue().key().get("PK").s()).isEqualTo("USER#" + userId);
+        assertThat(captor.getValue().key().get("SK").s()).isEqualTo("SAVED_PLACE#" + savedItemId);
+    }
+
+    @Test
     void writesRouteRiskObservationUsingOwnedRoutePrefix() {
         var observation = routeRiskObservation();
 

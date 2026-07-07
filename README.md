@@ -4,7 +4,7 @@ AtmosPath is a climate-aware navigation and route-risk SaaS preview. It combines
 
 - Live preview: https://d23c97ytqgl4xu.cloudfront.net/
 - API health: https://d23c97ytqgl4xu.cloudfront.net/api/health
-- Current release: `v0.1.0-preview` / Phase 1 production hardening
+- Current release: `v0.1.0-preview` / Phase 2 SaaS hardening
 - Release notes: [CHANGELOG.md](CHANGELOG.md)
 - Architecture notes: [docs/architecture.md](docs/architecture.md)
 - Demo playbook: [docs/demo-playbook.md](docs/demo-playbook.md)
@@ -12,7 +12,7 @@ AtmosPath is a climate-aware navigation and route-risk SaaS preview. It combines
 - Research/security basis: [docs/architecture/research-and-security-basis.md](docs/architecture/research-and-security-basis.md)
 - SaaS hardening checklist: [docs/saas-production-hardening-checklist.md](docs/saas-production-hardening-checklist.md)
 - ADRs: [docs/adr/](docs/adr/)
-- Codebase size: about 23.4k source/test/IaC/config LOC; about 26.5k tracked text LOC including docs, excluding lockfiles and generated build output.
+- Codebase size: about 19.6k source/test/IaC/config LOC; about 23.9k tracked text LOC including docs, excluding lockfiles and generated build output.
 
 ![AtmosPath route comparison](docs/screenshots/map-route-live.png)
 
@@ -21,7 +21,7 @@ AtmosPath is a climate-aware navigation and route-risk SaaS preview. It combines
 | Field | Current value |
 | --- | --- |
 | Release | `v0.1.0-preview` |
-| Date | July 6, 2026 |
+| Date | July 7, 2026 |
 | Status | Portfolio beta / production-shaped preview |
 | Primary goal | Weather-aware route comparison with saved-route monitoring and SaaS-style operational controls |
 | Deployment model | Serverless-first AWS preview: CloudFront, private S3, API Gateway, Lambda, Cognito, DynamoDB |
@@ -35,14 +35,14 @@ AtmosPath is a climate-aware navigation and route-risk SaaS preview. It combines
 | --- | --- | --- |
 | Route planning | Search U.S. places, compare fastest/lower-weather-risk/balanced alternatives, explain segment-level risk, reopen shareable directions URLs | `/map`, `/directions`, `POST /directions` |
 | Risk intelligence | Show national weather risk, location risk, weather snapshot/raster artifacts, official alert categories, and route impact context | `/dashboard`, `/alerts`, `GET /risk/national`, `POST /risk/location` |
-| Saved routes | Save private routes, edit name/departure/risk threshold/monitor flag, view current risk and risk history, delete owned routes | `/saved`, `/me/saved/routes`, `/me/saved/routes/{id}/current-risk`, `/me/saved/routes/{id}/risk-history` |
+| Saved routes | Save private routes, edit name/departure/risk threshold/monitor flag, manually refresh monitored risk, view current risk and risk history, delete owned routes | `/saved`, `/me/saved/routes`, `/me/saved/routes/{id}/current-risk`, `/me/saved/routes/{id}/risk-history`, `POST /me/saved/routes/{id}/risk-refresh` |
 | Saved places | Save private places, inspect place risk, and enforce owner-scoped reads/writes/deletes | `/saved`, `/locations/{slug}`, `/me/saved/places` |
-| Road events | Discover WZDx roadwork/closure feed registries by state as the foundation for future road-event joins | `GET /road-events/feeds` |
+| Road events | Discover WZDx roadwork/closure feed registries by state and optionally join configured WZDx/511 GeoJSON events into VRP edge risk | `GET /road-events/feeds`, `VRP_ROAD_EVENT_FEED_URLS` |
 | Account controls | Expose plan, quota, capacity, readiness signals, daily metered usage, and structured quota errors without enabling paid billing | `/usage`, `/pricing`, `GET /me/account` |
 | VRP foundation | Support multi-stop route planning, route optimization contracts, OR-Tools-backed solver foundation, and risk-weighted edge costs | `POST /routes/multi-stop`, `POST /routes/multi-stop/optimize`, `POST /vrp/solve` |
 | ML workflow | Convert saved-route observations into delay examples, backtest a delay model, load a safe JSON artifact, record shadow predictions, optionally apply promoted ML delay to VRP/multi-stop solver costs behind guardrails, and run a local served-cost demo | `GET /ml/vrp/workflow/status`, `POST /ml/vrp/delay-model/backtest`, `POST /ml/vrp/delay-model/predict`, `scripts/run_vrp_served_cost_demo.py` |
 | Operations | Show frontend runtime health, bundle budgets, local API stress evidence, release gates, runbooks, rollback docs, and cloud load-test strategy | `/status`, `perf/local_api_stress.py`, `docs/ops/`, `docs/runbooks/` |
-| Security | Cognito JWT path, owner-scoped DynamoDB keys, conditional writes/deletes, request IDs, security headers, origin verification, optional PostGIS RLS migration | Spring Platform API, Terraform, `V002__tenant_rls_policies.sql` |
+| Security | Cognito JWT path, owner-scoped DynamoDB keys, idempotent mutation keys, conditional writes/deletes, request IDs, security headers, origin verification, optional PostGIS RLS migration | Spring Platform API, Terraform, `V002__tenant_rls_policies.sql` |
 
 ## Product
 
@@ -88,7 +88,7 @@ flowchart LR
   Spring --> Risk["FastAPI Risk Engine<br/>routing, weather, alerts, VRP foundation"]
   Risk --> NWS["NWS alerts"]
   Risk --> NOAA["NOAA/Open weather signals"]
-  Risk --> WZDX["USDOT WZDx feed registry"]
+  Risk --> WZDX["USDOT WZDx / 511<br/>feed registry + optional GeoJSON edge events"]
   Risk --> S3Data["S3 weather snapshots / raster artifacts"]
 ```
 
@@ -97,7 +97,7 @@ flowchart LR
 1. React/Vite is served from private S3 through CloudFront.
 2. CloudFront forwards `/api/*` to API Gateway.
 3. Spring Boot Platform API enforces JWT authentication for `/me/**`, derives tenant context, applies plan/usage limits, and stores saved user data.
-4. Python FastAPI Risk Engine performs place search, route planning, location risk scoring, national alert summaries, WZDx feed discovery, and VRP foundation workflows.
+4. Python FastAPI Risk Engine performs place search, route planning, location risk scoring, national alert summaries, WZDx feed discovery, optional road-event edge-risk joins, and VRP foundation workflows.
 5. Cached risk-engine reads reduce repeated provider calls and lower cloud cost.
 6. DynamoDB remains the low-cost operational store; PostgreSQL/PostGIS is documented as the expansion path for spatial joins and analytics.
 
@@ -121,6 +121,7 @@ Implemented account features:
 - `GET /api/v1/me/account`
 - Daily quota counters for route planning, place search, location risk, and alert search.
 - Saved route and saved place capacity checks.
+- `Idempotency-Key` support for saved route/place create and saved-route risk refresh retries.
 - Structured API error envelope with `code`, `message`, `requestId`, and quota details.
 - Request ID propagation through `X-Request-Id`.
 - Usage and pricing pages in the web app.
@@ -139,6 +140,7 @@ Implemented hardening:
 - Request correlation via `X-Request-Id`.
 - API security headers: CSP, frame deny, referrer policy.
 - DynamoDB writes use user-scoped partition keys and conditional owner checks.
+- Mutation idempotency stores tenant-scoped hashed keys in DynamoDB in AWS deployments, avoiding raw retry-key persistence.
 - SaaS usage counters use tenant-scoped DynamoDB atomic counters in AWS deployments.
 - Optional PostGIS schema includes owner-based RLS policies and runtime `app.user_id` context execution.
 - External provider calls use an outbound allowlist, HTTPS enforcement, redirect blocking, and default rejection of cloud metadata, localhost, and private-network targets.
@@ -159,6 +161,7 @@ Current and planned data layers:
 - Weather snapshot points for city/corridor monitoring.
 - Weather raster artifact path for national heatmap overlays.
 - USDOT WZDx feed registry discovery for roadwork/closure data.
+- Configurable WZDx/511 GeoJSON road-event joins for VRP edge risk through `VRP_ROAD_EVENT_FEED_URLS`.
 - Route geometry and risk-adjusted route alternatives.
 - Winter road-risk/black-ice heuristic using temperature, moisture, and wind.
 
@@ -183,12 +186,12 @@ Deferred but tracked:
 
 ## Verification Evidence
 
-Last local verification: July 6, 2026.
+Last local verification: July 7, 2026.
 
 | Layer | Command | Result |
 | --- | --- | --- |
-| Spring Platform API | `powershell -ExecutionPolicy Bypass -File ..\..\scripts\mvn.ps1 --batch-mode test` | 27 passed |
-| Python Risk Engine | `cd services/api; python -m pytest tests -q` | 73 passed, 4 warnings |
+| Spring Platform API | `powershell -ExecutionPolicy Bypass -File ..\..\scripts\mvn.ps1 --batch-mode test` | 45 passed |
+| Python Risk Engine | `cd services/api; python -m pytest -q` | 78 passed, 4 warnings |
 | ML served-cost demo | `cd services/api; python scripts/run_vrp_served_cost_demo.py --artifact-dir ..\..\tmp\demo-vrp-ml --model-version demo-served-delay-v1` | passed; feasible route, no dropped jobs, promoted ML edge delay explained |
 | Frontend lint | `npm run lint --prefix web` | passed |
 | Frontend build | `npm run build --prefix web` | passed |

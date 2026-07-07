@@ -6,6 +6,7 @@ import java.util.UUID;
 import com.atmospath.platform.account.EntitlementService;
 import com.atmospath.platform.account.TenantAuthorizationService;
 import com.atmospath.platform.account.TenantContextResolver;
+import com.atmospath.platform.idempotency.IdempotencyService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
@@ -23,28 +24,35 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/v1/me/saved/places")
 @ConditionalOnProperty(name = "atmospath.auth.enabled", havingValue = "true")
 public class SavedPlaceController {
+    private static final String CREATE_OPERATION = "saved-place:create";
+
     private final SavedPlaceRepository repository;
     private final TenantContextResolver tenantContextResolver;
     private final EntitlementService entitlements;
     private final TenantAuthorizationService tenantAuthorization;
+    private final IdempotencyService idempotencyService;
 
     public SavedPlaceController(
             SavedPlaceRepository repository,
             TenantContextResolver tenantContextResolver,
             EntitlementService entitlements,
-            TenantAuthorizationService tenantAuthorization) {
+            TenantAuthorizationService tenantAuthorization,
+            IdempotencyService idempotencyService) {
         this.repository = repository;
         this.tenantContextResolver = tenantContextResolver;
         this.entitlements = entitlements;
         this.tenantAuthorization = tenantAuthorization;
+        this.idempotencyService = idempotencyService;
     }
 
     @GetMapping
@@ -59,9 +67,15 @@ public class SavedPlaceController {
     SavedPlace create(
             @AuthenticationPrincipal Jwt jwt,
             HttpServletRequest servletRequest,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody CreateSavedPlace request) {
         var context = tenantContextResolver.resolve(jwt, servletRequest);
         tenantAuthorization.requireSavedAssetAccess(context);
+        var existingResourceId = idempotencyService.findExistingResource(context, CREATE_OPERATION, idempotencyKey);
+        if (existingResourceId.isPresent()) {
+            return repository.findPlace(context.userId(), existingResourceId.get())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Idempotent saved place is not available."));
+        }
         entitlements.requireSavedPlaceCapacity(context, repository.findAll(context.userId()).size());
         var place = new SavedPlace(
                 UUID.randomUUID(),
@@ -71,6 +85,7 @@ public class SavedPlaceController {
                 request.latitude(),
                 request.currentRiskScore());
         repository.save(place);
+        idempotencyService.recordResource(context, CREATE_OPERATION, idempotencyKey, place.savedItemId());
         return place;
     }
 

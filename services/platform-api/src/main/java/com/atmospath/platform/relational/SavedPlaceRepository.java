@@ -15,6 +15,12 @@ public interface SavedPlaceRepository {
 
     List<SavedRoute> findRoutes(UUID userId);
 
+    default Optional<SavedPlace> findPlace(UUID userId, UUID savedItemId) {
+        return findAll(userId).stream()
+                .filter(place -> place.savedItemId().equals(savedItemId))
+                .findFirst();
+    }
+
     default Optional<SavedRoute> findRoute(UUID userId, UUID savedItemId) {
         return findRoutes(userId).stream()
                 .filter(route -> route.savedItemId().equals(savedItemId))

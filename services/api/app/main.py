@@ -66,6 +66,7 @@ _CACHE_MAX_ITEMS = int(os.getenv("RISK_ENGINE_CACHE_MAX_ITEMS", "128"))
 _cache_lock = Lock()
 _response_cache: OrderedDict[str, tuple[float, object]] = OrderedDict()
 _key_locks: dict[str, Lock] = {}
+LEGACY_DISPATCH_LINK = '</legacy/dispatch>; rel="successor-version"'
 
 
 @app.get("/health")
@@ -74,7 +75,17 @@ def health() -> dict[str, str]:
 
 
 @app.get("/dashboard", response_model=DashboardSummary)
-def dashboard() -> DashboardSummary:
+def dashboard(response: Response) -> DashboardSummary:
+    _mark_legacy_dispatch_deprecated(response)
+    return _dashboard_summary()
+
+
+@app.get("/legacy/dispatch/dashboard", response_model=DashboardSummary)
+def legacy_dispatch_dashboard() -> DashboardSummary:
+    return _dashboard_summary()
+
+
+def _dashboard_summary() -> DashboardSummary:
     deliveries = repository.list()
     by_status = {delivery_status: 0 for delivery_status in DeliveryStatus}
     for delivery in deliveries:
@@ -104,7 +115,17 @@ def dashboard() -> DashboardSummary:
 
 
 @app.get("/network", response_model=NetworkOverview)
-def network(vehicle_type: VehicleType | None = None) -> NetworkOverview:
+def network(response: Response, vehicle_type: VehicleType | None = None) -> NetworkOverview:
+    _mark_legacy_dispatch_deprecated(response)
+    return _network_overview(vehicle_type)
+
+
+@app.get("/legacy/dispatch/network", response_model=NetworkOverview)
+def legacy_dispatch_network(vehicle_type: VehicleType | None = None) -> NetworkOverview:
+    return _network_overview(vehicle_type)
+
+
+def _network_overview(vehicle_type: VehicleType | None = None) -> NetworkOverview:
     return build_network(repository.list(), vehicle_type)
 
 
@@ -178,20 +199,59 @@ def get_optimization(job_id: str) -> OptimizationJob:
 
 @app.get("/deliveries", response_model=list[DeliverySummary])
 def list_deliveries(
+    response: Response,
     delivery_status: DeliveryStatus | None = Query(None, alias="status"),
     driver_id: str | None = None,
     promised_date: str | None = None,
+) -> list[DeliverySummary]:
+    _mark_legacy_dispatch_deprecated(response)
+    return _list_legacy_deliveries(delivery_status, driver_id, promised_date)
+
+
+@app.get("/legacy/dispatch/deliveries", response_model=list[DeliverySummary])
+def list_legacy_dispatch_deliveries(
+    delivery_status: DeliveryStatus | None = Query(None, alias="status"),
+    driver_id: str | None = None,
+    promised_date: str | None = None,
+) -> list[DeliverySummary]:
+    return _list_legacy_deliveries(delivery_status, driver_id, promised_date)
+
+
+def _list_legacy_deliveries(
+    delivery_status: DeliveryStatus | None,
+    driver_id: str | None,
+    promised_date: str | None,
 ) -> list[DeliverySummary]:
     return repository.list(delivery_status, driver_id, promised_date)
 
 
 @app.post("/deliveries", response_model=Delivery, status_code=status.HTTP_201_CREATED)
-def create_delivery(command: CreateDelivery) -> Delivery:
+def create_delivery(command: CreateDelivery, response: Response) -> Delivery:
+    _mark_legacy_dispatch_deprecated(response)
+    return _create_legacy_delivery(command)
+
+
+@app.post("/legacy/dispatch/deliveries", response_model=Delivery, status_code=status.HTTP_201_CREATED)
+def create_legacy_dispatch_delivery(command: CreateDelivery) -> Delivery:
+    return _create_legacy_delivery(command)
+
+
+def _create_legacy_delivery(command: CreateDelivery) -> Delivery:
     return repository.create(f"PD-{uuid4().hex[:8].upper()}", command)
 
 
 @app.get("/deliveries/{delivery_id}", response_model=Delivery)
-def get_delivery(delivery_id: str) -> Delivery:
+def get_delivery(delivery_id: str, response: Response) -> Delivery:
+    _mark_legacy_dispatch_deprecated(response)
+    return _get_legacy_delivery(delivery_id)
+
+
+@app.get("/legacy/dispatch/deliveries/{delivery_id}", response_model=Delivery)
+def get_legacy_dispatch_delivery(delivery_id: str) -> Delivery:
+    return _get_legacy_delivery(delivery_id)
+
+
+def _get_legacy_delivery(delivery_id: str) -> Delivery:
     delivery = repository.get(delivery_id)
     if not delivery:
         raise HTTPException(status_code=404, detail="Delivery not found")
@@ -199,7 +259,17 @@ def get_delivery(delivery_id: str) -> Delivery:
 
 
 @app.post("/deliveries/{delivery_id}/assignments", response_model=Delivery)
-def assign_driver(delivery_id: str, command: AssignDriver) -> Delivery:
+def assign_driver(delivery_id: str, command: AssignDriver, response: Response) -> Delivery:
+    _mark_legacy_dispatch_deprecated(response)
+    return _assign_legacy_driver(delivery_id, command)
+
+
+@app.post("/legacy/dispatch/deliveries/{delivery_id}/assignments", response_model=Delivery)
+def assign_legacy_dispatch_driver(delivery_id: str, command: AssignDriver) -> Delivery:
+    return _assign_legacy_driver(delivery_id, command)
+
+
+def _assign_legacy_driver(delivery_id: str, command: AssignDriver) -> Delivery:
     return _transition(
         delivery_id,
         f"evt-{uuid4()}",
@@ -211,6 +281,16 @@ def assign_driver(delivery_id: str, command: AssignDriver) -> Delivery:
 
 @app.post("/deliveries/{delivery_id}/events", response_model=Delivery)
 def record_event(delivery_id: str, command: RecordEvent, response: Response) -> Delivery:
+    _mark_legacy_dispatch_deprecated(response)
+    return _record_legacy_event(delivery_id, command, response)
+
+
+@app.post("/legacy/dispatch/deliveries/{delivery_id}/events", response_model=Delivery)
+def record_legacy_dispatch_event(delivery_id: str, command: RecordEvent, response: Response) -> Delivery:
+    return _record_legacy_event(delivery_id, command, response)
+
+
+def _record_legacy_event(delivery_id: str, command: RecordEvent, response: Response) -> Delivery:
     try:
         return _transition(
             delivery_id,
@@ -279,6 +359,11 @@ def _lock_for_key(key: str) -> Lock:
             key_lock = Lock()
             _key_locks[key] = key_lock
         return key_lock
+
+
+def _mark_legacy_dispatch_deprecated(response: Response) -> None:
+    response.headers["Deprecation"] = "true"
+    response.headers["Link"] = LEGACY_DISPATCH_LINK
 
 
 def _clear_response_cache_for_tests() -> None:

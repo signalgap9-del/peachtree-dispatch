@@ -31,6 +31,15 @@ def test_list_seeded_deliveries() -> None:
     response = client.get("/deliveries")
     assert response.status_code == 200
     assert len(response.json()) >= 5
+    assert response.headers["Deprecation"] == "true"
+
+
+def test_legacy_dispatch_namespace_preserves_old_delivery_contract() -> None:
+    response = client.get("/legacy/dispatch/deliveries")
+
+    assert response.status_code == 200
+    assert len(response.json()) >= 5
+    assert "Deprecation" not in response.headers
 
 
 def test_duplicate_event_is_idempotent() -> None:
