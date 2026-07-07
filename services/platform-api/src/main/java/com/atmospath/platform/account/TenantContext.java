@@ -9,6 +9,6 @@ public record TenantContext(
         String email,
         PlanCode plan,
         SubscriptionStatus status,
-        String role,
+        TenantRole role,
         boolean authenticated) {
 }

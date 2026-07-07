@@ -129,6 +129,43 @@ class RdsDataSavedPlaceRepositoryTests {
         assertThat(captureRequest().sql()).contains("item_type = 'ROUTE'", "ST_AsGeoJSON");
     }
 
+    @Test
+    void writesRouteRiskObservationIntoRiskExposure() {
+        when(client.executeStatement(any(ExecuteStatementRequest.class)))
+                .thenReturn(ExecuteStatementResponse.builder().build());
+        var observation = routeRiskObservation();
+
+        repository.recordRouteRiskObservation(observation);
+
+        var request = captureRequest();
+        assertThat(request.sql()).contains("INSERT INTO risk_exposure", "ROUTE_SUMMARY", "CAST(:metadata AS jsonb)");
+        assertThat(request.parameters()).hasSize(7);
+        assertThat(request.parameters().stream().filter(parameter -> parameter.name().equals("metadata")).findFirst()
+                .orElseThrow().value().stringValue()).contains("Flash Flood Warning");
+    }
+
+    @Test
+    void readsRouteRiskHistoryFromRiskExposure() {
+        var observation = routeRiskObservation();
+        when(client.executeStatement(any(ExecuteStatementRequest.class))).thenReturn(
+                ExecuteStatementResponse.builder()
+                        .records(List.of(List.of(
+                                string(observation.observationId().toString()),
+                                string(observation.savedItemId().toString()),
+                                string(observation.observedAt()),
+                                Field.builder().longValue(82L).build(),
+                                string("{\"riskTrend\":\"RISING\",\"activeHazards\":[\"Flash Flood Warning\"]}"),
+                                string("SAVED_ROUTE_CREATED"),
+                                string("route-risk-v1"))))
+                        .build());
+
+        assertThat(repository.findRouteRiskHistory(observation.userId(), observation.savedItemId(), 30))
+                .containsExactly(observation);
+
+        var request = captureRequest();
+        assertThat(request.sql()).contains("FROM risk_exposure", "ORDER BY observed_at DESC");
+    }
+
     private ExecuteStatementRequest captureRequest() {
         var captor = ArgumentCaptor.forClass(ExecuteStatementRequest.class);
         verify(client, times(2)).executeStatement(captor.capture());
@@ -142,5 +179,18 @@ class RdsDataSavedPlaceRepositoryTests {
 
     private static Field decimal(double value) {
         return Field.builder().doubleValue(value).build();
+    }
+
+    private static RouteRiskObservation routeRiskObservation() {
+        return new RouteRiskObservation(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "2026-07-07T08:00:00Z",
+                82,
+                "RISING",
+                List.of("Flash Flood Warning"),
+                "SAVED_ROUTE_CREATED",
+                "route-risk-v1");
     }
 }

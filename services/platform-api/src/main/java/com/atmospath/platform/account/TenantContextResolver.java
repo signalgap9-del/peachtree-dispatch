@@ -52,7 +52,7 @@ public class TenantContextResolver {
                 email,
                 planFromJwt(jwt),
                 SubscriptionStatus.ACTIVE,
-                "OWNER",
+                roleFromJwt(jwt),
                 true);
     }
 
@@ -66,7 +66,7 @@ public class TenantContextResolver {
                 "",
                 PlanCode.FREE,
                 SubscriptionStatus.TRIALING,
-                "VIEWER",
+                TenantRole.VIEWER,
                 false);
     }
 
@@ -79,6 +79,18 @@ public class TenantContextResolver {
             return PlanCode.valueOf(plan.toUpperCase());
         } catch (IllegalArgumentException ignored) {
             return defaultPlan;
+        }
+    }
+
+    private TenantRole roleFromJwt(Jwt jwt) {
+        var role = firstNonBlank(jwt.getClaimAsString("custom:tenant_role"), jwt.getClaimAsString("tenant_role"));
+        if (role == null) {
+            return TenantRole.OWNER;
+        }
+        try {
+            return TenantRole.valueOf(role.toUpperCase());
+        } catch (IllegalArgumentException ignored) {
+            return TenantRole.OWNER;
         }
     }
 

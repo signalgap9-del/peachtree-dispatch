@@ -25,6 +25,7 @@ class TenantContextResolverTests {
         assertThat(first.subject()).startsWith("anonymous:");
         assertThat(first.email()).isBlank();
         assertThat(first.plan()).isEqualTo(PlanCode.FREE);
+        assertThat(first.role()).isEqualTo(TenantRole.VIEWER);
         assertThat(first.authenticated()).isFalse();
     }
 
@@ -36,6 +37,7 @@ class TenantContextResolverTests {
                 .subject("google-oauth2|123")
                 .claim("email", "driver@example.com")
                 .claim("custom:plan", "team")
+                .claim("custom:tenant_role", "admin")
                 .issuedAt(Instant.parse("2026-07-04T00:00:00Z"))
                 .expiresAt(Instant.parse("2026-07-04T01:00:00Z"))
                 .claims(claims -> claims.putAll(Map.of("scope", "openid")))
@@ -46,6 +48,7 @@ class TenantContextResolverTests {
         assertThat(context.authenticated()).isTrue();
         assertThat(context.email()).isEqualTo("driver@example.com");
         assertThat(context.plan()).isEqualTo(PlanCode.TEAM);
+        assertThat(context.role()).isEqualTo(TenantRole.ADMIN);
         assertThat(context.userId()).isNotNull();
         assertThat(context.tenantId()).isNotNull();
     }

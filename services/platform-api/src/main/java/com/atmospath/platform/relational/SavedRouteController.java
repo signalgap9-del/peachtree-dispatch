@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.atmospath.platform.account.EntitlementService;
+import com.atmospath.platform.account.TenantAuthorizationService;
 import com.atmospath.platform.account.TenantContextResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -36,19 +37,24 @@ public class SavedRouteController {
     private final SavedPlaceRepository repository;
     private final TenantContextResolver tenantContextResolver;
     private final EntitlementService entitlements;
+    private final TenantAuthorizationService tenantAuthorization;
 
     public SavedRouteController(
             SavedPlaceRepository repository,
             TenantContextResolver tenantContextResolver,
-            EntitlementService entitlements) {
+            EntitlementService entitlements,
+            TenantAuthorizationService tenantAuthorization) {
         this.repository = repository;
         this.tenantContextResolver = tenantContextResolver;
         this.entitlements = entitlements;
+        this.tenantAuthorization = tenantAuthorization;
     }
 
     @GetMapping
-    List<SavedRoute> list(@AuthenticationPrincipal Jwt jwt) {
-        return repository.findRoutes(userId(jwt));
+    List<SavedRoute> list(@AuthenticationPrincipal Jwt jwt, HttpServletRequest servletRequest) {
+        var context = tenantContextResolver.resolve(jwt, servletRequest);
+        tenantAuthorization.requireSavedAssetAccess(context);
+        return repository.findRoutes(context.userId());
     }
 
     @PostMapping
@@ -58,6 +64,7 @@ public class SavedRouteController {
             HttpServletRequest servletRequest,
             @Valid @RequestBody CreateSavedRoute request) {
         var context = tenantContextResolver.resolve(jwt, servletRequest);
+        tenantAuthorization.requireSavedAssetAccess(context);
         entitlements.requireSavedRouteCapacity(context, repository.findRoutes(context.userId()).size());
         var route = new SavedRoute(
                 UUID.randomUUID(),
@@ -79,17 +86,22 @@ public class SavedRouteController {
                 request.activeHazards() == null ? List.of() : request.activeHazards(),
                 "STABLE");
         repository.saveRoute(route);
+        repository.recordRouteRiskObservation(RouteRiskObservation.fromRoute(route, "SAVED_ROUTE_CREATED"));
         return route;
     }
 
     @GetMapping("/{savedItemId}")
-    SavedRoute get(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID savedItemId) {
-        return findOwnedRoute(jwt, savedItemId);
+    SavedRoute get(@AuthenticationPrincipal Jwt jwt, HttpServletRequest servletRequest, @PathVariable UUID savedItemId) {
+        return findOwnedRoute(jwt, servletRequest, savedItemId);
     }
 
     @PatchMapping("/{savedItemId}")
-    SavedRoute update(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID savedItemId, @Valid @RequestBody UpdateSavedRoute request) {
-        var existing = findOwnedRoute(jwt, savedItemId);
+    SavedRoute update(
+            @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest servletRequest,
+            @PathVariable UUID savedItemId,
+            @Valid @RequestBody UpdateSavedRoute request) {
+        var existing = findOwnedRoute(jwt, servletRequest, savedItemId);
         var updated = new SavedRoute(
                 existing.savedItemId(),
                 existing.userId(),
@@ -110,12 +122,13 @@ public class SavedRouteController {
                 existing.activeHazards(),
                 existing.riskTrend());
         repository.saveRoute(updated);
+        repository.recordRouteRiskObservation(RouteRiskObservation.fromRoute(updated, "SAVED_ROUTE_UPDATED"));
         return updated;
     }
 
     @GetMapping("/{savedItemId}/current-risk")
-    SavedRouteRisk currentRisk(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID savedItemId) {
-        var route = findOwnedRoute(jwt, savedItemId);
+    SavedRouteRisk currentRisk(@AuthenticationPrincipal Jwt jwt, HttpServletRequest servletRequest, @PathVariable UUID savedItemId) {
+        var route = findOwnedRoute(jwt, servletRequest, savedItemId);
         return new SavedRouteRisk(
                 route.savedItemId(),
                 route.riskScore(),
@@ -126,23 +139,41 @@ public class SavedRouteController {
     }
 
     @GetMapping("/{savedItemId}/risk-history")
-    List<SavedRouteRiskPoint> riskHistory(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID savedItemId) {
-        var route = findOwnedRoute(jwt, savedItemId);
-        return List.of(new SavedRouteRiskPoint(route.lastCheckedAt(), route.riskScore(), route.riskTrend()));
+    List<SavedRouteRiskPoint> riskHistory(@AuthenticationPrincipal Jwt jwt, HttpServletRequest servletRequest, @PathVariable UUID savedItemId) {
+        var route = findOwnedRoute(jwt, servletRequest, savedItemId);
+        var history = repository.findRouteRiskHistory(route.userId(), route.savedItemId(), 30);
+        if (history.isEmpty()) {
+            return List.of(new SavedRouteRiskPoint(
+                    route.lastCheckedAt(),
+                    route.riskScore(),
+                    route.riskTrend(),
+                    route.activeHazards(),
+                    "LEGACY_ROUTE_STATE",
+                    "route-risk-v1"));
+        }
+        return history.stream()
+                .map(point -> new SavedRouteRiskPoint(
+                        point.observedAt(),
+                        point.riskScore(),
+                        point.riskTrend(),
+                        point.activeHazards(),
+                        point.source(),
+                        point.modelVersion()))
+                .toList();
     }
 
     @DeleteMapping("/{savedItemId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void delete(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID savedItemId) {
-        repository.deleteRoute(userId(jwt), savedItemId);
+    void delete(@AuthenticationPrincipal Jwt jwt, HttpServletRequest servletRequest, @PathVariable UUID savedItemId) {
+        var context = tenantContextResolver.resolve(jwt, servletRequest);
+        tenantAuthorization.requireSavedAssetAccess(context);
+        repository.deleteRoute(context.userId(), savedItemId);
     }
 
-    private UUID userId(Jwt jwt) {
-        return repository.ensureUser(jwt.getSubject(), jwt.getClaimAsString("email"));
-    }
-
-    private SavedRoute findOwnedRoute(Jwt jwt, UUID savedItemId) {
-        return repository.findRoute(userId(jwt), savedItemId)
+    private SavedRoute findOwnedRoute(Jwt jwt, HttpServletRequest servletRequest, UUID savedItemId) {
+        var context = tenantContextResolver.resolve(jwt, servletRequest);
+        tenantAuthorization.requireSavedAssetAccess(context);
+        return repository.findRoute(context.userId(), savedItemId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Saved route not found"));
     }
 
@@ -182,6 +213,9 @@ public class SavedRouteController {
     record SavedRouteRiskPoint(
             String checkedAt,
             int riskScore,
-            String riskTrend) {
+            String riskTrend,
+            List<String> activeHazards,
+            String source,
+            String modelVersion) {
     }
 }

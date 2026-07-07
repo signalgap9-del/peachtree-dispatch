@@ -94,6 +94,39 @@ public class RdsDataSavedPlaceRepository implements SavedPlaceRepository {
               AND user_id = CAST(:user_id AS uuid)
               AND deleted_at IS NULL
             """;
+    private static final String INSERT_RISK_OBSERVATION_SQL = """
+            INSERT INTO risk_exposure(
+              risk_exposure_id,
+              saved_item_id,
+              hazard_category,
+              risk_score,
+              source,
+              model_version,
+              observed_at,
+              metadata)
+            VALUES(
+              CAST(:observation_id AS uuid),
+              CAST(:saved_item_id AS uuid),
+              'ROUTE_SUMMARY',
+              :risk_score,
+              :source,
+              :model_version,
+              CAST(:observed_at AS timestamptz),
+              CAST(:metadata AS jsonb))
+            """;
+    private static final String FIND_RISK_HISTORY_SQL = """
+            SELECT risk_exposure_id::text,
+              saved_item_id::text,
+              observed_at::text,
+              risk_score,
+              metadata::text,
+              source,
+              model_version
+            FROM risk_exposure
+            WHERE saved_item_id = CAST(:saved_item_id AS uuid)
+            ORDER BY observed_at DESC
+            LIMIT :limit
+            """;
 
     private final RdsDataClient client;
     private final RelationalStoreProperties properties;
@@ -176,6 +209,38 @@ public class RdsDataSavedPlaceRepository implements SavedPlaceRepository {
         delete(userId, savedItemId);
     }
 
+    @Override
+    public void recordRouteRiskObservation(RouteRiskObservation observation) {
+        executeForUser(observation.userId(), INSERT_RISK_OBSERVATION_SQL, List.of(
+                string("observation_id", observation.observationId().toString()),
+                string("saved_item_id", observation.savedItemId().toString()),
+                integer("risk_score", observation.riskScore()),
+                string("source", observation.source()),
+                string("model_version", observation.modelVersion()),
+                string("observed_at", observation.observedAt()),
+                string("metadata", writeRiskObservationMetadata(observation))));
+    }
+
+    @Override
+    public List<RouteRiskObservation> findRouteRiskHistory(UUID userId, UUID savedItemId, int limit) {
+        var response = executeForUser(userId, FIND_RISK_HISTORY_SQL, List.of(
+                string("saved_item_id", savedItemId.toString()),
+                integer("limit", Math.min(Math.max(limit, 1), 100))));
+        return response.records().stream().map(row -> {
+            var metadata = readRiskObservationMetadata(row.get(4).stringValue());
+            return new RouteRiskObservation(
+                    UUID.fromString(row.get(0).stringValue()),
+                    userId,
+                    UUID.fromString(row.get(1).stringValue()),
+                    row.get(2).stringValue(),
+                    row.get(3).longValue().intValue(),
+                    metadata.riskTrend() == null ? "STABLE" : metadata.riskTrend(),
+                    metadata.activeHazards() == null ? List.of() : metadata.activeHazards(),
+                    row.get(5).stringValue(),
+                    row.get(6).stringValue());
+        }).toList();
+    }
+
     private static List<SavedPlace> mapPlaces(List<List<Field>> records) {
         return records.stream().map(row -> new SavedPlace(
                 UUID.fromString(row.get(0).stringValue()),
@@ -237,6 +302,24 @@ public class RdsDataSavedPlaceRepository implements SavedPlaceRepository {
             return objectMapper.readValue(value, RouteMetadata.class);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Saved route metadata could not be read.", exception);
+        }
+    }
+
+    private String writeRiskObservationMetadata(RouteRiskObservation observation) {
+        try {
+            return objectMapper.writeValueAsString(new RiskObservationMetadata(
+                    observation.riskTrend(),
+                    observation.activeHazards()));
+        } catch (JsonProcessingException exception) {
+            throw new IllegalArgumentException("Route risk observation metadata could not be serialized.", exception);
+        }
+    }
+
+    private RiskObservationMetadata readRiskObservationMetadata(String value) {
+        try {
+            return objectMapper.readValue(value, RiskObservationMetadata.class);
+        } catch (JsonProcessingException exception) {
+            return new RiskObservationMetadata("STABLE", List.of());
         }
     }
 
@@ -321,5 +404,10 @@ public class RdsDataSavedPlaceRepository implements SavedPlaceRepository {
             String lastCheckedAt,
             List<String> activeHazards,
             String riskTrend) {
+    }
+
+    private record RiskObservationMetadata(
+            String riskTrend,
+            List<String> activeHazards) {
     }
 }

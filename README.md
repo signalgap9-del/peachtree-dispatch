@@ -10,8 +10,9 @@ AtmosPath is a climate-aware navigation and route-risk SaaS preview. It combines
 - Demo playbook: [docs/demo-playbook.md](docs/demo-playbook.md)
 - Cost model: [docs/cost-model.md](docs/cost-model.md)
 - Research/security basis: [docs/architecture/research-and-security-basis.md](docs/architecture/research-and-security-basis.md)
+- SaaS hardening checklist: [docs/saas-production-hardening-checklist.md](docs/saas-production-hardening-checklist.md)
 - ADRs: [docs/adr/](docs/adr/)
-- Codebase size: about 23.0k source/test/IaC/config LOC; about 26.0k tracked text LOC including docs, excluding lockfiles and generated build output.
+- Codebase size: about 23.4k source/test/IaC/config LOC; about 26.5k tracked text LOC including docs, excluding lockfiles and generated build output.
 
 ![AtmosPath route comparison](docs/screenshots/map-route-live.png)
 
@@ -429,6 +430,7 @@ Not yet ready for open public commercial launch:
 - [Release notes](CHANGELOG.md)
 - [Architecture](docs/architecture.md)
 - [Demo playbook](docs/demo-playbook.md)
+- [SaaS production hardening checklist](docs/saas-production-hardening-checklist.md)
 - [Research and security basis](docs/architecture/research-and-security-basis.md)
 - [Production risk routing](docs/architecture/production-risk-routing.md)
 - [Weather risk pipeline](docs/architecture/weather-risk.md)

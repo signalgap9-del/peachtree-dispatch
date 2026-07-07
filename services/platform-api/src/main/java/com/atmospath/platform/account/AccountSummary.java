@@ -14,7 +14,7 @@ public record AccountSummary(
     public record UserProfile(UUID userId, String subject, String email) {
     }
 
-    public record WorkspaceSummary(UUID tenantId, String name, String role) {
+    public record WorkspaceSummary(UUID tenantId, String name, TenantRole role) {
     }
 
     public record PlanSummary(

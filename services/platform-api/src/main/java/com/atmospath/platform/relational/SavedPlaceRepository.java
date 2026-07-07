@@ -21,6 +21,10 @@ public interface SavedPlaceRepository {
                 .findFirst();
     }
 
+    void recordRouteRiskObservation(RouteRiskObservation observation);
+
+    List<RouteRiskObservation> findRouteRiskHistory(UUID userId, UUID savedItemId, int limit);
+
     List<SavedPlace> findNearby(UUID userId, double longitude, double latitude, double radiusMiles);
 
     void delete(UUID userId, UUID savedItemId);

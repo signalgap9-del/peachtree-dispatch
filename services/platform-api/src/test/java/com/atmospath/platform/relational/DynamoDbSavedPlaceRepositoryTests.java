@@ -166,6 +166,46 @@ class DynamoDbSavedPlaceRepositoryTests {
         assertThat(captor.getValue().key().get("SK").s()).isEqualTo("SAVED_ROUTE#" + route.savedItemId());
     }
 
+    @Test
+    void writesRouteRiskObservationUsingOwnedRoutePrefix() {
+        var observation = routeRiskObservation();
+
+        repository.recordRouteRiskObservation(observation);
+
+        var captor = ArgumentCaptor.forClass(PutItemRequest.class);
+        verify(client).putItem(captor.capture());
+        assertThat(captor.getValue().item().get("PK").s()).isEqualTo("USER#" + observation.userId());
+        assertThat(captor.getValue().item().get("SK").s())
+                .startsWith("ROUTE_RISK#" + observation.savedItemId() + "#" + observation.observedAt());
+        assertThat(captor.getValue().item().get("activeHazardsJson").s()).contains("Flash Flood Warning");
+        assertThat(captor.getValue().conditionExpression()).contains("userId = :userId");
+    }
+
+    @Test
+    void queriesRouteRiskHistoryByOwnedRoutePrefixNewestFirst() {
+        var observation = routeRiskObservation();
+        var item = new HashMap<String, AttributeValue>();
+        item.put("observationId", string(observation.observationId().toString()));
+        item.put("savedItemId", string(observation.savedItemId().toString()));
+        item.put("userId", string(observation.userId().toString()));
+        item.put("observedAt", string(observation.observedAt()));
+        item.put("riskScore", number("82"));
+        item.put("riskTrend", string("RISING"));
+        item.put("activeHazardsJson", string("[\"Flash Flood Warning\"]"));
+        item.put("source", string("SAVED_ROUTE_CREATED"));
+        item.put("modelVersion", string("route-risk-v1"));
+        when(client.query(any(QueryRequest.class))).thenReturn(QueryResponse.builder().items(List.of(item)).build());
+
+        assertThat(repository.findRouteRiskHistory(observation.userId(), observation.savedItemId(), 30))
+                .containsExactly(observation);
+
+        var captor = ArgumentCaptor.forClass(QueryRequest.class);
+        verify(client).query(captor.capture());
+        assertThat(captor.getValue().scanIndexForward()).isFalse();
+        assertThat(captor.getValue().expressionAttributeValues().get(":prefix").s())
+                .isEqualTo("ROUTE_RISK#" + observation.savedItemId() + "#");
+    }
+
     private static SavedRoute savedRoute() {
         return new SavedRoute(
                 UUID.randomUUID(),
@@ -180,6 +220,19 @@ class DynamoDbSavedPlaceRepositoryTests {
                 34,
                 List.of(List.of(-122.3321, 47.6062), List.of(-80.13, 25.7907)),
                 "2026-06-21T12:00:00Z");
+    }
+
+    private static RouteRiskObservation routeRiskObservation() {
+        return new RouteRiskObservation(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "2026-07-07T08:00:00Z",
+                82,
+                "RISING",
+                List.of("Flash Flood Warning"),
+                "SAVED_ROUTE_CREATED",
+                "route-risk-v1");
     }
 
     private static AttributeValue string(String value) {

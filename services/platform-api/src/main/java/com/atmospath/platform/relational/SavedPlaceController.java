@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.atmospath.platform.account.EntitlementService;
+import com.atmospath.platform.account.TenantAuthorizationService;
 import com.atmospath.platform.account.TenantContextResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -33,19 +34,24 @@ public class SavedPlaceController {
     private final SavedPlaceRepository repository;
     private final TenantContextResolver tenantContextResolver;
     private final EntitlementService entitlements;
+    private final TenantAuthorizationService tenantAuthorization;
 
     public SavedPlaceController(
             SavedPlaceRepository repository,
             TenantContextResolver tenantContextResolver,
-            EntitlementService entitlements) {
+            EntitlementService entitlements,
+            TenantAuthorizationService tenantAuthorization) {
         this.repository = repository;
         this.tenantContextResolver = tenantContextResolver;
         this.entitlements = entitlements;
+        this.tenantAuthorization = tenantAuthorization;
     }
 
     @GetMapping
-    List<SavedPlace> list(@AuthenticationPrincipal Jwt jwt) {
-        return repository.findAll(userId(jwt));
+    List<SavedPlace> list(@AuthenticationPrincipal Jwt jwt, HttpServletRequest servletRequest) {
+        var context = tenantContextResolver.resolve(jwt, servletRequest);
+        tenantAuthorization.requireSavedAssetAccess(context);
+        return repository.findAll(context.userId());
     }
 
     @PostMapping
@@ -55,6 +61,7 @@ public class SavedPlaceController {
             HttpServletRequest servletRequest,
             @Valid @RequestBody CreateSavedPlace request) {
         var context = tenantContextResolver.resolve(jwt, servletRequest);
+        tenantAuthorization.requireSavedAssetAccess(context);
         entitlements.requireSavedPlaceCapacity(context, repository.findAll(context.userId()).size());
         var place = new SavedPlace(
                 UUID.randomUUID(),
@@ -69,12 +76,10 @@ public class SavedPlaceController {
 
     @DeleteMapping("/{savedItemId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void delete(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID savedItemId) {
-        repository.delete(userId(jwt), savedItemId);
-    }
-
-    private UUID userId(Jwt jwt) {
-        return repository.ensureUser(jwt.getSubject(), jwt.getClaimAsString("email"));
+    void delete(@AuthenticationPrincipal Jwt jwt, HttpServletRequest servletRequest, @PathVariable UUID savedItemId) {
+        var context = tenantContextResolver.resolve(jwt, servletRequest);
+        tenantAuthorization.requireSavedAssetAccess(context);
+        repository.delete(context.userId(), savedItemId);
     }
 
     record CreateSavedPlace(

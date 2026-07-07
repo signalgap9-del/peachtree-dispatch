@@ -83,7 +83,7 @@ class EntitlementServiceTests {
                 "user@example.com",
                 plan,
                 SubscriptionStatus.ACTIVE,
-                "OWNER",
+                TenantRole.OWNER,
                 true);
     }
 }

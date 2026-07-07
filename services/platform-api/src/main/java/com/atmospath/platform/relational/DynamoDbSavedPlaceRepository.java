@@ -28,6 +28,7 @@ import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 public class DynamoDbSavedPlaceRepository implements SavedPlaceRepository {
     private static final String SAVED_PLACE_PREFIX = "SAVED_PLACE#";
     private static final String SAVED_ROUTE_PREFIX = "SAVED_ROUTE#";
+    private static final String ROUTE_RISK_PREFIX = "ROUTE_RISK#";
     private static final TypeReference<List<List<Double>>> COORDINATES_TYPE = new TypeReference<>() {
     };
 
@@ -163,6 +164,44 @@ public class DynamoDbSavedPlaceRepository implements SavedPlaceRepository {
     }
 
     @Override
+    public void recordRouteRiskObservation(RouteRiskObservation observation) {
+        var observedAt = safeSortValue(observation.observedAt());
+        var item = new HashMap<String, AttributeValue>();
+        item.put("PK", string(userKey(observation.userId())));
+        item.put("SK", string(routeRiskKey(observation.savedItemId(), observedAt, observation.observationId())));
+        item.put("entityType", string("RouteRiskObservation"));
+        item.put("observationId", string(observation.observationId().toString()));
+        item.put("savedItemId", string(observation.savedItemId().toString()));
+        item.put("userId", string(observation.userId().toString()));
+        item.put("observedAt", string(observedAt));
+        item.put("riskScore", number(observation.riskScore()));
+        item.put("riskTrend", string(observation.riskTrend()));
+        item.put("activeHazardsJson", string(writeStringList(observation.activeHazards())));
+        item.put("source", string(observation.source()));
+        item.put("modelVersion", string(observation.modelVersion()));
+        client.putItem(PutItemRequest.builder()
+                .tableName(tableName)
+                .item(item)
+                .conditionExpression("attribute_not_exists(PK) OR userId = :userId")
+                .expressionAttributeValues(Map.of(":userId", string(observation.userId().toString())))
+                .build());
+    }
+
+    @Override
+    public List<RouteRiskObservation> findRouteRiskHistory(UUID userId, UUID savedItemId, int limit) {
+        var response = client.query(QueryRequest.builder()
+                .tableName(tableName)
+                .keyConditionExpression("PK = :pk AND begins_with(SK, :prefix)")
+                .expressionAttributeValues(Map.of(
+                        ":pk", string(userKey(userId)),
+                        ":prefix", string(ROUTE_RISK_PREFIX + savedItemId + "#")))
+                .scanIndexForward(false)
+                .limit(Math.min(Math.max(limit, 1), 100))
+                .build());
+        return response.items().stream().map(this::toRouteRiskObservation).toList();
+    }
+
+    @Override
     public List<SavedPlace> findNearby(UUID userId, double longitude, double latitude, double radiusMiles) {
         return findAll(userId).stream()
                 .filter(place -> distanceMiles(latitude, longitude, place.latitude(), place.longitude()) <= radiusMiles)
@@ -227,6 +266,19 @@ public class DynamoDbSavedPlaceRepository implements SavedPlaceRepository {
                 stringValue(item, "riskTrend", "STABLE"));
     }
 
+    private RouteRiskObservation toRouteRiskObservation(Map<String, AttributeValue> item) {
+        return new RouteRiskObservation(
+                UUID.fromString(item.get("observationId").s()),
+                UUID.fromString(item.get("userId").s()),
+                UUID.fromString(item.get("savedItemId").s()),
+                item.get("observedAt").s(),
+                Integer.parseInt(item.get("riskScore").n()),
+                stringValue(item, "riskTrend", "STABLE"),
+                readStringList(stringValue(item, "activeHazardsJson", "[]")),
+                stringValue(item, "source", "UNKNOWN"),
+                stringValue(item, "modelVersion", "route-risk-v1"));
+    }
+
     private String writeCoordinates(List<List<Double>> coordinates) {
         try {
             return objectMapper.writeValueAsString(coordinates);
@@ -286,6 +338,14 @@ public class DynamoDbSavedPlaceRepository implements SavedPlaceRepository {
 
     private static String userKey(UUID userId) {
         return "USER#" + userId;
+    }
+
+    private static String routeRiskKey(UUID savedItemId, String observedAt, UUID observationId) {
+        return ROUTE_RISK_PREFIX + savedItemId + "#" + safeSortValue(observedAt) + "#" + observationId;
+    }
+
+    private static String safeSortValue(String value) {
+        return value == null || value.isBlank() ? Instant.now().toString() : value;
     }
 
     private static AttributeValue string(String value) {
