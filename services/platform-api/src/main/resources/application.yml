@@ -32,6 +32,11 @@ atmospath:
     public-read-limit-per-minute: ${RATE_LIMIT_PUBLIC_READ_PER_MINUTE:180}
     mutation-limit-per-minute: ${RATE_LIMIT_MUTATION_PER_MINUTE:30}
     authenticated-mutation-limit-per-minute: ${RATE_LIMIT_AUTHENTICATED_MUTATION_PER_MINUTE:90}
+  alert-stream:
+    enabled: ${ALERT_STREAM_ENABLED:true}
+    poll-interval-ms: ${ALERT_STREAM_POLL_INTERVAL:30000}
+    heartbeat-interval-ms: ${ALERT_STREAM_HEARTBEAT_INTERVAL:15000}
+    emitter-timeout-ms: ${ALERT_STREAM_EMITTER_TIMEOUT:300000}
   dynamodb-table: ${DYNAMODB_TABLE:}
   relational:
     enabled: ${RELATIONAL_STORE_ENABLED:false}

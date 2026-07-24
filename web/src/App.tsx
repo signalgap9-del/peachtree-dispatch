@@ -15,6 +15,8 @@ import { BrowserRouter, Route, Routes, useLocation, useNavigate, useParams } fro
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { api } from "./api";
+import { AlertLiveBanner } from "./AlertLiveBanner";
+import { connectAlertStream, disconnectAlertStream, subscribeAlertUpdates } from "./alertStream";
 import { authConfigured, completeLogin, currentUser, googleAuthConfigured, login, loginWithGoogle, logout, type AuthUser } from "./auth";
 import { useI18n } from "./i18n";
 import { LanguageToggle } from "./LanguageToggle";
@@ -76,6 +78,15 @@ function AppShell() {
   }, []);
 
   useEffect(() => {
+    connectAlertStream();
+    const unsubscribeAlerts = subscribeAlertUpdates(setNationalRisk);
+    return () => {
+      unsubscribeAlerts();
+      disconnectAlertStream();
+    };
+  }, []);
+
+  useEffect(() => {
     const onToast = (event: Event) => {
       setToast((event as CustomEvent<string>).detail);
       window.setTimeout(() => setToast(""), 3000);
@@ -93,6 +104,7 @@ function AppShell() {
     <div className={`product-app ${path === "/map" || path === "/directions" ? "map-active" : ""}`}>
       <AppHeader path={path} navigate={navigate} user={user} onUserChange={setUser} national={nationalRisk} weatherSnapshot={weatherSnapshot} />
       <NetworkStatusBanner />
+      <AlertLiveBanner />
       <Routes>
         <Route path="/" element={<HomePage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} dataStatus={dataStatus} />} />
         <Route path="/dashboard" element={<DashboardPage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} dataStatus={dataStatus} />} />

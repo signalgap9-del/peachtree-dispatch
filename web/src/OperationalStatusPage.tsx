@@ -1,6 +1,7 @@
-import { AlertTriangle, Activity, Gauge, RefreshCw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Activity, Gauge, RadioTower, RefreshCw, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
+import { ALERT_STREAM_URL } from "./alertStream";
 import type { DataStatus, Navigate } from "./App";
 import type { NationalRiskOverview, NationalWeatherSnapshot, WeatherRasterManifest } from "./types";
 import {
@@ -13,6 +14,7 @@ import {
 import type { ResilienceSnapshot } from "./resilience";
 import { isSlowNetwork } from "./resilience";
 import { useResilienceSnapshot } from "./useResilienceSnapshot";
+import { useAlertStream, type AlertStreamState } from "./useAlertStream";
 
 type Props = {
   navigate: Navigate;
@@ -32,6 +34,7 @@ export function OperationalStatusPage({ navigate, dataStatus, national, weatherS
   const [issues, setIssues] = useState<ClientIssue[]>(() => readClientIssues());
   const [performance, setPerformance] = useState<PerformanceSnapshot | null>(() => readPerformanceSnapshot());
   const resilience = useResilienceSnapshot();
+  const alertStream = useAlertStream();
   const sourceRows = useMemo(() => buildSourceRows(national, weatherSnapshot, weatherRaster), [national, weatherRaster, weatherSnapshot]);
 
   useEffect(() => {
@@ -89,6 +92,10 @@ export function OperationalStatusPage({ navigate, dataStatus, national, weatherS
           <StatusSectionHeader icon={<RefreshCw size={20} />} title="API resiliency" meta={resilience.lastSuccessfulAt ? `Last success ${formatShortTime(resilience.lastSuccessfulAt)}` : "Waiting for API activity"} />
           <ResilienceGrid snapshot={resilience} />
         </div>
+        <div className="surface status-panel alert-stream-panel">
+          <StatusSectionHeader icon={<RadioTower size={20} />} title="Alert stream" meta={ALERT_STREAM_URL} />
+          <AlertStreamGrid stream={alertStream} />
+        </div>
       </section>
 
       <section className="surface status-panel">
@@ -144,6 +151,20 @@ function ResilienceGrid({ snapshot }: { snapshot: ResilienceSnapshot }) {
   ];
   return (
     <div className="performance-grid resilience-grid">
+      {metrics.map((metric) => <article key={metric.label}><strong>{metric.label}</strong><b className={metric.tone}>{metric.value}</b><small>{metric.target}</small></article>)}
+    </div>
+  );
+}
+
+function AlertStreamGrid({ stream }: { stream: AlertStreamState }) {
+  const metrics = [
+    { label: "Connection", value: stream.status, tone: stream.status === "connected" ? "low" : stream.status === "error" ? "high" : "moderate", target: "SSE keepalive every 15s" },
+    { label: "Last event", value: stream.lastEventAt ? formatShortTime(stream.lastEventAt) : "pending", tone: stream.lastEventAt ? "low" : "moderate", target: "national_risk or heartbeat" },
+    { label: "Reconnect attempts", value: `${stream.reconnectAttempts}`, tone: stream.reconnectAttempts > 0 ? "moderate" : "low", target: "2s backoff, capped at 60s" },
+    { label: "Severe alerts", value: stream.lastAlert ? `${stream.lastAlert.severe_alerts}` : "pending", tone: stream.lastAlert && stream.lastAlert.severe_alerts > 0 ? "high" : "low", target: stream.lastAlert ? `${stream.lastAlert.level} national risk` : "waiting for first payload" },
+  ];
+  return (
+    <div className="performance-grid alert-stream-grid">
       {metrics.map((metric) => <article key={metric.label}><strong>{metric.label}</strong><b className={metric.tone}>{metric.value}</b><small>{metric.target}</small></article>)}
     </div>
   );
