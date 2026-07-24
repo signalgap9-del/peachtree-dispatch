@@ -68,6 +68,8 @@ The `max` ensures a single severe alert (e.g. tornado warning) dominates even if
 
 A 60-second in-memory TTL cache on the national endpoint prevents repeated NWS API calls under concurrent load without adding Redis infrastructure cost.
 
+Verified by: `test_weather_snapshot.py`, `test_hazards.py`
+
 ### Route Comparison and Labeling
 
 Route alternatives come from OSRM's `alternatives=3` parameter, which returns geometrically distinct paths. Each candidate is then scored by sampling weather at route waypoints and checking NWS alert geometry intersection along the corridor. After scoring, alternatives are sorted by duration and labeled:
@@ -77,6 +79,8 @@ Route alternatives come from OSRM's `alternatives=3` parameter, which returns ge
 - **Balanced**: best combined time + risk tradeoff.
 
 Segment-level breakdowns divide the route into weather-sample intervals and attach per-segment hazard explanations, so the UI can show *where* on the route the risk concentrates.
+
+Verified by: `test_directions.py`
 
 ### SSRF-Safe Outbound HTTP
 
@@ -89,6 +93,8 @@ The risk engine calls external providers (NWS, Open-Meteo, OSRM, WZDx). Rather t
 5. **Credential stripping**: URLs with embedded `user:pass@` are rejected.
 
 Local development egress (`localhost`) is gated behind an explicit `ATMOSPATH_ALLOW_LOCAL_OUTBOUND=true` flag.
+
+Verified by: `test_outbound_http.py`
 
 ### Rate Limiting
 
@@ -103,6 +109,8 @@ The Spring Platform API uses a servlet filter (`RateLimitFilter`) that classifie
 
 The key is `bucket:method:path:clientIP`. The default store is in-memory fixed-window (zero infrastructure cost); setting `RATE_LIMIT_STORE=redis` switches to a Redis-backed counter for multi-instance deployments. Every decision exports Micrometer counters (`atmospath.rate_limit.requests` with `bucket` and `outcome` tags) and returns standard `X-RateLimit-*` headers plus a structured `429` body with `Retry-After`.
 
+Verified by: `RateLimitFilterTests.java`, `InMemoryRateLimitRepositoryTests.java`
+
 ### Idempotency
 
 Saved-route and saved-place mutations accept an `Idempotency-Key` header. The implementation:
@@ -113,6 +121,8 @@ Saved-route and saved-place mutations accept an `Idempotency-Key` header. The im
 4. On retry, returns the previously created resource ID instead of creating a duplicate.
 
 This lets the frontend safely retry network failures without creating phantom saved routes. Idempotency hits are tracked via `atmospath.saved_route.commands` metrics.
+
+Verified by: `IdempotencyServiceTests.java`, `DynamoDbIdempotencyRepositoryTests.java`
 
 ### Service Layer Pattern
 
@@ -127,6 +137,8 @@ Controllers in the Platform API are thin HTTP boundaries: parse request, extract
 
 This ordering matters: quota is checked *before* persistence, so a rejected request never touches DynamoDB. The service is `@ConditionalOnProperty(atmospath.auth.enabled=true)`, so the local dev path without Cognito still works.
 
+Verified by: `SavedRouteServiceTests.java`
+
 ### ML Serving Gates (Fail-Closed Design)
 
 The VRP delay model can influence route optimization costs, but only after passing four independent gates:
@@ -138,6 +150,8 @@ The VRP delay model can influence route optimization costs, but only after passi
 
 Any missing condition fails closed to rule-based cost. Applied delay is additionally capped (`mlMaxDelaySeconds`), weighted (`mlDelayWeight=0.35`), and blocked below a confidence threshold. Artifacts are plain JSON (coefficients, feature names, metrics), not pickle/joblib, so they are inspectable and cannot execute arbitrary code on load.
 
+Verified by: `test_ml_workflow.py`
+
 ### Frontend Resilience
 
 The web app handles unstable connections without a service worker or external library:
@@ -146,6 +160,8 @@ The web app handles unstable connections without a service worker or external li
 - **Stale cache fallback**: public risk responses are cached in `sessionStorage` (512 kB cap). When a fresh fetch fails, the UI serves the cached version with a visible "stale data" indicator and timestamp.
 - **Connection awareness**: `navigator.onLine` and `NetworkInformation.effectiveType` drive a banner for offline/slow-network states.
 - **Telemetry without third parties**: retry counts, fallback events, and error details are stored in session-scoped memory and exposed at `/status`. Nothing leaves the browser.
+
+Verified by: `resilience.spec.ts`, `security-hardening.spec.ts`
 
 ### DynamoDB Single-Table Design
 
@@ -159,6 +175,8 @@ The preview uses a single table with composite keys:
 | Daily usage counter | `TENANT#{tenantId}` | `USAGE#{date}#{feature}` |
 
 Why DynamoDB over Postgres for the preview: zero idle cost (on-demand billing), single-digit-ms reads for owner-scoped queries, and conditional writes give optimistic concurrency without a transaction coordinator. The trade-off is no spatial queries, which is why PostGIS is documented as the expansion path (see ADR-006).
+
+Verified by: `test_dynamodb_repository.py`
 
 ### VRP Cost Model
 
@@ -174,6 +192,8 @@ adjusted_cost = base_duration * duration_weight
 ```
 
 The multipliers (6, 6, 8, 10) convert 0-100 risk scores into penalty seconds. Flood and alert risk carry higher multipliers because they correlate with impassable roads, not just discomfort. Missing matrix edges get a 24-hour penalty to make them effectively unroutable. The ML shadow model, when active, adds a confidence-gated delay on top of this base cost.
+
+Verified by: `test_vrp_route_engine.py`, `test_road_event_edge_risk.py`
 
 ---
 
@@ -293,27 +313,73 @@ python services/api/scripts/run_vrp_served_cost_demo.py --artifact-dir tmp/demo-
 
 ---
 
-## Testing and Verification
+## Testing Strategy and Coverage
 
-Last full run: July 7, 2026.
+### Coverage Summary
 
-| Layer | Result |
+| Layer | Tests | Line coverage | Tool |
+| --- | --- | --- | --- |
+| Python Risk Engine | 78 | **80%** | pytest-cov |
+| Spring Platform API | 53 (all passing) | not measured | JUnit 5 (JaCoCo not yet configured) |
+| Playwright E2E | 28 | n/a | Playwright |
+
+### Key Module Coverage (Risk Engine)
+
+| Module | Coverage | Notes |
+| --- | --- | --- |
+| `vrp/ml/shadow_cost_model.py` | 98% | ML gate logic fully exercised |
+| `vrp/ortools_solver.py` | 98% | Solver wrapper, constraint setup |
+| `vrp/cost_model.py` | 96% | Risk-weighted edge cost formula |
+| `outbound_http.py` | 85% | SSRF enforcement paths |
+| `main.py` | 82% | FastAPI app wiring, middleware |
+| `directions.py` | 54% | External OSRM call paths hard to unit-test |
+| `risk.py` | 28% | NWS/NOAA fetch paths; scoring math covered via `test_weather_snapshot.py` |
+
+### Per-Layer Philosophy
+
+**Unit tests** cover the logic that must be correct regardless of infrastructure: risk scoring formulas and weighting, VRP cost model arithmetic, idempotency key hashing and format validation, rate-limit bucket classification, and ML gate fail-closed behavior. These run in milliseconds with no network or database.
+
+**Integration tests** verify orchestration order and repository contracts: DynamoDB single-table access patterns (conditional writes, begins_with queries), service layer sequencing (quota check before persistence), and idempotency replay returning the original resource ID.
+
+**E2E tests** (Playwright, headless Chromium) exercise the deployed-shaped experience: XSS hardening on map markers, stale-cache fallback with visible indicator, auth-unavailable UX messaging, network retry behavior, and accessibility (axe-core). These run against the Vite dev server with a mocked API layer.
+
+**Stress tests** detect performance regressions locally without cloud cost: 180 requests at concurrency 8, asserting zero failures and p95 baselines (cached endpoints < 500 ms, multi-stop planning ~3.2 s).
+
+### Known Gaps
+
+- `risk.py` (28%): the low number reflects external HTTP fetch paths (NWS, NOAA) that require live APIs. The scoring math itself is covered through `test_weather_snapshot.py` and `test_hazards.py`.
+- `directions.py` (54%): OSRM call paths need a running router; contract shape is tested, live routing is not.
+- Spring Platform API has no JaCoCo coverage report yet. All 53 tests pass; coverage measurement is a planned CI addition.
+- E2E tests mock the backend; true end-to-end against deployed Lambda is a manual step (demo playbook).
+
+### Running the Suites
+
+```powershell
+# Risk Engine (Python) - 78 tests, ~4s
+$env:PYTHONPATH = 'services/api'
+python -m pytest services/api/tests -q --cov=services/api --cov-report=term-missing
+
+# Platform API (Spring) - 53 tests, ~20s
+cd services/platform-api
+../../scripts/mvn.ps1 --batch-mode test
+
+# E2E (Playwright) - 28 tests, requires dev server
+npm run test:e2e --prefix web
+
+# Stress (in-process, no cloud cost)
+python perf/local_api_stress.py --requests 180 --concurrency 8
+```
+
+### Other Verification
+
+| Check | Result |
 | --- | --- |
-| Spring Platform API (53 tests) | passed |
-| Python Risk Engine (78 tests) | passed |
-| Playwright E2E (28 tests) | passed |
 | Frontend lint + build + bundle budget | passed |
 | Design lint | 0 errors, 0 warnings |
 | Dependency audit | 0 high vulnerabilities |
 | ML served-cost demo | passed |
 
 **Bundle budget** (enforced in CI): initial JS 98.8 kB gz / 180 kB limit, MapLibre vendor 278 kB gz / 320 kB limit, CSS 21.8 kB gz / 90 kB limit.
-
-**Local stress test** (cost-free, in-process): 180 requests at concurrency 8, 0 failures, cached endpoint p95 under 500 ms. Multi-stop planning p95 ~3.2 s is the known bottleneck (synchronous matrix work; async job path is the planned fix).
-
-```powershell
-python perf/local_api_stress.py --requests 180 --concurrency 8
-```
 
 ---
 

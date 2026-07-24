@@ -1,16 +1,19 @@
 # Local Development
 
-## Purpose
-
-The local environment makes the product and domain model reviewable before AWS infrastructure is created.
+## Quick Start
 
 ```powershell
 ./scripts/local-up.ps1
 ```
 
-- Climate routing map: `http://localhost:5173`
-- OpenAPI documentation: `http://localhost:8000/docs`
-- Health endpoint: `http://localhost:8000/health`
+This runs `docker compose up --build -d` and starts all services:
+
+| Service | URL | Description |
+| --- | --- | --- |
+| Web (React + Vite + MapLibre) | `http://localhost:5173` | Map-first SPA |
+| Platform API (Spring Boot) | `http://localhost:8080` | Public API boundary |
+| Risk Engine (FastAPI) | `http://localhost:8000` | Geospatial scoring and routing |
+| Risk Engine docs | `http://localhost:8000/docs` | OpenAPI reference |
 
 Stop the environment:
 
@@ -22,41 +25,65 @@ Stop the environment:
 
 | Local Component | AWS Target |
 | --- | --- |
-| React, Vite, and MapLibre map client | S3 private origin and CloudFront |
-| FastAPI container | API Gateway and Lambda adapter |
-| SQLite repository | DynamoDB repository adapter |
-| Optional PostGIS Compose profile | Aurora PostgreSQL Serverless v2 + RDS Data API |
-| Climate-aware route ranking | Versioned risk/optimization Lambda or on-demand Fargate task |
-| Open-Meteo forecast integration | Cached forecast ingestion through EventBridge schedule |
-| OSRM public route geometry | Swappable routing provider adapter |
-| In-process provider refresh | SQS-triggered weather/risk worker |
-| Docker Compose | GitHub Actions deployment workflows |
+| React + Vite + MapLibre SPA (Docker dev server) | S3 private origin + CloudFront |
+| Spring Boot platform API (in-memory stores) | ECS Fargate + DynamoDB + Cognito |
+| FastAPI risk engine (in-memory/DynamoDB adapter) | Lambda or Fargate behind API Gateway |
+| OSRM public routing | Swappable routing provider adapter |
+| NWS/NOAA + Open-Meteo provider adapters | Cached ingestion via EventBridge schedule |
+| OR-Tools VRP solver (in-process) | On-demand Fargate task or Lambda |
+| In-process weather snapshot refresh | SQS-triggered raster/risk worker |
+| Optional PostGIS Compose profile (`relational`) | Aurora PostgreSQL Serverless v2 + PostGIS |
+| Docker Compose orchestration | GitHub Actions + Terraform deployment |
 
-The route and risk contracts, API request models, idempotency behavior, live
-weather risk layer, route ranking, road geometry, and map-first user experience
-are implemented locally. AWS adapters remain separate work and should be
-introduced through reviewed Terraform plans.
+## Local Storage Adapters
 
-Start only the local PostGIS database and apply the versioned schema:
+The platform API uses in-memory adapters by default for saved places, usage
+tracking, idempotency, and rate limiting. Set `DYNAMODB_TABLE` to switch to a
+DynamoDB-backed repository (point `DYNAMODB_ENDPOINT_URL` at DynamoDB Local if
+needed).
+
+The Python risk engine selects its repository through `DYNAMODB_TABLE` as well;
+without it, a lightweight SQLite fallback is used strictly for local
+development convenience.
+
+## Optional PostGIS Profile
+
+Start only the relational database and apply the versioned schema:
 
 ```powershell
 docker compose --profile relational up -d postgres
 ```
 
-This profile is optional and does not change the default local application
-runtime. It exists to inspect and exercise the relational/spatial schema.
+This profile does not affect the default application runtime. It exists to
+inspect and exercise the relational/spatial schema locally.
 
-## Verification
+## Testing
+
+Python risk engine:
 
 ```powershell
 cd services/api
+$env:PYTHONPATH = "."
 python -m pytest -q
+```
 
-cd ../../web
+Spring Boot platform API:
+
+```powershell
+./scripts/mvn.ps1 -f services/platform-api/pom.xml test
+```
+
+Frontend:
+
+```powershell
+cd web
 npm run lint
 npm run build
+```
 
-cd ..
+Full stack smoke test:
+
+```powershell
 docker compose build
 docker compose up -d
 docker compose ps

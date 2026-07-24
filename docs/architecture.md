@@ -26,6 +26,29 @@ AtmosPath is not a delivery-dispatch, fleet-management, or CRM product.
 | Infrastructure | Terraform | Reusable, reviewable IaC |
 | CI/CD | GitHub Actions with AWS OIDC | Secretless automated delivery |
 
+## Implementation Status
+
+| Component | Status | Notes |
+| --- | --- | --- |
+| React SPA (Vite, MapLibre, TypeScript) | ✅ Implemented | Deployed to S3 + CloudFront preview |
+| CloudFront + private S3 origin | ✅ Implemented | Geo-restricted, TLS-terminated edge |
+| Spring Boot platform API | ✅ Implemented | Service layer, rate limiting, idempotency |
+| Cognito authentication (JWT ownership) | ✅ Implemented | Token validation, per-user data isolation |
+| DynamoDB persistence (TTL, PITR) | ✅ Implemented | Saved places, jobs, idempotency, usage |
+| FastAPI risk engine | ✅ Implemented | Provider adapters, explainable scoring |
+| NWS/NOAA + Open-Meteo weather adapters | ✅ Implemented | Live forecast and alert ingestion |
+| OSRM routing provider | ✅ Implemented | Road geometry and drive-time calculation |
+| OR-Tools VRP multi-stop optimization | ✅ Implemented | Bounded route ranking and served-cost solver |
+| ML shadow scoring workflow | ✅ Implemented | Offline model evaluation pipeline |
+| Terraform IaC (bootstrap, modules, environments) | ✅ Implemented | Reviewable plans, OIDC-backed CI |
+| GitHub Actions CI/CD | ✅ Implemented | Build, test, deploy with AWS OIDC |
+| SQS weather/raster workers | 🔨 Partial | Code in `services/api/app/worker.py`; not yet deployed |
+| Weather raster pipeline service | 🔨 Partial | Service scaffolded; no scheduled ingestion running |
+| Aurora PostgreSQL + PostGIS | 📋 Planned | Schema documented (`relational-data-model.md`); not deployed |
+| HRRR/MRMS raster ingestion | 📋 Planned | Documented as national-scale data source |
+| FEMA NRI/NFHL hazard data | 📋 Planned | Referenced in risk model design |
+| X-Ray distributed tracing | 📋 Planned | Mentioned in observability goals; not implemented |
+
 ## Runtime Flow
 
 ```mermaid
