@@ -65,7 +65,7 @@ score = max(
 
 `max`을 취하면 심각한 경보 하나가 전체 점수를 지배합니다. 반대로 경보는 없는데 비+바람+더위가 겹치는 경우는 가중 합성이 잡아줍니다. 전국 리스크는 상위 20개 경보만 평균내며, 수백 개 저심각도 자문문이 점수를 희석하는 것을 방지합니다.
 
-전국 엔드포인트에는 60초 TTL 인메모리 캐시를 적용했습니다. 프리뷰 규모에서 Redis 인스턴스 불필요.
+전국 엔드포인트에는 60초 TTL 인메모리 캐시를 적용하여, 동시 요청 시 NWS API 반복 호출을 방지합니다.
 
 검증: `test_api.py`, `test_hazards.py`, `test_weather_snapshot.py`
 
@@ -106,7 +106,7 @@ Spring 쪽에 서블릿 필터(`RateLimitFilter`)를 두고, 메서드 + 경로 
 | `route-risk-mutation` | POST /directions, /risk/location | 뮤테이션 티어 |
 | `authenticated-me` | /me/** | 인증 사용자 별도 제한 |
 
-키는 `bucket:method:path:clientIP` 조합입니다. 기본 스토어는 인메모리 고정 윈도우. 프리뷰 규모에서 Redis 인스턴스 불필요. 멀티 인스턴스 전환 시 `RATE_LIMIT_STORE=redis`만 변경하면 됩니다. 모든 판정은 Micrometer 카운터(`atmospath.rate_limit.requests`)로 발행하고, 응답에는 `X-RateLimit-*` 헤더와 `Retry-After`가 포함된 구조화된 429 본문을 반환합니다.
+키는 `bucket:method:path:clientIP` 조합입니다. 기본 스토어는 인메모리 고정 윈도우이며, 멀티 인스턴스 전환 시 `RATE_LIMIT_STORE=redis`로 교체합니다. 모든 판정은 Micrometer 카운터(`atmospath.rate_limit.requests`)로 발행하고, 응답에는 `X-RateLimit-*` 헤더와 `Retry-After`가 포함된 구조화된 429 본문을 반환합니다.
 
 검증: `RateLimitFilterTests.java`, `InMemoryRateLimitRepositoryTests.java`
 
@@ -279,7 +279,9 @@ npm run test:e2e --prefix web
 
 ### 준비물
 
-풀스택은 Docker 하나면 됩니다. 개별 실행 시 Node 20+, Python 3.12+, Java 21이 필요하며, Windows의 경우 `.tools/`에 Java와 Maven이 포함되어 있어 별도 설치가 불필요합니다.
+풀스택 실행에는 Docker만 있으면 됩니다.
+
+개별 레이어만 실행할 경우 Node 20+, Python 3.12+, Java 21이 필요합니다. Windows에서는 `.tools/` 디렉터리에 Java 21과 Maven이 번들되어 있으므로 별도 설치 없이 바로 실행할 수 있습니다.
 
 ### 풀스택
 
@@ -343,7 +345,9 @@ python -m pytest services/api/tests -q    # 78개 테스트
 3. 런타임 환경변수 활성화
 4. 개별 요청에서 `useMlServedCost=true`
 
-하나라도 빠지면 fail-closed. 아티팩트는 pickle이 아닌 JSON이라 열어볼 수 있습니다.
+하나라도 충족하지 않으면 룰 기반 코스트로 fail-closed 처리됩니다. 반영되는 지연에도 상한, 가중치, 신뢰도 임계값이 적용됩니다.
+
+아티팩트 형식은 pickle/joblib가 아닌 순수 JSON(계수, 피처명, 메트릭)입니다. 사람이 직접 열어볼 수 있고, 로드 시 임의 코드가 실행될 여지가 없습니다.
 
 ```powershell
 # 학습
@@ -399,7 +403,7 @@ PostGIS 확장 경로는 문서화만 되어 있으며 기본 배포에는 포�
 
 ## 배포
 
-AWS `us-east-1`, 서버리스 우선입니다. CloudFront + Private S3, API Gateway + Lambda, DynamoDB 온디맨드, Cognito. Kubernetes, Aurora, 매니지드 Redis는 사용하지 않습니다. 프리뷰 규모에서 불필요한 인프라 비용이기 때문입니다.
+AWS `us-east-1`, 서버리스 우선입니다. CloudFront + Private S3, API Gateway + Lambda, DynamoDB 온디맨드, Cognito로 구성됩니다. Kubernetes, Aurora, 매니지드 Redis는 사용하지 않습니다.
 
 인프라는 전부 Terraform으로 관리하고, CI/CD는 GitHub Actions OIDC(정적 자격 증명 없음)로 운영합니다. CloudFront에 US/KR 지역 제한을 적용했고, 리소스 태그는 `Project=awsresumeproject`, `ManagedBy=IaC`, `Environment=dev`로 통일했습니다.
 
