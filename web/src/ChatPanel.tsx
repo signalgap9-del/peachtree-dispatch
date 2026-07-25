@@ -102,7 +102,7 @@ export function ChatPanel({ open, onClose, draft }: Props) {
         <span className="chat-head-mark"><Sparkles size={16} /></span>
         <div className="chat-head-text">
           <strong>{t("chat.title")}</strong>
-          <small className="chat-live-dot"><i aria-hidden="true" />{chat.isStreaming && chat.messages.at(-1)?.progress ? t(PROGRESS_KEYS[chat.messages.at(-1)!.progress!]) : "AtmosPath"}</small>
+          <small className="chat-live-dot"><i aria-hidden="true" />{chat.isStreaming && chat.messages.at(-1)?.progress ? t(PROGRESS_KEYS[chat.messages.at(-1)!.progress!]) : "FreightScaler"}</small>
         </div>
         <button type="button" className="chat-head-action" onClick={chat.clearChat} disabled={chat.messages.length === 0} aria-label={t("chat.clear")}><Trash2 size={15} /></button>
         <button type="button" className="chat-head-action" onClick={onClose} aria-label={t("chat.close")}><X size={16} /></button>
@@ -119,7 +119,7 @@ export function ChatPanel({ open, onClose, draft }: Props) {
               <button type="button" onClick={() => chat.sendMessage(t("chat.quick.riskPrompt"), language)}>{t("chat.quick.risk")}</button>
               <button type="button" onClick={() => chat.sendMessage(t("chat.quick.alertsPrompt"), language)}>{t("chat.quick.alerts")}</button>
             </div>
-            <span className="chat-empty-stack">ATMOSPATH · LLM ASSISTANT</span>
+            <span className="chat-empty-stack">FREIGHTSCALER · LLM ASSISTANT</span>
           </div>
         ) : (
           chat.messages.map((message) => (message.role === "user"

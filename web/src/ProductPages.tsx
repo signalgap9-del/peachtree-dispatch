@@ -57,17 +57,17 @@ type LiveProps = {
 type AlertCategory = "all" | "flood" | "heat" | "storm" | "wind" | "winter" | "fire";
 
 const alertSummaryCache = new Map<string, string>();
-const ALERT_SUMMARY_SYSTEM = "당신은 기상 경보를 운전자에게 요약하는 AtmosPath AI입니다. 제공된 경보 정보만 근거로 한국어 2-3문장 이내로 핵심만 요약합니다.";
+const ALERT_SUMMARY_SYSTEM = "You are the FreightScaler AI, summarizing weather alerts for truck drivers. Based only on the alert information provided, summarize the key points in 2-3 sentences of plain English.";
 
 function alertSummaryPrompt(alert: RiskAlert): string {
   return [
-    `경보: ${alert.event}`,
-    `심각도: ${alert.severity} / 긴급성: ${alert.urgency}`,
-    `지역: ${alert.area || "미상"}`,
-    `내용: ${alert.headline}`,
-    alert.instruction ? `공식 지침: ${alert.instruction}` : "",
+    `Alert: ${alert.event}`,
+    `Severity: ${alert.severity} / Urgency: ${alert.urgency}`,
+    `Area: ${alert.area || "Unknown"}`,
+    `Details: ${alert.headline}`,
+    alert.instruction ? `Official guidance: ${alert.instruction}` : "",
     "",
-    "이 경보를 운전자가 바로 이해할 수 있도록 한국어로 요약하세요.",
+    "Summarize this alert in plain English a driver can act on right away.",
   ].filter(Boolean).join("\n");
 }
 
@@ -109,12 +109,12 @@ export function HomePage({
       <DataNotice status={dataStatus} hasData={Boolean(national || weatherSnapshot)} />
       <section className="home-grid">
         <div className="surface outlook-card">
-          <SectionHeader title={t("home.nationalOutlook")} meta={national ? `Updated ${formatTime(national.generated_at)}` : "Waiting for NWS"} action={t("home.viewMap")} onAction={() => navigate("/map")} />
+          <SectionHeader title={t("home.nationalOutlook")} meta={national ? `Updated ${formatTime(national.generated_at)}` : "Waiting for weather data"} action={t("home.viewMap")} onAction={() => navigate("/map")} />
           <RiskMapVisual national={national} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} />
         </div>
         <div className="surface matters-card">
           <SectionHeader title={t("home.activeHazards")} action={t("home.viewAlerts")} onAction={() => navigate("/alerts")} />
-          {alerts.length ? alerts.map((alert, index) => <AlertStory key={alert.alert_id} alert={alert} index={index} onClick={() => navigate("/alerts")} />) : <EmptyState title="No live alerts loaded" detail="The service will populate this panel from the National Weather Service feed." />}
+          {alerts.length ? alerts.map((alert, index) => <AlertStory key={alert.alert_id} alert={alert} index={index} onClick={() => navigate("/alerts")} />) : <EmptyState title="No active alerts right now" detail="New alerts from the National Weather Service will appear here." />}
         </div>
       </section>
       <section className="surface live-priority">
@@ -126,7 +126,7 @@ export function HomePage({
               <span><strong>{point.city}</strong><i className={riskLevel(point.risk_score)}>{riskLevelLabel(point.risk_score)}</i></span>
               <small>{weatherSummary(point)}</small>
             </button>
-          )) : <EmptyState title="Weather grid is loading" detail="Live HRRR/MRMS and NWS-derived points will appear here." />}
+          )) : <EmptyState title="Weather data is loading" detail="Live weather points will appear here in a moment." />}
         </div>
       </section>
       <section className="home-bottom">
@@ -176,7 +176,7 @@ export function DashboardPage({
               <em>{windLabel(point)}</em>
             </button>
           ))}
-          {!rows.length && <EmptyState title="No weather points available" detail="The dashboard does not substitute fabricated scores when the live pipeline is unavailable." />}
+          {!rows.length && <EmptyState title="No weather data right now" detail="We don't show made-up numbers. Check back in a moment." />}
         </div>
         <div className="surface dashboard-alert-intel">
           <SectionHeader title="Search live alerts" meta={`${national?.active_alerts ?? 0} active NWS alerts`} action="Open alert center" onAction={openAlertCenter} />
@@ -189,28 +189,28 @@ export function DashboardPage({
           </div>
           <div className="dashboard-alert-list">
             {alerts.map((alert) => <button key={alert.alert_id} onClick={() => navigate(`/alerts?q=${encodeURIComponent(alert.event)}${alertCategory !== "all" ? `&category=${alertCategory}` : ""}`)}><AlertTriangle size={16} /><span><strong>{alert.event}</strong><small>{alert.area || "Affected U.S. region"}</small></span><em className={riskClass(alert.severity)}>{alertDriverAction(alert)}</em></button>)}
-            {!alerts.length && <EmptyState title="No matching live alerts" detail="Try another city, county, highway, or hazard category. We do not invent warnings." />}
+            {!alerts.length && <EmptyState title="No alerts match your search" detail="Try another city, county, highway, or hazard type." />}
           </div>
           <div className="dashboard-alert-signals">
-            <strong>Map signals for this search</strong>
-            {relatedWeather.length ? relatedWeather.map((point) => <button key={point.id} onClick={() => navigate(`/map?search=${encodeURIComponent(point.city)}`)}><span>{point.city}</span><small>{conditionLabel(point)} / {roadImpactLabel(point)}</small><em className={riskLevel(point.risk_score)}>{point.risk_score}</em></button>) : <small>No monitored weather point matches this search yet.</small>}
+            <strong>Weather near your search</strong>
+            {relatedWeather.length ? relatedWeather.map((point) => <button key={point.id} onClick={() => navigate(`/map?search=${encodeURIComponent(point.city)}`)}><span>{point.city}</span><small>{conditionLabel(point)} / {roadImpactLabel(point)}</small><em className={riskLevel(point.risk_score)}>{point.risk_score}</em></button>) : <small>No weather points match this search yet.</small>}
           </div>
           <div className="roadwork-source-card">
             <Newspaper size={17} />
-            <span><strong>Roadwork and closure feed</strong><small>Next external layer: FHWA WZDx + state 511 work-zone feeds. No air-quality filler.</small></span>
+            <span><strong>Roadwork and closures</strong><small>Work-zone data from FHWA and state 511 feeds is coming soon.</small></span>
             <button onClick={() => navigate("/alerts?q=closure")}>Track</button>
           </div>
         </div>
       </section>
       <section className="dashboard-bottom">
         <div className="surface forecast-panel">
-          <SectionHeader title="Nationwide monitor" meta={weatherSnapshot?.model_version ?? "Awaiting model version"} action="Explore map" onAction={() => navigate("/map")} />
+          <SectionHeader title="Nationwide monitor" meta={weatherSnapshot?.model_version ?? "Waiting for data"} action="Explore map" onAction={() => navigate("/map")} />
           <InterestGridPanel snapshot={weatherSnapshot} navigate={navigate} />
         </div>
         <div className="surface alert-summary">
           <SectionHeader title="Alert summary" meta={`${national?.active_alerts ?? 0} active`} action="View all alerts" onAction={() => navigate("/alerts")} />
           {alerts.map((alert) => <button key={alert.alert_id} onClick={() => navigate("/alerts")}><AlertTriangle size={16} /><span>{alert.event}</span><strong>{alert.score}</strong><ChevronRight size={15} /></button>)}
-          {!alerts.length && <EmptyState title="No active alerts loaded" detail="NWS alert records will appear here." />}
+          {!alerts.length && <EmptyState title="No active alerts right now" detail="New alerts will appear here." />}
         </div>
       </section>
     </main>
@@ -245,7 +245,7 @@ export function SavedPage({
         setRoutesState(savedRoutes);
         setAccount(accountSummary);
       })
-      .catch(() => notify("Saved records could not be loaded."))
+      .catch(() => notify("We couldn't load your saved items. Try again."))
       .finally(() => setLoading(false));
   }, [userEmail]);
 
@@ -323,7 +323,7 @@ export function SavedPage({
       setRoutesState((items) => items.map((item) => item.savedItemId === updated.savedItemId ? updated : item));
       notify("Saved route settings updated.", "success");
     } catch {
-      notify("Saved route settings could not be updated.", "error");
+      notify("We couldn't update those settings. Try again.", "error");
     } finally {
       setSavingRoute(false);
     }
@@ -341,7 +341,7 @@ export function SavedPage({
       }
       notify("Saved item removed.", "success");
     } catch {
-      notify("Saved item could not be removed.", "error");
+      notify("We couldn't remove that item. Try again.", "error");
     }
   }
 
@@ -396,7 +396,7 @@ export function SavedPage({
               ))}
               {filteredPlaces.map((place) => {
                 const score = place.currentRiskScore ?? 0;
-                return <button key={place.savedItemId} className={selected?.type === "place" && selected.value.savedItemId === place.savedItemId ? "selected" : ""} onClick={() => setSelectedKey(`place:${place.savedItemId}`)}><MapThumb seed={place.savedItemId} /><span className="saved-card-title"><MapPin size={15} /><strong>{place.name}</strong></span><span className="saved-risk"><b className={riskLevel(score)}>{score}</b><i>{riskLevelLabel(score)} risk</i><small>Private saved place</small></span><span className="saved-meta"><Bell size={13} /> Saved place</span></button>;
+                return <button key={place.savedItemId} className={selected?.type === "place" && selected.value.savedItemId === place.savedItemId ? "selected" : ""} onClick={() => setSelectedKey(`place:${place.savedItemId}`)}><MapThumb seed={place.savedItemId} /><span className="saved-card-title"><MapPin size={15} /><strong>{place.name}</strong></span><span className="saved-risk"><b className={riskLevel(score)}>{score}</b><i>{riskLevelLabel(score)} risk</i><small>Saved place</small></span><span className="saved-meta"><Bell size={13} /> Saved place</span></button>;
               })}
               {!filteredRoutes.length && !filteredPlaces.length && (
                 collection === "routes" ? (
@@ -438,7 +438,7 @@ export function SavedPage({
             </div>
             <button className="button primary wide" onClick={() => navigate(`/directions?origin=${encodeURIComponent(selected.value.originName)}&destination=${encodeURIComponent(selected.value.destinationName)}&vehicle=${selected.value.vehicleType.toLowerCase()}`)}>Re-open route</button>
           </> : <>
-            <div className="selected-risk"><b className={riskLevel(selected.value.currentRiskScore ?? 0)}>{selected.value.currentRiskScore ?? "--"}</b><span><strong>{riskLevelLabel(selected.value.currentRiskScore ?? 0)} risk</strong><small>Last stored composite score</small></span></div>
+            <div className="selected-risk"><b className={riskLevel(selected.value.currentRiskScore ?? 0)}>{selected.value.currentRiskScore ?? "--"}</b><span><strong>{riskLevelLabel(selected.value.currentRiskScore ?? 0)} risk</strong><small>Latest risk score</small></span></div>
             <button className="button primary wide" onClick={() => navigate(`/map?search=${encodeURIComponent(selected.value.name)}`)}>Open on map</button>
             <button className="button secondary wide" onClick={() => navigate("/directions")}>Plan route from here</button>
           </>}
@@ -460,7 +460,7 @@ export function UsagePage({ navigate }: { navigate: Navigate }) {
     setLoading(true);
     void api.accountSummary()
       .then(setAccount)
-      .catch(() => setError("Account usage could not be loaded. Check OAuth and platform API deployment settings."))
+      .catch(() => setError("We couldn't load your usage. Try again in a moment."))
       .finally(() => setLoading(false));
   }, [userEmail]);
 
@@ -469,7 +469,7 @@ export function UsagePage({ navigate }: { navigate: Navigate }) {
       <main className="page-shell usage-page">
         <CallToAction
           title="Sign in to view usage"
-          detail="Usage, quotas, and saved route capacity are tenant-scoped. Public map preview stays available without login."
+          detail="Your plan limits and saved routes are tied to your account. You can still use the map without signing in."
           action="Sign in"
           onClick={() => void login()}
           secondaryAction="Compare plans"
@@ -481,12 +481,12 @@ export function UsagePage({ navigate }: { navigate: Navigate }) {
 
   return (
     <main className="page-shell usage-page">
-      <PageTitle title="Usage and operations" subtitle="Plan limits, quota enforcement, and production readiness signals for this workspace">
-        <button className="button secondary" onClick={() => navigate("/status")}>Operational status</button>
+      <PageTitle title="Plan & Usage" subtitle="Your plan limits and how much you've used today">
+        <button className="button secondary" onClick={() => navigate("/status")}>System status</button>
         <button className="button secondary" onClick={() => navigate("/pricing")}>Compare plans</button>
         <button className="button primary" onClick={() => navigate("/directions")}>Plan route <Navigation size={16} /></button>
       </PageTitle>
-      {loading && <EmptyState title="Loading account usage" detail="Reading workspace summary from the platform API." />}
+      {loading && <EmptyState title="Loading your usage" detail="Pulling your account summary." />}
       {error && <div className="data-notice degraded" role="status"><AlertTriangle size={17} /><span><strong>Usage unavailable</strong><small>{error}</small></span></div>}
       {account && (
         <>
@@ -504,13 +504,13 @@ export function UsagePage({ navigate }: { navigate: Navigate }) {
           </section>
           <section className="usage-grid">
             <div className="surface usage-panel">
-              <SectionHeader title="Daily metered API usage" meta={`Resets ${formatReset(account.dailyUsage[0]?.resetsAt)}`} />
+              <SectionHeader title="Today's usage" meta={`Resets ${formatReset(account.dailyUsage[0]?.resetsAt)}`} />
               <div className="usage-meter-list">
                 {account.dailyUsage.map((usage) => <UsageMeter key={usage.feature} usage={usage} />)}
               </div>
             </div>
             <div className="surface usage-panel">
-              <SectionHeader title="Saved asset capacity" meta="Tenant-scoped private data" />
+              <SectionHeader title="Saved routes and places" meta="Stored in your account" />
               <div className="usage-meter-list">
                 <UsageMeter usage={{ ...account.savedRoutes, resetsAt: "capacity" }} />
                 <UsageMeter usage={{ ...account.savedPlaces, resetsAt: "capacity" }} />
@@ -518,7 +518,7 @@ export function UsagePage({ navigate }: { navigate: Navigate }) {
             </div>
           </section>
           <section className="surface readiness-panel">
-            <SectionHeader title="Production readiness signals" meta="What an operator can verify during incident response" />
+            <SectionHeader title="Account health" meta="What's enabled on your plan" />
             <div className="readiness-grid">
               {account.readiness.map((signal) => (
                 <article key={signal.key}>
@@ -537,14 +537,14 @@ export function UsagePage({ navigate }: { navigate: Navigate }) {
 
 export function PricingPage({ navigate }: { navigate: Navigate }) {
   const plans = [
-    { code: "FREE", title: "Free preview", price: "$0", detail: "Portfolio-safe public preview with server-side quotas.", limits: ["30 route plans / day", "10 saved routes", "25 saved places", "7 days route history"] },
-    { code: "PRO", title: "Pro", price: "Billing disabled", detail: "Target SaaS tier for individual power users once payments are added.", limits: ["300 route plans / day", "100 saved routes", "250 saved places", "Dispatch optimizer enabled"] },
-    { code: "TEAM", title: "Team", price: "Billing disabled", detail: "Future workspace tier for fleets, consultants, and operations teams.", limits: ["2,000 route plans / day", "1,000 saved routes", "Team workspace controls", "90 days route history"] },
+    { code: "FREE", title: "Free", price: "$0", detail: "Free forever, with daily limits.", limits: ["30 route plans / day", "10 saved routes", "25 saved places", "7 days route history"] },
+    { code: "PRO", title: "Pro", price: "Coming soon", detail: "For owner-operators and daily planners.", limits: ["300 route plans / day", "100 saved routes", "250 saved places", "Dispatch optimizer enabled"] },
+    { code: "TEAM", title: "Team", price: "Coming soon", detail: "For fleets and operations teams.", limits: ["2,000 route plans / day", "1,000 saved routes", "Team workspace controls", "90 days route history"] },
   ];
   return (
     <main className="page-shell pricing-page">
-      <PageTitle title="Plans without billing lock-in" subtitle="AtmosPath enforces SaaS-style entitlements now; payment collection is intentionally out of scope for this portfolio release.">
-        <button className="button secondary" onClick={() => navigate("/usage")}>View usage</button>
+      <PageTitle title="Simple plans" subtitle="Every plan is free while we finish billing. Daily limits apply per plan.">
+        <button className="button secondary" onClick={() => navigate("/usage")}>View my usage</button>
         <button className="button primary" onClick={() => navigate("/map")}>Try the map</button>
       </PageTitle>
       <section className="pricing-grid">
@@ -555,7 +555,7 @@ export function PricingPage({ navigate }: { navigate: Navigate }) {
             <strong>{plan.price}</strong>
             <p>{plan.detail}</p>
             <ul>{plan.limits.map((limit) => <li key={limit}><ShieldCheck size={15} /> {limit}</li>)}</ul>
-            <button className={plan.code === "FREE" ? "button primary wide" : "button secondary wide"} onClick={() => navigate(plan.code === "FREE" ? "/directions" : "/usage")}>{plan.code === "FREE" ? "Start planning" : "Track readiness"}</button>
+            <button className={plan.code === "FREE" ? "button primary wide" : "button secondary wide"} onClick={() => navigate(plan.code === "FREE" ? "/directions" : "/usage")}>{plan.code === "FREE" ? "Start planning" : "View limits"}</button>
           </article>
         ))}
       </section>
@@ -601,10 +601,10 @@ export function AlertsPage({ navigate, national, weatherSnapshot = null, weather
         accumulated += chunk;
         setSummaries((previous) => ({ ...previous, [alert.alert_id]: accumulated }));
       },
-      onError: (message) => {
-        errored = true;
-        setSummaries((previous) => ({ ...previous, [alert.alert_id]: `요약을 생성하지 못했습니다: ${message}` }));
-      },
+        onError: (message) => {
+          errored = true;
+          setSummaries((previous) => ({ ...previous, [alert.alert_id]: "Summary failed. Try again." }));
+        },
       signal: controller.signal,
     })
       .then(() => {
@@ -614,7 +614,7 @@ export function AlertsPage({ navigate, national, weatherSnapshot = null, weather
       })
       .catch(() => {
         if (controller.signal.aborted) return;
-        setSummaries((previous) => ({ ...previous, [alert.alert_id]: "요약을 생성하지 못했습니다." }));
+        setSummaries((previous) => ({ ...previous, [alert.alert_id]: "Summary failed. Try again." }));
         setSummarizingId(null);
       });
   }
@@ -699,7 +699,7 @@ export function AlertsPage({ navigate, national, weatherSnapshot = null, weather
                 <span><strong>{alert.event}</strong><small>{alert.area || "Affected U.S. region"}</small><em>{alertCategoryLabel(alertCategory(alert))} · {alert.urgency || "Unknown urgency"}</em>
                   <span className="alert-summary-row">
                     <button type="button" className={`ai-toggle alert-summary-toggle${summarizingId === alert.alert_id ? " active" : ""}`} onClick={(event) => { event.stopPropagation(); summarizeAlert(alert); }}>
-                      <Sparkles size={12} /> {summarizingId === alert.alert_id ? "요약 중..." : "요약"}
+                      <Sparkles size={12} /> {summarizingId === alert.alert_id ? "Summarizing..." : "Summarize"}
                     </button>
                   </span>
                   {summaries[alert.alert_id] && <span className="ai-summary">{summaries[alert.alert_id]}{summarizingId === alert.alert_id && <span className="ai-caret" aria-hidden="true" />}</span>}
@@ -722,7 +722,7 @@ export function AlertsPage({ navigate, national, weatherSnapshot = null, weather
           <div className="alerts-map"><RiskMapVisual national={mapNational} weatherSnapshot={mapWeatherSnapshot} weatherRaster={weatherRaster} regional />
             <div className="alert-weather-results">
               <strong>{selected ? `Focused map: ${selected.event}` : "Related weather signals"}</strong>
-              {relatedWeather.length ? relatedWeather.map((point) => <button key={point.id} onClick={() => navigate(`/map?search=${encodeURIComponent(point.city)}`)}><span>{point.city}</span><small>{conditionLabel(point)} · {windLabel(point)}</small><em className={riskLevel(point.risk_score)}>{riskLevelLabel(point.risk_score)}</em></button>) : <small>No monitored weather point matches this search.</small>}
+              {relatedWeather.length ? relatedWeather.map((point) => <button key={point.id} onClick={() => navigate(`/map?search=${encodeURIComponent(point.city)}`)}><span>{point.city}</span><small>{conditionLabel(point)} · {windLabel(point)}</small><em className={riskLevel(point.risk_score)}>{riskLevelLabel(point.risk_score)}</em></button>) : <small>No weather points match this search.</small>}
             </div>
           </div>
         </div>
@@ -735,7 +735,7 @@ export function AlertsPage({ navigate, national, weatherSnapshot = null, weather
           <InspectorMetric label="Urgency" value={selected.urgency || "Unknown"} />
           <InspectorMetric label="Category" value={alertCategoryLabel(alertCategory(selected))} />
           <h4>What's happening</h4><p>{selected.headline}</p>
-          <h4>Affected area</h4><p>{selected.area || "Area details unavailable"}</p>
+          <h4>Affected area</h4><p>{selected.area || "No area details available"}</p>
           <h4>Route impact</h4>
           {userEmail ? (
             impactedRoutes.length ? impactedRoutes.map((impact) => (
@@ -744,8 +744,8 @@ export function AlertsPage({ navigate, national, weatherSnapshot = null, weather
                 <span><strong>{impact.route.name}</strong><small>{impact.reason}</small></span>
                 <em className={riskLevel(impact.score)}>{impact.score}</em>
               </button>
-            )) : <EmptyState title="No saved route impact" detail="Your saved routes do not currently match this alert." />
-          ) : <CallToAction title="Sign in for route impact" detail="Saved routes can be matched against active alerts and opened directly in directions." action="Sign in" onClick={() => void login()} secondaryAction="Continue with Google" onSecondaryClick={() => {
+            )) : <EmptyState title="No saved routes affected" detail="None of your saved routes match this alert." />
+          ) : <CallToAction title="Sign in to see affected routes" detail="We'll match your saved routes against this alert." action="Sign in" onClick={() => void login()} secondaryAction="Continue with Google" onSecondaryClick={() => {
             if (googleAuthConfigured()) {
               void loginWithGoogle();
             } else {
@@ -782,9 +782,9 @@ export function PlaceDetailPage({ navigate, slug, weatherRaster }: { navigate: N
       <button className="back-link" onClick={() => navigate("/map")}>Back to map</button>
       <section className="place-heading">
         <div><h1>{place.city}, {place.state}</h1><span>{risk ? `Updated ${formatTime(risk.generated_at)}` : loading ? "Loading live risk..." : "Live risk unavailable"}</span></div>
-        <Metric label="Composite risk" value={risk ? `${risk.score}` : "--"} meta={risk?.level ?? "No live value"} tone={risk ? riskLevel(risk.score) : "low"} />
-        <Metric label="Temperature" value={risk ? `${Math.round(risk.weather.temperature_f)}°F` : "--"} meta={risk?.weather.source ?? "Awaiting provider"} tone="low" />
-        <Metric label="Surface" value={risk ? surfaceConditionLabel(risk.weather) : "--"} meta={risk ? windLabel(risk.weather) : "No live value"} tone="moderate" />
+        <Metric label="Overall risk" value={risk ? `${risk.score}` : "--"} meta={risk?.level ?? "No data yet"} tone={risk ? riskLevel(risk.score) : "low"} />
+        <Metric label="Temperature" value={risk ? `${Math.round(risk.weather.temperature_f)}°F` : "--"} meta={risk?.weather.source ?? "Waiting for data"} tone="low" />
+        <Metric label="Surface" value={risk ? surfaceConditionLabel(risk.weather) : "--"} meta={risk ? windLabel(risk.weather) : "No data yet"} tone="moderate" />
         <div className="place-actions"><button className="button primary" onClick={() => navigate("/directions")}>Plan a route</button><button className="button secondary" onClick={() => savePlace(place, risk?.score)}><Bookmark size={15} /> Save place</button></div>
       </section>
       {!risk && <DataNotice status={loading ? "loading" : "degraded"} hasData={false} />}
@@ -792,12 +792,12 @@ export function PlaceDetailPage({ navigate, slug, weatherRaster }: { navigate: N
         <div className="surface place-map"><RiskMapVisual locationRisk={risk} weatherRaster={weatherRaster} regional />{risk && <Timeline score={risk.score} />}</div>
         <div className="surface why-risk">
           <SectionHeader title="Risk factors" meta={risk?.model_version} />
-          {reasons.map(({ name, contribution, icon: Icon }) => <div className="risk-reason" key={name}><Icon size={22} /><span><strong>{name}</strong><small>Live composite contribution</small></span><em className={riskLevel(contribution)}>{riskLevelLabel(contribution)}</em><b>{contribution}<small>/100</small></b></div>)}
-          {!reasons.length && <EmptyState title="Risk factors unavailable" detail="No fallback factor values are shown." />}
+          {reasons.map(({ name, contribution, icon: Icon }) => <div className="risk-reason" key={name}><Icon size={22} /><span><strong>{name}</strong><small>How much this adds to the score</small></span><em className={riskLevel(contribution)}>{riskLevelLabel(contribution)}</em><b>{contribution}<small>/100</small></b></div>)}
+          {!reasons.length && <EmptyState title="Risk factors unavailable" detail="We don't show estimated factors when live data is down." />}
         </div>
       </section>
       <section className="place-bottom">
-        <div className="surface active-place-alerts"><SectionHeader title="Active alerts" action="View all alerts" onAction={() => navigate("/alerts")} />{risk?.alerts.map((alert) => <button key={alert.alert_id} onClick={() => navigate("/alerts")}><AlertTriangle size={16} /><span>{alert.event}</span><small>{alert.area}</small><ChevronRight size={15} /></button>)}{risk && !risk.alerts.length && <EmptyState title="No active alerts" detail="No NWS alerts intersect this place." />}</div>
+        <div className="surface active-place-alerts"><SectionHeader title="Active alerts" action="View all alerts" onAction={() => navigate("/alerts")} />{risk?.alerts.map((alert) => <button key={alert.alert_id} onClick={() => navigate("/alerts")}><AlertTriangle size={16} /><span>{alert.event}</span><small>{alert.area}</small><ChevronRight size={15} /></button>)}{risk && !risk.alerts.length && <EmptyState title="No active alerts" detail="No active alerts cover this area." />}</div>
         <div className="surface live-context"><strong>Live conditions</strong>{risk ? <><span><CloudRain /> {Math.round(risk.weather.temperature_f)}°F</span><span><Droplets /> {surfaceConditionLabel(risk.weather)}</span><span><Wind /> {windLabel(risk.weather)}</span></> : <span>Unavailable</span>}</div>
       </section>
     </main>
@@ -812,7 +812,7 @@ function DataNotice({ status, hasData }: { status: DataStatus; hasData: boolean 
       <Gauge size={17} />
       <span><strong>{status === "loading" ? t("data.loading") : hasData ? t("data.partial") : t("data.unavailable")}</strong><small>{status === "loading" ? t("data.loadingDetail") : t("data.unavailableDetail")}</small></span>
       {status === "degraded" && (
-        <button type="button" className="data-notice-retry" onClick={() => window.dispatchEvent(new CustomEvent("atmospath:reload-data"))}>{t("error.retry")}</button>
+        <button type="button" className="data-notice-retry" onClick={() => window.dispatchEvent(new CustomEvent("freightscaler:reload-data"))}>{t("error.retry")}</button>
       )}
     </div>
   );
@@ -871,7 +871,7 @@ function PlanBadge({ account }: { account: AccountSummary }) {
     <div className="plan-badge">
       <span>{account.plan.status}</span>
       <strong>{account.plan.code}</strong>
-      <small>{account.plan.dispatchOptimizerEnabled ? "Optimizer enabled" : "Map preview quota"}</small>
+      <small>{account.plan.dispatchOptimizerEnabled ? "Route optimizer on" : "Preview plan limits"}</small>
     </div>
   );
 }
@@ -914,7 +914,7 @@ function RiskMapVisual({
 
 function InterestGridPanel({ snapshot, navigate, compact }: { snapshot: NationalWeatherSnapshot | null; navigate: Navigate; compact?: boolean }) {
   const points = useMemo(() => topWeatherPoints(snapshot, compact ? 6 : 12), [compact, snapshot]);
-  return <section className={`interest-grid ${compact ? "compact" : ""}`}><div>{points.map((point) => <button key={point.id} onClick={() => navigate(`/map?search=${encodeURIComponent(point.city)}`)}><span><strong>{point.city}</strong><small>{weatherSummary(point)}</small></span><i className={riskLevel(point.risk_score)}>{point.risk_score}</i></button>)}</div>{!points.length && <EmptyState title="No monitored points available" detail="Waiting for the nationwide weather snapshot." />}</section>;
+  return <section className={`interest-grid ${compact ? "compact" : ""}`}><div>{points.map((point) => <button key={point.id} onClick={() => navigate(`/map?search=${encodeURIComponent(point.city)}`)}><span><strong>{point.city}</strong><small>{weatherSummary(point)}</small></span><i className={riskLevel(point.risk_score)}>{point.risk_score}</i></button>)}</div>{!points.length && <EmptyState title="No weather points yet" detail="Waiting for the latest nationwide weather data." />}</section>;
 }
 
 function WinterRoadRiskPanel({ points, navigate }: { points: Array<{ point: WeatherRisk; score: number; reason: string }>; navigate: Navigate }) {
@@ -931,7 +931,7 @@ function WinterRoadRiskPanel({ points, navigate }: { points: Array<{ point: Weat
             </button>
           ))}
         </div>
-      ) : <EmptyState title="No winter road signal" detail="No monitored corridor currently combines freezing temperatures with moisture." />}
+      ) : <EmptyState title="No winter road risk right now" detail="No monitored route currently combines freezing temperatures and moisture." />}
     </div>
   );
 }
@@ -949,7 +949,7 @@ type IntelligenceItem = {
 function IntelligenceFeed({ items, navigate }: { items: IntelligenceItem[]; navigate: Navigate }) {
   return (
     <div className="surface intelligence-feed">
-      <SectionHeader title="Operational intelligence" meta="Official + derived signals" action="View alerts" onAction={() => navigate("/alerts")} />
+      <SectionHeader title="What needs your attention" meta="Official alerts and road risk" action="View alerts" onAction={() => navigate("/alerts")} />
       <div className="intelligence-list">
         {items.map((item) => (
           <button key={item.id} onClick={() => navigate(item.target)}>
@@ -1135,10 +1135,10 @@ function routeImpactsForAlert(alert: RiskAlert, routes: SavedRouteRecord[]) {
       const weatherSensitive = route.riskScore >= 30 && ["FLOOD", "RAIN", "THUNDERSTORM", "WIND"].some((keyword) => alert.event.toUpperCase().includes(keyword));
       const score = Math.min(100, Math.max(route.riskScore, endpointMatch ? alert.score : Math.round((route.riskScore + alert.score) / 2)));
       const reason = endpointMatch
-        ? "Alert overlaps a saved route endpoint or corridor label."
+        ? "This alert covers part of this route."
         : weatherSensitive
-          ? "Route already has elevated weather risk during this alert."
-          : "No strong route overlap detected.";
+          ? "This route already has high weather risk."
+          : "This alert doesn't overlap your route.";
       return { route, score, reason, included: endpointMatch || weatherSensitive };
     })
     .filter((impact) => impact.included)
@@ -1217,5 +1217,5 @@ function savePlace(place: (typeof places)[string], score?: number) {
     void login();
     return;
   }
-  void api.savePlace(place, score).then(() => notify(`${place.city} saved to your account.`)).catch(() => notify("This place could not be saved."));
+  void api.savePlace(place, score).then(() => notify(`${place.city} saved to your account.`)).catch(() => notify("We couldn't save that place. Try again."));
 }

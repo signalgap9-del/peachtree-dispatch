@@ -1,9 +1,9 @@
 const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID ?? "";
 const domain = import.meta.env.VITE_COGNITO_DOMAIN ?? "";
-const tokenKey = "atmospath:id-token";
-const accessTokenKey = "atmospath:access-token";
-const verifierKey = "atmospath:pkce-verifier";
-const stateKey = "atmospath:oauth-state";
+const tokenKey = "freightscaler:id-token";
+const accessTokenKey = "freightscaler:access-token";
+const verifierKey = "freightscaler:pkce-verifier";
+const stateKey = "freightscaler:oauth-state";
 const googleEnabled = (import.meta.env.VITE_GOOGLE_AUTH_ENABLED ?? "false").toLowerCase() === "true";
 
 export type AuthUser = {

@@ -15,7 +15,7 @@ const TOAST_ICONS: Record<NotifyKind, typeof Info> = {
 };
 
 /**
- * Global toast stack. Listens on the `atmospath:toast` event bus so any
+ * Global toast stack. Listens on the `freightscaler:toast` event bus so any
  * module can call `notify(message, kind)` from `./ui` without prop drilling.
  */
 export function ToastHost() {
@@ -37,8 +37,8 @@ export function ToastHost() {
       setToasts((items) => [...items.slice(-2), { id, kind, message }]);
       window.setTimeout(() => dismiss(id), 4500);
     };
-    window.addEventListener("atmospath:toast", onToast);
-    return () => window.removeEventListener("atmospath:toast", onToast);
+    window.addEventListener("freightscaler:toast", onToast);
+    return () => window.removeEventListener("freightscaler:toast", onToast);
   }, [dismiss]);
 
   if (!toasts.length) return null;

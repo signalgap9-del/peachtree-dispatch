@@ -1,7 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#0B57D0"/>
-  <path d="M15 47c9 0 6-11 15-11s9 8 17-6" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="0.1 7.5"/>
-  <circle cx="15" cy="47" r="4.5" fill="#FFFFFF"/>
-  <path d="M47 13c-5.5 0-10 4.5-10 10 0 7 10 16 10 16s10-9 10-16c0-5.5-4.5-10-10-10z" fill="#FFFFFF"/>
-  <circle cx="47" cy="23" r="4" fill="#0B57D0"/>
+  <!-- Hexagon: freight/container mark -->
+  <path d="M32 3 L57 17.5 L57 46.5 L32 61 L7 46.5 L7 17.5 Z" fill="#0B57D0"/>
+  <!-- Bold route curve: origin to destination -->
+  <path d="M17 44 C 24 44, 26 36, 32 32 C 38 28, 40 22, 47 20" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round"/>
+  <!-- Origin dot -->
+  <circle cx="17" cy="44" r="5" fill="#FFFFFF"/>
+  <!-- Destination: amber weather-alert beacon -->
+  <circle cx="47" cy="20" r="6.5" fill="#F9AB00"/>
+  <!-- Alert chevron inside beacon -->
+  <path d="M47 16.5 L50 21.5 L44 21.5 Z" fill="#0B57D0"/>
 </svg>

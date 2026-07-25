@@ -3,8 +3,8 @@ import { useEffect, useRef, useState, type ReactElement } from "react";
 
 import { useI18n, type CopyKey } from "./i18n";
 
-const ONBOARDING_KEY = "atmospath:onboarding-complete";
-const ONBOARDING_SESSION_KEY = "atmospath:onboarding-session";
+const ONBOARDING_KEY = "freightscaler:onboarding-complete";
+const ONBOARDING_SESSION_KEY = "freightscaler:onboarding-session";
 
 export function shouldShowOnboarding(): boolean {
   try {
@@ -92,7 +92,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
     <div className="onboarding-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) finish(false); }}>
       <div className="onboarding-dialog" role="dialog" aria-modal="true" aria-label={t("onboarding.welcome")} ref={dialogRef}>
         <div className="onboarding-top">
-          <span className="onboarding-brand"><Sparkles size={15} /> AtmosPath</span>
+          <span className="onboarding-brand"><Sparkles size={15} /> FreightScaler</span>
           <button type="button" className="onboarding-close" onClick={() => finish(false)} aria-label={t("onboarding.close")}><X size={17} /></button>
         </div>
         <div className="onboarding-art"><Art /></div>

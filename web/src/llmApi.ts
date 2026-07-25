@@ -77,7 +77,7 @@ export async function getRagHealth(): Promise<RagHealthResponse> {
 /**
  * Merges /llm/status and /rag/health into the UI-facing status.
  * Returns null when the LLM module is not deployed (the controllers
- * are conditional on atmospath.llm.enabled=true and 404 otherwise).
+ * are conditional on freightscaler.llm.enabled=true and 404 otherwise).
  */
 export async function getLlmServiceStatus(): Promise<LlmStatus | null> {
   try {

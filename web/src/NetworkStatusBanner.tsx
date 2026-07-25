@@ -16,7 +16,7 @@ export function NetworkStatusBanner() {
       tone: "offline",
       icon: <WifiOff size={18} />,
       title: "Offline mode",
-      detail: "AtmosPath keeps the map shell usable and shows safe cached public risk data when available. Private saved data is never cached for offline use.",
+      detail: "FreightScaler keeps the map shell usable and shows safe cached public risk data when available. Private saved data is never cached for offline use.",
     }
     : showStale
       ? {

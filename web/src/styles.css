@@ -409,6 +409,18 @@ button { color: inherit; }
 .token-budget>i>b{display:block;height:100%;border-radius:4px;background:var(--blue);transition:width .4s ease}
 .token-budget>i>b.high{background:var(--red)}
 .token-budget>em{font:500 12px "DM Mono",monospace;font-style:normal;color:var(--ink)}
+.status-technical{margin-top:18px}
+.status-technical>summary{display:flex;align-items:center;gap:12px;padding:16px 18px;border:1px solid var(--line);border-radius:14px;background:var(--surface);cursor:pointer;list-style:none;user-select:none;transition:border-color .15s ease}
+.status-technical>summary::-webkit-details-marker{display:none}
+.status-technical>summary:hover{border-color:var(--blue)}
+.status-technical>summary>svg:first-child{color:var(--blue)}
+.status-technical>summary>span{flex:1}
+.status-technical>summary strong{display:block;font-size:16px}
+.status-technical>summary small{display:block;margin-top:2px;color:var(--muted);font-size:12px}
+.status-technical>summary .chev{color:var(--muted);transition:transform .2s ease}
+.status-technical[open]>summary .chev{transform:rotate(90deg)}
+.status-technical .status-grid{margin-top:18px}
+.status-technical .technical-issue-log{margin-top:18px}
 
 @media (max-width:760px){
   .suggestion-banner{width:calc(100vw - 24px);margin:8px 12px 0;padding:10px 12px 13px;grid-template-columns:30px minmax(0,1fr) auto;gap:10px}

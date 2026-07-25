@@ -1,12 +1,12 @@
-import { Activity, Bell, ChevronRight, Database, Globe, Info, Trash2 } from "lucide-react";
+import { Activity, Bell, ChevronRight, Database, Info, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import type { Navigate } from "./App";
-import { useI18n, languageKey, type Language } from "./i18n";
+import { useI18n, languageKey } from "./i18n";
 import { notify } from "./ui";
 
 const APP_VERSION = "0.1.0";
-export const NOTIFY_PREFS_KEY = "atmospath:notify-prefs";
+export const NOTIFY_PREFS_KEY = "freightscaler:notify-prefs";
 
 export type NotifyPrefs = {
   severe: boolean;
@@ -29,7 +29,7 @@ export function loadNotifyPrefs(): NotifyPrefs {
 }
 
 export function SettingsPage({ navigate }: { navigate: Navigate }) {
-  const { t, language, setLanguage } = useI18n();
+  const { t } = useI18n();
   const [prefs, setPrefs] = useState<NotifyPrefs>(() => loadNotifyPrefs());
   const [confirming, setConfirming] = useState(false);
 
@@ -51,7 +51,7 @@ export function SettingsPage({ navigate }: { navigate: Navigate }) {
       const doomed: string[] = [];
       for (let i = 0; i < window.localStorage.length; i += 1) {
         const key = window.localStorage.key(i);
-        if (key && key.startsWith("atmospath:") && key !== languageKey) doomed.push(key);
+        if (key && key.startsWith("freightscaler:") && key !== languageKey) doomed.push(key);
       }
       doomed.forEach((key) => window.localStorage.removeItem(key));
       window.sessionStorage.clear();
@@ -74,29 +74,6 @@ export function SettingsPage({ navigate }: { navigate: Navigate }) {
       <header className="page-title">
         <div><h1>{t("settings.title")}</h1><p>{t("settings.subtitle")}</p></div>
       </header>
-
-      <section className="surface settings-section">
-        <div className="settings-section-head">
-          <i><Globe size={18} /></i>
-          <div><strong>{t("settings.appearance")}</strong><small>{t("settings.appearanceDetail")}</small></div>
-        </div>
-        <div className="settings-row">
-          <div className="settings-row-text"><strong>{t("settings.language")}</strong></div>
-          <div className="segmented" role="group" aria-label={t("settings.language")}>
-            {(["en", "ko"] as Language[]).map((option) => (
-              <button
-                key={option}
-                type="button"
-                className={language === option ? "active" : ""}
-                aria-pressed={language === option}
-                onClick={() => setLanguage(option)}
-              >
-                {option === "en" ? "English" : "한국어"}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
 
       <section className="surface settings-section">
         <div className="settings-section-head">
@@ -161,7 +138,7 @@ export function SettingsPage({ navigate }: { navigate: Navigate }) {
       <section className="surface settings-section">
         <div className="settings-section-head">
           <i><Info size={18} /></i>
-          <div><strong>{t("settings.about")}</strong><small>AtmosPath · {t("brand.tagline")}</small></div>
+          <div><strong>{t("settings.about")}</strong><small>FreightScaler · {t("brand.tagline")}</small></div>
         </div>
         <div className="settings-row">
           <div className="settings-row-text"><strong>{t("settings.version")}</strong></div>

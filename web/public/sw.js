@@ -1,7 +1,7 @@
-/* AtmosPath service worker: offline app shell, network-first API. */
-const SHELL_CACHE = "atmospath-shell-v1";
-const RUNTIME_CACHE = "atmospath-runtime-v1";
-const API_CACHE = "atmospath-api-v1";
+/* FreightScaler service worker: offline app shell, network-first API. */
+const SHELL_CACHE = "freightscaler-shell-v1";
+const RUNTIME_CACHE = "freightscaler-runtime-v1";
+const API_CACHE = "freightscaler-api-v1";
 const MAX_API_ENTRIES = 40;
 
 const SHELL_URLS = [

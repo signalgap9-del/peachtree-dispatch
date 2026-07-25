@@ -1,7 +1,7 @@
 {
-  "name": "AtmosPath - Weather-aware route planning",
-  "short_name": "AtmosPath",
-  "description": "Map-first navigation that compares car, van, and truck routes against live severe-weather alerts and climate risk.",
+  "name": "FreightScaler - Weather-aware route planning",
+  "short_name": "FreightScaler",
+  "description": "Weather-aware freight route planning. Compare routes by weather risk, monitor alerts, optimize multi-stop fleet routing.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
@@ -21,6 +21,18 @@
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "maskable"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }

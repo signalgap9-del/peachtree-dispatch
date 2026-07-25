@@ -32,8 +32,8 @@ type NetworkInformationLike = {
   removeEventListener?: (type: "change", listener: () => void) => void;
 };
 
-const RESILIENCE_SNAPSHOT_KEY = "atmospath:resilience-snapshot";
-const RESILIENCE_CACHE_PREFIX = "atmospath:resilience-cache:";
+const RESILIENCE_SNAPSHOT_KEY = "freightscaler:resilience-snapshot";
+const RESILIENCE_CACHE_PREFIX = "freightscaler:resilience-cache:";
 const RESILIENCE_CACHE_VERSION = 1;
 const RESILIENCE_CACHE_MAX_BYTES = 512_000;
 
@@ -153,7 +153,7 @@ function updateSnapshot(patch: Partial<ResilienceSnapshot>) {
   persistSnapshot(snapshot);
   for (const listener of listeners) listener(getResilienceSnapshot());
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent<ResilienceSnapshot>("atmospath:resilience", { detail: getResilienceSnapshot() }));
+    window.dispatchEvent(new CustomEvent<ResilienceSnapshot>("freightscaler:resilience", { detail: getResilienceSnapshot() }));
   }
 }
 
@@ -229,7 +229,7 @@ function canUseSessionStorage() {
   if (typeof window === "undefined") return false;
   if (sessionStorageAvailable !== null) return sessionStorageAvailable;
   try {
-    const probe = "atmospath:resilience-session-probe";
+    const probe = "freightscaler:resilience-session-probe";
     window.sessionStorage.setItem(probe, "1");
     window.sessionStorage.removeItem(probe);
     sessionStorageAvailable = true;
@@ -243,7 +243,7 @@ function canUseLocalStorage() {
   if (typeof window === "undefined") return false;
   if (localStorageAvailable !== null) return localStorageAvailable;
   try {
-    const probe = "atmospath:resilience-local-probe";
+    const probe = "freightscaler:resilience-local-probe";
     window.localStorage.setItem(probe, "1");
     window.localStorage.removeItem(probe);
     localStorageAvailable = true;

@@ -24,7 +24,6 @@ import type { ChatDraft } from "./ChatPanel";
 import { ChatToggleButton } from "./ChatToggleButton";
 import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
 import { useI18n } from "./i18n";
-import { LanguageToggle } from "./LanguageToggle";
 import { NetworkStatusBanner } from "./NetworkStatusBanner";
 import { Onboarding, shouldShowOnboarding } from "./Onboarding";
 import { ProactiveSuggestionBanner } from "./ProactiveSuggestionBanner";
@@ -136,8 +135,8 @@ function AppShell() {
   // reload callback through every page.
   useEffect(() => {
     const onReload = () => loadLiveData();
-    window.addEventListener("atmospath:reload-data", onReload);
-    return () => window.removeEventListener("atmospath:reload-data", onReload);
+    window.addEventListener("freightscaler:reload-data", onReload);
+    return () => window.removeEventListener("freightscaler:reload-data", onReload);
   }, [loadLiveData]);
 
   useEffect(() => {
@@ -195,7 +194,7 @@ function AppShell() {
 
   const handleSuggestionSwitch = useCallback(() => {
     setSuggestion(null);
-    openChatWithDraft("이 경로로 전환해줘");
+    openChatWithDraft("Switch to the lower-risk route");
   }, [openChatWithDraft]);
 
   const navigate: Navigate = (nextPath) => {
@@ -290,7 +289,7 @@ function AppHeader({ path, navigate, onBackToSite, user, onUserChange, national,
     <header className="app-header">
       <button className="wordmark" onClick={() => navigate("/")} aria-label={t("header.homeLabel")}>
         <span className="peach-mark"><i /><b /></span>
-        <span><strong>AtmosPath</strong><small>{t("brand.tagline")}</small></span>
+        <span><strong>FreightScaler</strong><small>{t("brand.tagline")}</small></span>
       </button>
       <nav className="primary-nav" aria-label="Primary navigation">
         {navItems.map(({ path: itemPath, labelKey, icon: Icon }) => {
@@ -305,7 +304,6 @@ function AppHeader({ path, navigate, onBackToSite, user, onUserChange, national,
       </nav>
       <div className="header-tools">
         <button className="back-to-site" onClick={onBackToSite}><ArrowLeft size={14} /><span>{t("app.backToSite")}</span></button>
-        <LanguageToggle />
         {!user && <button className="google-auth-button" aria-label={t("header.googleSignUp")} onClick={() => {
           if (googleAuthConfigured()) {
             void loginWithGoogle();
@@ -336,7 +334,7 @@ function AppFooter({ navigate }: { navigate: Navigate }) {
   const { t } = useI18n();
   return (
     <footer className="app-footer">
-      <span>© 2026 AtmosPath · {t("brand.tagline")}</span>
+      <span>© 2026 FreightScaler · {t("brand.tagline")}</span>
       <nav aria-label="Footer">
         <button onClick={() => navigate("/legal/terms")}>{t("footer.terms")}</button>
         <button onClick={() => navigate("/legal/privacy")}>{t("footer.privacy")}</button>

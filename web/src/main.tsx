@@ -37,7 +37,7 @@ function hintApiPreconnect() {
 if (import.meta.env.PROD && import.meta.env.MODE !== "test" && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js").catch((error) => {
-      console.warn("AtmosPath service worker registration failed", error);
+      console.warn("FreightScaler service worker registration failed", error);
     });
   });
 }

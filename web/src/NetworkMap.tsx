@@ -14,7 +14,7 @@ interface Props {
   recenterToken: number;
 }
 
-type MapHostElement = HTMLDivElement & { __atmospathMap?: Map };
+type MapHostElement = HTMLDivElement & { __freightscalerMap?: Map };
 
 interface AlertMarkerProperties {
   alert_id: string;
@@ -114,13 +114,13 @@ export function NetworkMap({ plan, risk, weatherSnapshot, weatherRaster, layers,
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
-    if (import.meta.env.MODE === "test") host.__atmospathMap = map;
+    if (import.meta.env.MODE === "test") host.__freightscalerMap = map;
 
     map.on("click", "alert-markers", (event) => {
       const properties = readAlertProperties(event.features?.[0]);
       if (!properties) return;
       if (!alertPopupRef.current) {
-        alertPopupRef.current = new maplibregl.Popup({ closeOnClick: false, maxWidth: "280px", offset: 14, className: "atmospath-popup" });
+        alertPopupRef.current = new maplibregl.Popup({ closeOnClick: false, maxWidth: "280px", offset: 14, className: "freightscaler-popup" });
       }
       alertPopupRef.current.setDOMContent(buildAlertPopupContent(properties)).setLngLat(event.lngLat).addTo(map);
     });
@@ -145,7 +145,7 @@ export function NetworkMap({ plan, risk, weatherSnapshot, weatherRaster, layers,
     return () => {
       alertPopupRef.current?.remove();
       segmentPopupRef.current?.remove();
-      if (import.meta.env.MODE === "test") delete host.__atmospathMap;
+      if (import.meta.env.MODE === "test") delete host.__freightscalerMap;
       map.remove();
       mapRef.current = null;
     };

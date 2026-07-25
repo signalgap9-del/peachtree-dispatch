@@ -37,7 +37,7 @@ export class AppErrorBoundary extends Component<Props, State> {
     return (
       <main className="page-shell empty-page app-fallback" role="alert">
         <AlertTriangle size={38} />
-        <h1>AtmosPath hit a client-side issue</h1>
+        <h1>FreightScaler hit a client-side issue</h1>
         <p>The app recovered into a safe fallback instead of leaving a blank screen. The issue is recorded in this session's operational status view.</p>
         {this.state.errorId && <p className="app-fallback-id">Error ID: <code>{this.state.errorId}</code></p>}
         <div>

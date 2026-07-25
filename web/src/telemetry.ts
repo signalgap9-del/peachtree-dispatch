@@ -25,8 +25,8 @@ type ClientIssueInput = {
   details?: Record<string, string | number | boolean | null | undefined>;
 };
 
-const CLIENT_ISSUES_KEY = "atmospath:client-issues";
-const PERF_SNAPSHOT_KEY = "atmospath:perf-snapshot";
+const CLIENT_ISSUES_KEY = "freightscaler:client-issues";
+const PERF_SNAPSHOT_KEY = "freightscaler:perf-snapshot";
 const MAX_CLIENT_ISSUES = 20;
 let storageAvailability: boolean | null = null;
 
@@ -46,7 +46,7 @@ export function reportClientIssue(input: ClientIssueInput) {
   };
   const issues = [issue, ...readClientIssues()].slice(0, MAX_CLIENT_ISSUES);
   window.sessionStorage.setItem(CLIENT_ISSUES_KEY, JSON.stringify(issues));
-  window.dispatchEvent(new CustomEvent<ClientIssue>("atmospath:client-issue", { detail: issue }));
+  window.dispatchEvent(new CustomEvent<ClientIssue>("freightscaler:client-issue", { detail: issue }));
 }
 
 export function readClientIssues(): ClientIssue[] {
@@ -57,7 +57,7 @@ export function readClientIssues(): ClientIssue[] {
 export function clearClientIssues() {
   if (!canUseBrowserStorage()) return;
   window.sessionStorage.removeItem(CLIENT_ISSUES_KEY);
-  window.dispatchEvent(new Event("atmospath:client-issues-cleared"));
+  window.dispatchEvent(new Event("freightscaler:client-issues-cleared"));
 }
 
 export function updatePerformanceSnapshot(patch: Partial<PerformanceSnapshot>) {
@@ -70,7 +70,7 @@ export function updatePerformanceSnapshot(patch: Partial<PerformanceSnapshot>) {
     at: new Date().toISOString(),
   };
   window.sessionStorage.setItem(PERF_SNAPSHOT_KEY, JSON.stringify(snapshot));
-  window.dispatchEvent(new CustomEvent<PerformanceSnapshot>("atmospath:performance", { detail: snapshot }));
+  window.dispatchEvent(new CustomEvent<PerformanceSnapshot>("freightscaler:performance", { detail: snapshot }));
 }
 
 export function readPerformanceSnapshot(): PerformanceSnapshot | null {
@@ -90,7 +90,7 @@ function canUseBrowserStorage() {
   if (typeof window === "undefined") return false;
   if (storageAvailability !== null) return storageAvailability;
   try {
-    const probe = "atmospath:storage-probe";
+    const probe = "freightscaler:storage-probe";
     window.sessionStorage.setItem(probe, "1");
     window.sessionStorage.removeItem(probe);
     storageAvailability = true;

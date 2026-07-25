@@ -33,7 +33,7 @@ import { deriveRouteRiskSegments } from "./routeSegments";
 import type { DirectionsPlan, LocationRisk, NationalRiskOverview, NationalWeatherSnapshot, Place, RouteAlternative, VehicleType, WeatherRasterManifest, WeatherRisk } from "./types";
 import { notify } from "./ui";
 
-const ROUTE_AI_SYSTEM = "당신은 기후 인식 경로 플래너 AtmosPath의 AI입니다. 제공된 경로 데이터만 근거로 한국어로 간결하게 답합니다. 데이터에 없는 정보는 지어내지 마세요.";
+const ROUTE_AI_SYSTEM = "당신은 기후 인식 경로 플래너 FreightScaler의 AI입니다. 제공된 경로 데이터만 근거로 한국어로 간결하게 답합니다. 데이터에 없는 정보는 지어내지 마세요.";
 
 type Field = "origin" | "destination";
 type Alternative = "fastest" | "lower" | "balanced";
