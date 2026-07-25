@@ -19,6 +19,9 @@ LLM이 결과를 해석하는 에이전트 루프를 구현한다.
 | OptiMUS (Stanford, 2024) | `papers/OptiMUS_Stanford_2024.pdf` | 에이전트 분리 (제약 추출 → 포뮬레이션 → 해석) |
 | OPRO (DeepMind, ICLR 2024) | `papers/OPRO_DeepMind_2023.pdf` | LLM 반복 개선 루프 (이전 결과 → 컨텍스트 → 개선) |
 | LLM4Opt Survey (2024) | `papers/LLM4Opt_Survey_2024.pdf` | 분야 전체 분류 체계, 용어 정리 |
+| NL4Opt (NeurIPS 2022) | `papers/NL4Opt_NeurIPS_2022.pdf` | NL→제약 조건 추출 벤치마크, 평가 방법론 (Precision/Recall) |
+| FunSearch (DeepMind, Nature 2024) | `papers/FunSearch_DeepMind_Nature_2024.pdf` | LLM + 코드 생성 + 평가 루프, 조합적 발견 |
+| ReEvo (NTU, 2024) | `papers/ReEvo_LLM_HyperHeuristic_2024.pdf` | LLM 초휴리스틱, TSP/VRP 반성적 진화 (보조 참고) |
 
 ### LLM 프로바이더
 
