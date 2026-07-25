@@ -1,0 +1,36 @@
+model_list:
+  - model_name: atmospath-primary
+    litellm_params:
+      model: openai/qwen3.8-max-preview
+      api_base: https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1
+      api_key: os.environ/ALIBABA_API_KEY
+      max_tokens: 2000
+      temperature: 0.3
+  - model_name: atmospath-fallback
+    litellm_params:
+      model: openai/deepseek-chat
+      api_base: https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1
+      api_key: os.environ/ALIBABA_API_KEY
+      max_tokens: 2000
+      temperature: 0.3
+
+router_settings:
+  routing_strategy: simple-shuffle
+  model_list_alias:
+    atmospath: atmospath-primary
+  fallbacks:
+    - atmospath-primary: ["atmospath-fallback"]
+  num_retries: 2
+  timeout: 30
+  retry_after: 5
+
+litellm_settings:
+  success_callback: ["langfuse"]
+  failure_callback: ["langfuse"]
+  drop_params: true
+  set_verbose: false
+
+environment_variables:
+  LANGFUSE_PUBLIC_KEY: os.environ/LANGFUSE_PUBLIC_KEY
+  LANGFUSE_SECRET_KEY: os.environ/LANGFUSE_SECRET_KEY
+  LANGFUSE_HOST: http://langfuse:3000

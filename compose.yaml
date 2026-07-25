@@ -219,6 +219,38 @@ services:
       # Pre-configure PostgreSQL connector for alert_event CDC
       CONNECT_CONNECTOR_CLIENT_CONFIG_OVERRIDE_POLICY: All
 
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    profiles: ["production-data"]
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./infra/docker/litellm/config.yaml:/app/config.yaml
+    environment:
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-dev-master-key}
+      - ALIBABA_API_KEY=${LLM_API_KEY:-}
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  langfuse:
+    image: langfuse/langfuse:latest
+    profiles: ["production-data"]
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:devpassword@postgres-primary:5432/langfuse
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ${LANGFUSE_SECRET:-dev-secret-change-me}
+      SALT: ${LANGFUSE_SALT:-dev-salt-change-me}
+      TELEMETRY_ENABLED: "false"
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+
 volumes:
   api-data:
   postgres-data:

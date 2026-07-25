@@ -62,9 +62,27 @@ atmospath:
     heartbeat-interval-ms: ${ALERT_STREAM_HEARTBEAT_INTERVAL:15000}
     emitter-timeout-ms: ${ALERT_STREAM_EMITTER_TIMEOUT:300000}
   dynamodb-table: ${DYNAMODB_TABLE:}
+  llm:
+    enabled: ${LLM_ENABLED:false}
+    base-url: ${LLM_BASE_URL:http://localhost:4000}
+    api-key: ${LLM_API_KEY:}
+    model: ${LLM_MODEL:atmospath}
+    max-tokens: ${LLM_MAX_TOKENS:2000}
+    temperature: ${LLM_TEMPERATURE:0.3}
+    timeout-ms: ${LLM_TIMEOUT_MS:30000}
+    daily-token-budget: ${LLM_DAILY_TOKEN_BUDGET:100000}
+    request-token-limit: ${LLM_REQUEST_TOKEN_LIMIT:2000}
+    security:
+      max-input-length: ${LLM_MAX_INPUT_LENGTH:2000}
+      max-output-length: ${LLM_MAX_OUTPUT_LENGTH:5000}
   relational:
     enabled: ${RELATIONAL_STORE_ENABLED:false}
     initialize-schema: ${RELATIONAL_INITIALIZE_SCHEMA:false}
     database: ${RELATIONAL_DATABASE:atmospath}
     resource-arn: ${RELATIONAL_RESOURCE_ARN:}
     secret-arn: ${RELATIONAL_SECRET_ARN:}
+  langfuse:
+    enabled: ${LANGFUSE_ENABLED:false}
+    public-key: ${LANGFUSE_PUBLIC_KEY:}
+    secret-key: ${LANGFUSE_SECRET_KEY:}
+    host: ${LANGFUSE_HOST:http://localhost:3000}
