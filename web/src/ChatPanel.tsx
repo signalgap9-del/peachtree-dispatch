@@ -48,6 +48,15 @@ export function ChatPanel({ open, onClose, draft }: Props) {
     if (scroller) scroller.scrollTop = scroller.scrollHeight;
   }, [chat.messages]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
+
   function submit() {
     const text = input.trim();
     if (!text || chat.isStreaming) return;
@@ -75,6 +84,18 @@ export function ChatPanel({ open, onClose, draft }: Props) {
     setCitationsOpen((previous) => ({ ...previous, [messageId]: !previous[messageId] }));
   }
 
+  // Screen-reader mirror of the streaming assistant turn: announces stage
+  // changes while streaming and the full answer once it completes, without
+  // reading every token aloud.
+  const lastMessage = chat.messages.at(-1);
+  const liveAnnouncement = lastMessage?.role !== "assistant"
+    ? ""
+    : lastMessage.status === "streaming"
+      ? lastMessage.progress ? t(PROGRESS_KEYS[lastMessage.progress]) : ""
+      : lastMessage.status === "complete"
+        ? lastMessage.content
+        : chat.error ?? t("chat.error");
+
   return (
     <section className={`chat-panel${open ? " open" : ""}`} role="dialog" aria-label={t("chat.title")} aria-hidden={!open}>
       <header className="chat-panel-head">
@@ -93,7 +114,8 @@ export function ChatPanel({ open, onClose, draft }: Props) {
             <strong>{t("chat.empty.title")}</strong>
             <p>{t("chat.empty.detail")}</p>
             <div className="chat-quick-actions">
-              <button type="button" onClick={() => chat.sendMessage(t("chat.quick.planPrompt"), language)}>{t("chat.quick.plan")}</button>
+              <button type="button" onClick={() => chat.sendMessage(t("chat.quick.planPrompt"), language)}>{t("chat.quick.seattle")}</button>
+              <button type="button" onClick={() => chat.sendMessage(t("chat.quick.nationalPrompt"), language)}>{t("chat.quick.national")}</button>
               <button type="button" onClick={() => chat.sendMessage(t("chat.quick.riskPrompt"), language)}>{t("chat.quick.risk")}</button>
               <button type="button" onClick={() => chat.sendMessage(t("chat.quick.alertsPrompt"), language)}>{t("chat.quick.alerts")}</button>
             </div>
@@ -138,6 +160,7 @@ export function ChatPanel({ open, onClose, draft }: Props) {
         )}
       </div>
       <p className="chat-disclaimer">{t("chat.disclaimer")}</p>
+      <span className="sr-only" role="status" aria-live="polite">{liveAnnouncement}</span>
     </section>
   );
 }

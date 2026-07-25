@@ -15,6 +15,7 @@ export function startPerformanceObservers() {
   if (started || typeof window === "undefined" || typeof PerformanceObserver === "undefined") return;
   started = true;
   recordNavigationTiming();
+  recordTimeToFirstByte();
   observeLargestContentfulPaint();
   observeLayoutShift();
   observeInteractionLatency();
@@ -36,6 +37,20 @@ function observeLargestContentfulPaint() {
       if (latest) updatePerformanceSnapshot({ lcpMs: Math.round(latest.startTime) });
     });
     observer.observe({ type: "largest-contentful-paint", buffered: true });
+  } catch {
+    return;
+  }
+}
+
+function recordTimeToFirstByte() {
+  try {
+    const observer = new PerformanceObserver((list) => {
+      const navigation = list.getEntries()[0] as PerformanceNavigationTiming | undefined;
+      if (navigation && navigation.responseStart > 0) {
+        updatePerformanceSnapshot({ ttfbMs: Math.round(navigation.responseStart) });
+      }
+    });
+    observer.observe({ type: "navigation", buffered: true });
   } catch {
     return;
   }

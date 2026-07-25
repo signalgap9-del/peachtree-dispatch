@@ -76,7 +76,7 @@ export async function streamPlan(
       body: JSON.stringify(request),
       signal: connectController.signal,
     });
-  } catch (error) {
+  } catch {
     if (signal?.aborted) throw new DOMException("Request aborted", "AbortError");
     response.error = timedOut
       ? "The assistant did not respond in time."

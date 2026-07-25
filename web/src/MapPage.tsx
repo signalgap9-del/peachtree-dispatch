@@ -22,7 +22,11 @@ import { currentUser, login } from "./auth";
 import { RouteAlternativeCard } from "./components/RouteAlternativeCard";
 import { RouteDecisionSummary } from "./components/RouteDecisionSummary";
 import { RouteSegmentRiskStrip } from "./components/RouteSegmentRiskStrip";
+import { useI18n } from "./i18n";
 import { streamLlmChat } from "./llmApi";
+import { MapLayerControl } from "./MapLayerControl";
+import { DEFAULT_LAYER_VISIBILITY, type MapLayerVisibility } from "./mapLayers";
+import { MapLegend } from "./MapLegend";
 import { NetworkMap } from "./NetworkMap";
 import { deriveRouteDecision } from "./routeDecision";
 import { deriveRouteRiskSegments } from "./routeSegments";
@@ -36,6 +40,7 @@ type Alternative = "fastest" | "lower" | "balanced";
 type SearchStatus = "idle" | "searching" | "success" | "no_results" | "error";
 
 export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: { navigate: Navigate; national: NationalRiskOverview | null; weatherSnapshot: NationalWeatherSnapshot | null; weatherRaster: WeatherRasterManifest | null }) {
+  const { t } = useI18n();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const [origin, setOrigin] = useState<Place | null>(null);
@@ -53,7 +58,7 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
   const [error, setError] = useState<string | null>(null);
   const [recenterToken, setRecenterToken] = useState(0);
   const [selectedRisk, setSelectedRisk] = useState<LocationRisk | null>(null);
-  const [showRisk, setShowRisk] = useState(true);
+  const [layers, setLayers] = useState<MapLayerVisibility>(DEFAULT_LAYER_VISIBILITY);
   const [selectedAlternative, setSelectedAlternative] = useState<Alternative>("lower");
   const [showWhy, setShowWhy] = useState(false);
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
@@ -354,7 +359,7 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
 
   return (
     <main className="map-page">
-      <NetworkMap plan={showWeather ? displayedPlan : displayedPlan && { ...displayedPlan, weather: [] }} risk={national} weatherSnapshot={showWeather ? weatherSnapshot : null} weatherRaster={showWeather ? weatherRaster : null} showRisk={showRisk} recenterToken={recenterToken} />
+      <NetworkMap plan={showWeather ? displayedPlan : displayedPlan && { ...displayedPlan, weather: [] }} risk={national} weatherSnapshot={showWeather ? weatherSnapshot : null} weatherRaster={showWeather ? weatherRaster : null} layers={layers} segments={routeSegments} recenterToken={recenterToken} />
       <aside className="directions-panel">
         <div className="directions-head">
           <div><span>Trip</span><h1>{plan ? plan.summary : "Plan a climate-aware route"}</h1></div>
@@ -364,7 +369,7 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
         <div className="route-inputs">
           <div className="route-rail"><i className="origin-dot" /><span /><i className="destination-dot" /></div>
           <div className="input-stack">
-            <label className={activeField === "origin" ? "active" : ""}><input value={originQuery} onFocus={() => setActiveField("origin")} onKeyDown={handleSearchKeyDown} onChange={(event) => { setOriginQuery(event.target.value); setOrigin(null); setActiveField("origin"); }} placeholder="Choose starting point" /></label>
+            <label className={activeField === "origin" ? "active" : ""}><input data-shortcut-search value={originQuery} onFocus={() => setActiveField("origin")} onKeyDown={handleSearchKeyDown} onChange={(event) => { setOriginQuery(event.target.value); setOrigin(null); setActiveField("origin"); }} placeholder="Choose starting point" /></label>
             <label className={activeField === "destination" ? "active" : ""}><input value={destinationQuery} onFocus={() => setActiveField("destination")} onKeyDown={handleSearchKeyDown} onChange={(event) => { setDestinationQuery(event.target.value); setDestination(null); setActiveField("destination"); }} placeholder="Choose destination" /></label>
           </div>
           <button className="swap-button" aria-label="Swap origin and destination" onClick={() => { setOrigin(destination); setDestination(origin); setOriginQuery(destination?.display_name ?? ""); setDestinationQuery(origin?.display_name ?? ""); }}><ArrowDownUp size={17} /></button>
@@ -411,14 +416,28 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
             <button className="text-action" onClick={() => void saveSelectedTrip()}>Save this trip</button>
           </section>
         )}
-        {loading && <div className="route-loading">Calculating nationwide route...</div>}
-        {error && <div className="route-error">{error}</div>}
+        {loading && (
+          <div className="route-result-skeleton" role="status" aria-label={t("skeleton.loading")}>
+            <div><i className="skeleton sk-line w55" /><i className="skeleton sk-line w80" /><i className="skeleton sk-line w40" /></div>
+            <div><i className="skeleton sk-line w55" /><i className="skeleton sk-line w80" /><i className="skeleton sk-line w40" /></div>
+            <div><i className="skeleton sk-line w55" /><i className="skeleton sk-line w80" /><i className="skeleton sk-line w40" /></div>
+          </div>
+        )}
+        {error && (
+          <div className="route-error" role="alert">
+            <strong>{t("error.title")}</strong>
+            <span>{error}</span>
+            <button type="button" onClick={() => void calculate()}>{t("error.retry")}</button>
+          </div>
+        )}
       </aside>
       <div className="map-actions">
         <button aria-label="Show United States" onClick={() => setRecenterToken((value) => value + 1)}><LocateFixed size={19} /></button>
-        <button aria-label="Toggle nationwide risk heatmap" className={showRisk ? "active" : ""} onClick={() => setShowRisk((value) => !value)}><Layers3 size={19} /></button>
+        <button aria-label="Toggle nationwide risk heatmap" className={layers.heatmap ? "active" : ""} onClick={() => setLayers((current) => ({ ...current, heatmap: !current.heatmap }))}><Layers3 size={19} /></button>
         <button aria-label="Toggle weather layer" className={showWeather ? "active" : ""} onClick={() => setShowWeather((value) => !value)}><CloudRain size={19} /></button>
       </div>
+      <MapLayerControl layers={layers} onChange={setLayers} />
+      <MapLegend />
       <RiskInspector national={national} selected={selectedRisk} plan={displayedPlan} route={selectedRoute} selectedAlternative={selectedAlternative} showWeather={showWeather} setShowWeather={setShowWeather} navigate={navigate} />
       {reportOpen && (
         <div className="ai-report-overlay" onClick={(event) => { if (event.target === event.currentTarget) setReportOpen(false); }}>

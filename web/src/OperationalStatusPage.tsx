@@ -135,6 +135,7 @@ function PerformanceGrid({ snapshot }: { snapshot: PerformanceSnapshot }) {
     { label: "LCP", value: formatMs(snapshot.lcpMs), tone: scoreLcp(snapshot.lcpMs), target: "good <= 2,500 ms" },
     { label: "CLS", value: snapshot.cls === undefined ? "pending" : snapshot.cls.toFixed(3), tone: scoreCls(snapshot.cls), target: "good <= 0.100" },
     { label: "INP", value: formatMs(snapshot.inpMs), tone: scoreInp(snapshot.inpMs), target: "good <= 200 ms" },
+    { label: "TTFB", value: formatMs(snapshot.ttfbMs), tone: scoreTtfb(snapshot.ttfbMs), target: "good <= 800 ms" },
     { label: "Load", value: formatMs(snapshot.navLoadMs), tone: scoreLoad(snapshot.navLoadMs), target: "local session" },
   ];
   return (
@@ -279,6 +280,13 @@ function scoreInp(value?: number) {
   if (value === undefined) return "moderate";
   if (value <= 200) return "low";
   if (value <= 500) return "moderate";
+  return "high";
+}
+
+function scoreTtfb(value?: number) {
+  if (value === undefined) return "moderate";
+  if (value <= 800) return "low";
+  if (value <= 1800) return "moderate";
   return "high";
 }
 

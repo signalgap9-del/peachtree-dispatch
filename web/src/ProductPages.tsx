@@ -16,13 +16,14 @@
   Navigation,
   Plus,
   Search,
+  SearchX,
   ShieldCheck,
   SlidersHorizontal,
   Snowflake,
   Sparkles,
   Wind,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import type { DataStatus, Navigate } from "./App";
@@ -97,7 +98,8 @@ export function HomePage({
       <section className="home-actions">
         <label className="hero-search">
           <Search size={20} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => event.key === "Enter" && submit()} placeholder={t("home.search")} />
+          <input data-shortcut-search value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => event.key === "Enter" && submit()} placeholder={t("home.search")} aria-label={t("home.search")} />
+          <kbd className="search-kbd" aria-hidden="true">/</kbd>
           <SlidersHorizontal size={18} />
         </label>
         <QuickAction icon={<Navigation />} title={t("home.planRoute")} subtitle={t("home.planRouteSubtitle")} onClick={() => navigate("/directions")} />
@@ -319,9 +321,9 @@ export function SavedPage({
         monitorEnabled: routeDraft.monitorEnabled,
       });
       setRoutesState((items) => items.map((item) => item.savedItemId === updated.savedItemId ? updated : item));
-      notify("Saved route settings updated.");
+      notify("Saved route settings updated.", "success");
     } catch {
-      notify("Saved route settings could not be updated.");
+      notify("Saved route settings could not be updated.", "error");
     } finally {
       setSavingRoute(false);
     }
@@ -337,9 +339,9 @@ export function SavedPage({
         await api.deleteSavedRoute(selected.value.savedItemId);
         setRoutesState((items) => items.filter((item) => item.savedItemId !== selected.value.savedItemId));
       }
-      notify("Saved item removed.");
+      notify("Saved item removed.", "success");
     } catch {
-      notify("Saved item could not be removed.");
+      notify("Saved item could not be removed.", "error");
     }
   }
 
@@ -373,7 +375,9 @@ export function SavedPage({
             }
           }} />
         ) : loading ? (
-          <EmptyState title="Loading saved places" detail="Reading your records from the platform API." />
+          <div className="saved-grid" role="status" aria-label={t("skeleton.loading")}>
+            <SavedCardSkeleton /><SavedCardSkeleton /><SavedCardSkeleton />
+          </div>
         ) : (
           <>
             <div className="saved-toolbar">
@@ -394,7 +398,15 @@ export function SavedPage({
                 const score = place.currentRiskScore ?? 0;
                 return <button key={place.savedItemId} className={selected?.type === "place" && selected.value.savedItemId === place.savedItemId ? "selected" : ""} onClick={() => setSelectedKey(`place:${place.savedItemId}`)}><MapThumb seed={place.savedItemId} /><span className="saved-card-title"><MapPin size={15} /><strong>{place.name}</strong></span><span className="saved-risk"><b className={riskLevel(score)}>{score}</b><i>{riskLevelLabel(score)} risk</i><small>Private saved place</small></span><span className="saved-meta"><Bell size={13} /> Saved place</span></button>;
               })}
-              {!filteredRoutes.length && !filteredPlaces.length && <CallToAction title="No saved items yet" detail="Search anywhere in the United States, save a place, or save a route to build your climate watchlist." action="Explore the map" onClick={() => navigate("/map")} />}
+              {!filteredRoutes.length && !filteredPlaces.length && (
+                collection === "routes" ? (
+                  <RichEmpty icon={<Navigation size={24} />} title={t("empty.savedRoutes.title")} detail={t("empty.savedRoutes.detail")} action={t("empty.savedRoutes.action")} onAction={() => navigate("/directions")} />
+                ) : collection === "places" ? (
+                  <RichEmpty icon={<MapPin size={24} />} title={t("empty.savedPlaces.title")} detail={t("empty.savedPlaces.detail")} action={t("empty.savedPlaces.action")} onAction={() => navigate("/map")} />
+                ) : (
+                  <CallToAction title={t("empty.savedAll.title")} detail={t("empty.savedAll.detail")} action={t("empty.savedAll.action")} onClick={() => navigate("/map")} />
+                )
+              )}
             </div>
             <InterestGridPanel snapshot={weatherSnapshot} navigate={navigate} compact />
           </>
@@ -660,7 +672,7 @@ export function AlertsPage({ navigate, national, weatherSnapshot = null, weather
         <div className="alert-command-bar">
           <label className="alert-search-field">
             <Search size={18} />
-            <input value={query} onChange={(event) => updateAlertSearch({ q: event.target.value })} placeholder="Search flood, heat, Miami, I-95, county..." />
+            <input data-shortcut-search value={query} onChange={(event) => updateAlertSearch({ q: event.target.value })} placeholder="Search flood, heat, Miami, I-95, county..." aria-label="Search alerts" />
           </label>
           <div className="alert-category-tabs" aria-label="Alert categories">
             {alertCategoryOptions.map((option) => <button key={option} className={category === option ? "active" : ""} onClick={() => updateAlertSearch({ category: option })}>{alertCategoryLabel(option)}</button>)}
@@ -697,7 +709,15 @@ export function AlertsPage({ navigate, national, weatherSnapshot = null, weather
                 <ChevronRight size={15} />
               </div>
             ))}
-            {!alerts.length && <EmptyState title="No matching active alerts" detail="Try flood, heat, wind, a city, a county, or clear filters. We do not show fabricated warnings." />}
+            {!alerts.length && (dataStatus === "loading" && !national ? (
+              <div role="status" aria-label={t("skeleton.loading")}>
+                <AlertCardSkeleton /><AlertCardSkeleton /><AlertCardSkeleton /><AlertCardSkeleton />
+              </div>
+            ) : hasAlertFilter ? (
+              <RichEmpty icon={<SearchX size={24} />} title={t("empty.alerts.title")} detail={t("empty.alerts.detail")} action={t("empty.alerts.clear")} onAction={() => updateAlertSearch({ q: "", category: "all", severity: "all" })} />
+            ) : (
+              <RichEmpty icon={<ShieldCheck size={24} />} title={t("empty.alerts.none")} detail={t("empty.alerts.noneDetail")} />
+            ))}
           </div>
           <div className="alerts-map"><RiskMapVisual national={mapNational} weatherSnapshot={mapWeatherSnapshot} weatherRaster={weatherRaster} regional />
             <div className="alert-weather-results">
@@ -787,7 +807,15 @@ export function PlaceDetailPage({ navigate, slug, weatherRaster }: { navigate: N
 function DataNotice({ status, hasData }: { status: DataStatus; hasData: boolean }) {
   const { t } = useI18n();
   if (status === "ready") return null;
-  return <div className={`data-notice ${status}`}><Gauge size={17} /><span><strong>{status === "loading" ? t("data.loading") : hasData ? t("data.partial") : t("data.unavailable")}</strong><small>{status === "loading" ? t("data.loadingDetail") : t("data.unavailableDetail")}</small></span></div>;
+  return (
+    <div className={`data-notice ${status}`}>
+      <Gauge size={17} />
+      <span><strong>{status === "loading" ? t("data.loading") : hasData ? t("data.partial") : t("data.unavailable")}</strong><small>{status === "loading" ? t("data.loadingDetail") : t("data.unavailableDetail")}</small></span>
+      {status === "degraded" && (
+        <button type="button" className="data-notice-retry" onClick={() => window.dispatchEvent(new CustomEvent("atmospath:reload-data"))}>{t("error.retry")}</button>
+      )}
+    </div>
+  );
 }
 
 function EmptyState({ title, detail }: { title: string; detail: string }) {
@@ -796,6 +824,38 @@ function EmptyState({ title, detail }: { title: string; detail: string }) {
 
 function CallToAction({ title, detail, action, onClick, secondaryAction, onSecondaryClick }: { title: string; detail: string; action: string; onClick: () => void; secondaryAction?: string; onSecondaryClick?: () => void }) {
   return <div className="surface saved-empty"><Bookmark size={28} /><h2>{title}</h2><p>{detail}</p><div className="cta-actions"><button className="button primary" onClick={onClick}>{action}</button>{secondaryAction && onSecondaryClick && <button className="button secondary" onClick={onSecondaryClick}>{secondaryAction}</button>}</div></div>;
+}
+
+function RichEmpty({ icon, title, detail, action, onAction }: { icon: ReactNode; title: string; detail: string; action?: string; onAction?: () => void }) {
+  return (
+    <div className="rich-empty">
+      <i>{icon}</i>
+      <strong>{title}</strong>
+      <small>{detail}</small>
+      {action && onAction && <button type="button" className="button primary" onClick={onAction}>{action}</button>}
+    </div>
+  );
+}
+
+function SavedCardSkeleton() {
+  return (
+    <div className="saved-card-skeleton" aria-hidden="true">
+      <i className="skeleton sk-thumb" />
+      <i className="skeleton sk-line w70" />
+      <i className="skeleton sk-line w45" />
+      <i className="skeleton sk-line w85" />
+    </div>
+  );
+}
+
+function AlertCardSkeleton() {
+  return (
+    <div className="alert-card-skeleton" aria-hidden="true">
+      <i className="skeleton sk-dot" />
+      <span><i className="skeleton sk-line w55" /><i className="skeleton sk-line w80" /></span>
+      <i className="skeleton sk-chip" />
+    </div>
+  );
 }
 
 function PageTitle({ title, subtitle, children }: { title: string; subtitle: string; children?: React.ReactNode }) {

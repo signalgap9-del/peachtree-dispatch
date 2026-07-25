@@ -1,7 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertTriangle, Home, RefreshCcw } from "lucide-react";
 
-import { reportClientIssue } from "../telemetry";
+import { createErrorId, reportClientIssue } from "../telemetry";
 
 type Props = {
   children: ReactNode;
@@ -9,20 +9,24 @@ type Props = {
 
 type State = {
   error: Error | null;
+  errorId: string | null;
 };
 
 export class AppErrorBoundary extends Component<Props, State> {
-  override state: State = { error: null };
+  override state: State = { error: null, errorId: null };
 
   static getDerivedStateFromError(error: Error): State {
-    return { error };
+    return { error, errorId: null };
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo) {
+    const errorId = createErrorId();
+    this.setState({ errorId });
     reportClientIssue({
       kind: "render_error",
       message: error.message,
       details: {
+        errorId,
         componentStack: info.componentStack?.slice(0, 1800) ?? null,
       },
     });
@@ -35,6 +39,7 @@ export class AppErrorBoundary extends Component<Props, State> {
         <AlertTriangle size={38} />
         <h1>AtmosPath hit a client-side issue</h1>
         <p>The app recovered into a safe fallback instead of leaving a blank screen. The issue is recorded in this session's operational status view.</p>
+        {this.state.errorId && <p className="app-fallback-id">Error ID: <code>{this.state.errorId}</code></p>}
         <div>
           <button className="button primary" onClick={() => window.location.reload()}><RefreshCcw size={16} /> Reload</button>
           <button className="button secondary" onClick={() => window.location.assign("/")}><Home size={16} /> Go home</button>

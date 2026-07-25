@@ -16,6 +16,7 @@ export type PerformanceSnapshot = {
   cls?: number;
   inpMs?: number;
   navLoadMs?: number;
+  ttfbMs?: number;
 };
 
 type ClientIssueInput = {
@@ -28,6 +29,10 @@ const CLIENT_ISSUES_KEY = "atmospath:client-issues";
 const PERF_SNAPSHOT_KEY = "atmospath:perf-snapshot";
 const MAX_CLIENT_ISSUES = 20;
 let storageAvailability: boolean | null = null;
+
+export function createErrorId() {
+  return `AP-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+}
 
 export function reportClientIssue(input: ClientIssueInput) {
   if (!canUseBrowserStorage()) return;

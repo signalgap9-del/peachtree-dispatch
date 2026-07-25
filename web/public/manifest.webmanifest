@@ -1,0 +1,26 @@
+{
+  "name": "AtmosPath - Weather-aware route planning",
+  "short_name": "AtmosPath",
+  "description": "Map-first navigation that compares car, van, and truck routes against live severe-weather alerts and climate risk.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0B57D0",
+  "background_color": "#F8FAFD",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

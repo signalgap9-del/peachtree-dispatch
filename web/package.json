@@ -10,6 +10,7 @@
     "audit": "npm audit --audit-level=high",
     "design:lint": "designmd lint ../DESIGN.md",
     "perf:budget": "vite build --mode test && node scripts/check-web-bundle-budget.mjs",
+    "og:image": "node scripts/generate-og-image.mjs",
     "preview": "vite preview",
     "screenshots:release": "node scripts/capture-release-screenshots.mjs",
     "test:e2e": "vite build --mode test && playwright test"
