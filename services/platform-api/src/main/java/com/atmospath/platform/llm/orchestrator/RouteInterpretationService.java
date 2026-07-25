@@ -12,8 +12,13 @@ import com.atmospath.platform.llm.LlmProperties;
 import com.atmospath.platform.llm.LlmStreamService;
 import com.atmospath.platform.llm.Message;
 import com.atmospath.platform.llm.prompt.PromptTemplateService;
+import com.atmospath.platform.llm.rag.RagResult;
+import com.atmospath.platform.llm.rag.RagService;
+import com.atmospath.platform.llm.rag.SearchFilters;
+import com.atmospath.platform.llm.rag.SourceTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -37,15 +42,21 @@ public class RouteInterpretationService {
     private final LiteLlmClient llmClient;
     private final LlmStreamService streamService;
     private final LlmProperties properties;
+    private final ObjectProvider<RagService> ragProvider;
+    private final ObjectProvider<SourceTracker> sourceTrackerProvider;
 
     public RouteInterpretationService(PromptTemplateService templates,
                                       LiteLlmClient llmClient,
                                       LlmStreamService streamService,
-                                      LlmProperties properties) {
+                                      LlmProperties properties,
+                                      ObjectProvider<RagService> ragProvider,
+                                      ObjectProvider<SourceTracker> sourceTrackerProvider) {
         this.templates = templates;
         this.llmClient = llmClient;
         this.streamService = streamService;
         this.properties = properties;
+        this.ragProvider = ragProvider;
+        this.sourceTrackerProvider = sourceTrackerProvider;
     }
 
     // ---- Standalone streaming methods (return their own emitter) ----
@@ -53,10 +64,14 @@ public class RouteInterpretationService {
     /**
      * Streams a natural-language interpretation of a single route solution.
      * Falls back to structured data if the LLM is unavailable.
+     * When RAG is available, augments the prompt with historical observations
+     * and appends a citation footer to the fallback.
      */
     public SseEmitter interpretRoute(SolutionResult solution, String language) {
-        List<Message> messages = buildRouteMessages(solution, language);
-        String fallback = buildStructuredFallback(solution);
+        RagResult ragResult = augmentIfAvailable(solution);
+        List<Message> messages = buildRouteMessages(solution, language, ragResult);
+        String fallback = buildStructuredFallback(solution)
+                + buildRagFooter(ragResult);
         return streamWithFallback(messages, fallback);
     }
 
@@ -120,6 +135,14 @@ public class RouteInterpretationService {
      * {@code route_explanation} template with solution data.
      */
     public List<Message> buildRouteMessages(SolutionResult solution, String language) {
+        return buildRouteMessages(solution, language, null);
+    }
+
+    /**
+     * Builds the chat messages for route explanation, optionally augmented
+     * with RAG context from historical observations.
+     */
+    public List<Message> buildRouteMessages(SolutionResult solution, String language, RagResult ragResult) {
         String segmentsText = formatSegments(solution.segments());
         String alertsText = solution.activeAlerts().isEmpty()
                 ? "None"
@@ -132,7 +155,13 @@ public class RouteInterpretationService {
                 "segments", segmentsText,
                 "alerts", alertsText);
 
-        List<Message> messages = templates.buildMessages(ROUTE_TEMPLATE, vars);
+        List<Message> messages;
+        RagService rag = ragProvider.getIfAvailable();
+        if (rag != null && ragResult != null && ragResult.resultCount() > 0) {
+            messages = rag.buildRagPrompt(ROUTE_TEMPLATE, vars, ragResult);
+        } else {
+            messages = templates.buildMessages(ROUTE_TEMPLATE, vars);
+        }
         return withLanguageDirective(messages, language);
     }
 
@@ -229,6 +258,42 @@ public class RouteInterpretationService {
     }
 
     // ---- Internals ----
+
+    /**
+     * Attempts RAG augmentation for the given solution. Returns null if
+     * RagService is unavailable or augmentation yields no results.
+     */
+    private RagResult augmentIfAvailable(SolutionResult solution) {
+        RagService rag = ragProvider.getIfAvailable();
+        if (rag == null) {
+            return null;
+        }
+        try {
+            String query = solution.origin() + " to " + solution.destination()
+                    + " risk " + solution.overallRiskScore();
+            SearchFilters filters = SearchFilters.none();
+            RagResult result = rag.augment(query, filters);
+            return result.resultCount() > 0 ? result : null;
+        } catch (Exception ex) {
+            log.debug("RAG augmentation failed; proceeding without: {}", ex.toString());
+            return null;
+        }
+    }
+
+    /**
+     * Builds a citation footer from RAG sources using the SourceTracker,
+     * or returns empty string if no sources are available.
+     */
+    private String buildRagFooter(RagResult ragResult) {
+        if (ragResult == null || ragResult.sources().isEmpty()) {
+            return "";
+        }
+        SourceTracker tracker = sourceTrackerProvider.getIfAvailable();
+        if (tracker == null) {
+            return "";
+        }
+        return tracker.buildCitationFooter(ragResult.sources());
+    }
 
     private SseEmitter streamWithFallback(List<Message> messages, String fallbackText) {
         try {

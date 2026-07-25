@@ -1,0 +1,16 @@
+version: 1
+name: rag_context
+description: System instructions and context block for RAG-augmented responses.
+system: |
+  You have access to historical route risk observations.
+  Use them to ground your response and provide context.
+  When referencing historical data, cite the observation date and location.
+  If no historical data is relevant, do not mention it.
+  Do not fabricate historical events not in the provided data.
+user: |
+  Historical observations (most relevant first):
+  {rag_context}
+
+  Use the above historical observations to ground your response.
+  Cite observation IDs when referencing past data.
+  If no historical data is relevant, say so.

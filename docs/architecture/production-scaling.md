@@ -9,6 +9,7 @@ Related decisions:
 [ADR-0011](../adr/0011-dual-ledger-quota.md) (dual-ledger quota),
 [ADR-0012](../adr/0012-alert-state-machine-in-db.md) (alert state machine),
 [ADR-0013](../adr/0013-read-write-splitting.md) (read/write splitting).
+[ADR-0016](../adr/0016-rag-hybrid-search.md) (RAG hybrid search).
 
 ---
 
@@ -17,10 +18,11 @@ Related decisions:
 **Current state.** Docker Compose runs PostgreSQL 16 (TimescaleDB), Redis 7,
 and the Spring Boot application in one host. All reads and writes hit the same
 PostgreSQL instance. Redis handles rate-limit counters and quota checks.
+The pgvector extension stores RAG embeddings for route explanation grounding.
 
 ```
-Browser → Spring Boot → PostgreSQL (all queries)
-                     → Redis (quota, rate limit)
+Browser ??Spring Boot ??PostgreSQL (all queries)
+                     ??Redis (quota, rate limit)
 ```
 
 **Code.**
@@ -28,11 +30,14 @@ Browser → Spring Boot → PostgreSQL (all queries)
 - `InMemoryRateLimitRepository` or `RedisRateLimitRepository` handles rate
   limits.
 - Single `DataSource` bean, no routing.
+- `RagProperties` configures embedding model, dimensions, and search
+  parameters. RAG is off by default (`RAG_ENABLED=false`).
 
 **Infrastructure.**
 - `docker compose --profile production-data up -d`
 - One PostgreSQL container, one Redis container.
 - Flyway migrations run at startup.
+- pgvector extension with HNSW index on `route_risk_observation.embedding`.
 
 **What breaks at scale.**
 - PostgreSQL row lock contention on `usage_record` under concurrent quota
@@ -40,11 +45,15 @@ Browser → Spring Boot → PostgreSQL (all queries)
 - Read queries (dashboard, alert history) compete with write queries
   (observations, usage upserts) for shared buffers.
 - Single point of failure: PostgreSQL down = full outage.
+- HNSW index build time grows with vector count. At ~100k vectors
+  (384-dim), build is seconds. At ~1M, it becomes minutes.
 
 **Monitor.**
 - `pg_stat_activity` for active connections and long-running queries.
 - Redis `INFO memory` and `INFO clients`.
 - Spring actuator `/health` for connectivity checks.
+- RAG search latency via application metrics (p95 target: < 200ms).
+- `pg_stat_user_indexes` for HNSW index scan counts and sizes.
 
 ---
 
@@ -54,9 +63,9 @@ Browser → Spring Boot → PostgreSQL (all queries)
 read-only transactions to the replica.
 
 ```
-Browser → Spring Boot → PgBouncer → PG Primary (writes)
-                     → PgBouncer → PG Replica  (reads)
-                     → Redis
+Browser ??Spring Boot ??PgBouncer ??PG Primary (writes)
+                     ??PgBouncer ??PG Replica  (reads)
+                     ??Redis
 ```
 
 **Code changes.**
@@ -106,15 +115,15 @@ public class RoutingDataSource extends AbstractRoutingDataSource {
 ## Level 2: Write Scaling (~10,000 concurrent users)
 
 **What changes.** Offload hot-path writes from PostgreSQL. Use Redis as the
-primary quota counter (dual-ledger). Use Debezium CDC → Kafka for asynchronous
+primary quota counter (dual-ledger). Use Debezium CDC ??Kafka for asynchronous
 downstream processing.
 
 ```
-Browser → Spring Boot → Redis (quota hot path)
-                     → PG Primary (business writes)
-                     → PG Replica (reads)
-                          ↓ WAL
-                       Debezium → Kafka → consumers
+Browser ??Spring Boot ??Redis (quota hot path)
+                     ??PG Primary (business writes)
+                     ??PG Replica (reads)
+                          ??WAL
+                       Debezium ??Kafka ??consumers
 ```
 
 **Code changes.**
@@ -250,8 +259,8 @@ Regardless of database choice, Kafka MirrorMaker 2 replicates CDC topics
 across regions:
 
 ```
-us-east-1 Kafka → MirrorMaker 2 → eu-west-1 Kafka
-                                → ap-northeast-2 Kafka
+us-east-1 Kafka ??MirrorMaker 2 ??eu-west-1 Kafka
+                                ??ap-northeast-2 Kafka
 ```
 
 Downstream consumers in each region process local Kafka topics, avoiding
@@ -284,3 +293,29 @@ cross-region API calls for notification delivery and audit fan-out.
 
 All levels up to 3 run entirely in Docker Compose at zero cloud cost. Level 4
 requires managed cloud services and is documented as a future path.
+
+---
+
+## Vector Search Scaling
+
+RAG embeddings live in PostgreSQL via the pgvector extension. The scaling
+path for vector search follows the database scaling path until vector
+count outgrows single-instance PostgreSQL.
+
+| Vector count | Strategy | Detail |
+| --- | --- | --- |
+| < 1M | pgvector + HNSW | Current approach. Single PostgreSQL instance. HNSW index with `m=16, ef_construction=64`. Query latency < 50ms at 384 dimensions. |
+| 1M - 10M | pgvector + partitioned index | Partition `route_risk_observation` by time (already a TimescaleDB hypertable). Each chunk gets its own HNSW index. Queries target recent chunks first. |
+| 10M - 100M | pgvector on dedicated instance | Move vector workload to a separate PostgreSQL instance with higher `maintenance_work_mem` and `shared_buffers`. Keeps vector queries from competing with OLTP. |
+| 100M+ | Dedicated vector DB | Evaluate Weaviate, Qdrant, or Pinecone. At this scale, HNSW memory footprint (~1.5 KB/vector at 384-dim) exceeds what a single PostgreSQL instance handles well. A purpose-built vector DB provides distributed indexing, better recall tuning, and horizontal scaling. |
+
+**Migration path.** The `embedding_model` column on `route_risk_observation`
+tracks which model produced each vector. When switching embedding models or
+migrating to a new vector store, re-embed all observations and validate
+retrieval quality with the golden evaluation set (`RagEvaluationService`)
+before cutover.
+
+**Code impact at migration.** `HybridSearchService` abstracts the search
+backend behind an interface. Swapping pgvector for a dedicated vector DB
+changes the implementation, not the callers. The RRF fusion and
+cross-encoder reranking layers are backend-agnostic.

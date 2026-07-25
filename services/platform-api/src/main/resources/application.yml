@@ -75,6 +75,14 @@ atmospath:
     security:
       max-input-length: ${LLM_MAX_INPUT_LENGTH:2000}
       max-output-length: ${LLM_MAX_OUTPUT_LENGTH:5000}
+    rag:
+      enabled: ${RAG_ENABLED:false}
+      embedding-model: ${EMBEDDING_MODEL:text-embedding-v3}
+      embedding-dimensions: ${EMBEDDING_DIMENSIONS:384}
+      search-top-k: ${RAG_SEARCH_TOP_K:10}
+      rerank-top-k: ${RAG_RERANK_TOP_K:3}
+      rrf-k: ${RAG_RRF_K:60}
+      similarity-threshold: ${RAG_SIMILARITY_THRESHOLD:0.3}
   relational:
     enabled: ${RELATIONAL_STORE_ENABLED:false}
     initialize-schema: ${RELATIONAL_INITIALIZE_SCHEMA:false}

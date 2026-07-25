@@ -13,8 +13,11 @@ import com.atmospath.platform.llm.LlmProperties;
 import com.atmospath.platform.llm.LlmStreamService;
 import com.atmospath.platform.llm.Message;
 import com.atmospath.platform.llm.prompt.PromptTemplateService;
+import com.atmospath.platform.llm.rag.RagService;
+import com.atmospath.platform.llm.rag.SourceTracker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 
 class RouteInterpretationServiceTests {
 
@@ -44,8 +47,12 @@ class RouteInterpretationServiceTests {
 
     @BeforeEach
     void setUp() {
+        @SuppressWarnings("unchecked")
+        ObjectProvider<RagService> ragProvider = mock(ObjectProvider.class);
+        @SuppressWarnings("unchecked")
+        ObjectProvider<SourceTracker> trackerProvider = mock(ObjectProvider.class);
         service = new RouteInterpretationService(
-                templates, llmClient, streamService, PROPS);
+                templates, llmClient, streamService, PROPS, ragProvider, trackerProvider);
     }
 
     @Test

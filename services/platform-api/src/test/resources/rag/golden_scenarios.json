@@ -1,0 +1,242 @@
+[
+  {
+    "id": "scenario_001",
+    "query": "What happened on I-95 South during the March 2026 flood?",
+    "filters": {"routeId": null, "timeFrom": "2026-03-01", "timeTo": "2026-03-31", "minRiskScore": 70},
+    "expected_keywords": ["flood", "I-95", "precipitation", "risk"],
+    "expected_min_relevance": 0.7,
+    "category": "flood"
+  },
+  {
+    "id": "scenario_002",
+    "query": "Flash flooding on Route 1 in New Jersey last spring",
+    "filters": {"routeId": null, "timeFrom": "2026-03-01", "timeTo": "2026-05-31", "minRiskScore": 60},
+    "expected_keywords": ["flash flood", "Route 1", "New Jersey", "runoff"],
+    "expected_min_relevance": 0.6,
+    "category": "flood"
+  },
+  {
+    "id": "scenario_003",
+    "query": "Hurricane-related flooding on I-10 through Texas Gulf Coast",
+    "filters": {"routeId": null, "timeFrom": "2025-08-01", "timeTo": "2025-10-31", "minRiskScore": 75},
+    "expected_keywords": ["hurricane", "I-10", "storm surge", "Texas"],
+    "expected_min_relevance": 0.7,
+    "category": "flood"
+  },
+  {
+    "id": "scenario_004",
+    "query": "River overflow affecting US-50 in Virginia during heavy rain",
+    "filters": {"routeId": null, "timeFrom": "2026-01-01", "timeTo": "2026-06-30", "minRiskScore": 50},
+    "expected_keywords": ["river", "overflow", "US-50", "Virginia", "rainfall"],
+    "expected_min_relevance": 0.6,
+    "category": "flood"
+  },
+  {
+    "id": "scenario_005",
+    "query": "Urban flooding downtown Baltimore on I-83 after thunderstorm",
+    "filters": {"routeId": null, "timeFrom": "2026-06-01", "timeTo": "2026-07-31", "minRiskScore": 55},
+    "expected_keywords": ["urban flood", "Baltimore", "I-83", "thunderstorm", "drainage"],
+    "expected_min_relevance": 0.6,
+    "category": "flood"
+  },
+  {
+    "id": "scenario_006",
+    "query": "Blizzard conditions on I-70 through Colorado in January 2026",
+    "filters": {"routeId": null, "timeFrom": "2026-01-01", "timeTo": "2026-01-31", "minRiskScore": 70},
+    "expected_keywords": ["blizzard", "I-70", "Colorado", "snow", "visibility"],
+    "expected_min_relevance": 0.7,
+    "category": "winter_storm"
+  },
+  {
+    "id": "scenario_007",
+    "query": "Ice storm on I-80 in Pennsylvania causing road closures",
+    "filters": {"routeId": null, "timeFrom": "2025-12-01", "timeTo": "2026-02-28", "minRiskScore": 65},
+    "expected_keywords": ["ice storm", "I-80", "Pennsylvania", "freezing", "closure"],
+    "expected_min_relevance": 0.7,
+    "category": "winter_storm"
+  },
+  {
+    "id": "scenario_008",
+    "query": "Heavy snow accumulation on US-6 in Utah mountain passes",
+    "filters": {"routeId": null, "timeFrom": "2025-11-01", "timeTo": "2026-03-31", "minRiskScore": 60},
+    "expected_keywords": ["snow", "US-6", "Utah", "accumulation", "mountain"],
+    "expected_min_relevance": 0.6,
+    "category": "winter_storm"
+  },
+  {
+    "id": "scenario_009",
+    "query": "Freezing rain on I-90 in Washington state during December",
+    "filters": {"routeId": null, "timeFrom": "2025-12-01", "timeTo": "2025-12-31", "minRiskScore": 55},
+    "expected_keywords": ["freezing rain", "I-90", "Washington", "black ice"],
+    "expected_min_relevance": 0.6,
+    "category": "winter_storm"
+  },
+  {
+    "id": "scenario_010",
+    "query": "Winter storm warning on I-25 in Wyoming with whiteout conditions",
+    "filters": {"routeId": null, "timeFrom": "2026-01-15", "timeTo": "2026-02-15", "minRiskScore": 70},
+    "expected_keywords": ["winter storm", "I-25", "Wyoming", "whiteout", "wind chill"],
+    "expected_min_relevance": 0.7,
+    "category": "winter_storm"
+  },
+  {
+    "id": "scenario_011",
+    "query": "High wind advisory on I-15 in Nevada near Las Vegas",
+    "filters": {"routeId": null, "timeFrom": "2026-02-01", "timeTo": "2026-04-30", "minRiskScore": 50},
+    "expected_keywords": ["wind", "I-15", "Nevada", "gust", "advisory"],
+    "expected_min_relevance": 0.6,
+    "category": "high_wind"
+  },
+  {
+    "id": "scenario_012",
+    "query": "Crosswind hazards on I-40 in New Mexico for high-profile vehicles",
+    "filters": {"routeId": null, "timeFrom": "2026-03-01", "timeTo": "2026-05-31", "minRiskScore": 55},
+    "expected_keywords": ["crosswind", "I-40", "New Mexico", "high-profile", "gust"],
+    "expected_min_relevance": 0.6,
+    "category": "high_wind"
+  },
+  {
+    "id": "scenario_013",
+    "query": "Coastal gust front on US-101 in Oregon during winter storms",
+    "filters": {"routeId": null, "timeFrom": "2025-11-01", "timeTo": "2026-02-28", "minRiskScore": 60},
+    "expected_keywords": ["gust", "US-101", "Oregon", "coastal", "wind"],
+    "expected_min_relevance": 0.6,
+    "category": "high_wind"
+  },
+  {
+    "id": "scenario_014",
+    "query": "Wind advisory on I-76 in Nebraska with sustained 50 mph winds",
+    "filters": {"routeId": null, "timeFrom": "2026-04-01", "timeTo": "2026-05-31", "minRiskScore": 50},
+    "expected_keywords": ["wind advisory", "I-76", "Nebraska", "sustained", "mph"],
+    "expected_min_relevance": 0.6,
+    "category": "high_wind"
+  },
+  {
+    "id": "scenario_015",
+    "query": "Tornado-spawned wind damage on I-35 in Texas during spring",
+    "filters": {"routeId": null, "timeFrom": "2026-03-01", "timeTo": "2026-05-31", "minRiskScore": 75},
+    "expected_keywords": ["tornado", "I-35", "Texas", "wind damage", "debris"],
+    "expected_min_relevance": 0.7,
+    "category": "high_wind"
+  },
+  {
+    "id": "scenario_016",
+    "query": "Extreme heat wave on I-10 in Arizona during July 2026",
+    "filters": {"routeId": null, "timeFrom": "2026-07-01", "timeTo": "2026-07-31", "minRiskScore": 65},
+    "expected_keywords": ["heat", "I-10", "Arizona", "temperature", "extreme"],
+    "expected_min_relevance": 0.7,
+    "category": "extreme_heat"
+  },
+  {
+    "id": "scenario_017",
+    "query": "Pavement damage from extreme heat on I-5 in California",
+    "filters": {"routeId": null, "timeFrom": "2026-06-01", "timeTo": "2026-08-31", "minRiskScore": 60},
+    "expected_keywords": ["pavement", "heat", "I-5", "California", "buckling"],
+    "expected_min_relevance": 0.6,
+    "category": "extreme_heat"
+  },
+  {
+    "id": "scenario_018",
+    "query": "Heat advisory on US-93 in Nevada with temperatures above 115F",
+    "filters": {"routeId": null, "timeFrom": "2026-07-01", "timeTo": "2026-08-15", "minRiskScore": 55},
+    "expected_keywords": ["heat advisory", "US-93", "Nevada", "temperature", "115"],
+    "expected_min_relevance": 0.6,
+    "category": "extreme_heat"
+  },
+  {
+    "id": "scenario_019",
+    "query": "Record-breaking temperatures on I-20 in Texas during summer",
+    "filters": {"routeId": null, "timeFrom": "2026-06-15", "timeTo": "2026-08-31", "minRiskScore": 60},
+    "expected_keywords": ["record", "temperature", "I-20", "Texas", "heat"],
+    "expected_min_relevance": 0.6,
+    "category": "extreme_heat"
+  },
+  {
+    "id": "scenario_020",
+    "query": "Heat dome over I-40 in Oklahoma causing tire blowout risk",
+    "filters": {"routeId": null, "timeFrom": "2026-07-15", "timeTo": "2026-08-15", "minRiskScore": 55},
+    "expected_keywords": ["heat dome", "I-40", "Oklahoma", "tire", "blowout"],
+    "expected_min_relevance": 0.6,
+    "category": "extreme_heat"
+  },
+  {
+    "id": "scenario_021",
+    "query": "Combined flooding and high winds on I-95 during Hurricane Elena",
+    "filters": {"routeId": null, "timeFrom": "2025-09-01", "timeTo": "2025-09-30", "minRiskScore": 80},
+    "expected_keywords": ["flood", "wind", "I-95", "hurricane", "storm surge"],
+    "expected_min_relevance": 0.7,
+    "category": "multi_hazard"
+  },
+  {
+    "id": "scenario_022",
+    "query": "Winter storm with high winds creating blowing snow on I-80 in Wyoming",
+    "filters": {"routeId": null, "timeFrom": "2026-01-01", "timeTo": "2026-02-28", "minRiskScore": 70},
+    "expected_keywords": ["winter storm", "wind", "I-80", "Wyoming", "blowing snow"],
+    "expected_min_relevance": 0.7,
+    "category": "multi_hazard"
+  },
+  {
+    "id": "scenario_023",
+    "query": "Extreme heat and poor air quality on I-5 in Los Angeles",
+    "filters": {"routeId": null, "timeFrom": "2026-07-01", "timeTo": "2026-08-31", "minRiskScore": 55},
+    "expected_keywords": ["heat", "air quality", "I-5", "Los Angeles", "wildfire"],
+    "expected_min_relevance": 0.6,
+    "category": "multi_hazard"
+  },
+  {
+    "id": "scenario_024",
+    "query": "Flooding and road closure on I-10 in Louisiana from tropical storm",
+    "filters": {"routeId": null, "timeFrom": "2025-08-15", "timeTo": "2025-09-15", "minRiskScore": 75},
+    "expected_keywords": ["flood", "closure", "I-10", "Louisiana", "tropical storm"],
+    "expected_min_relevance": 0.7,
+    "category": "multi_hazard"
+  },
+  {
+    "id": "scenario_025",
+    "query": "Ice storm with power outages affecting I-90 in Massachusetts",
+    "filters": {"routeId": null, "timeFrom": "2026-01-15", "timeTo": "2026-02-15", "minRiskScore": 65},
+    "expected_keywords": ["ice storm", "power outage", "I-90", "Massachusetts", "freezing"],
+    "expected_min_relevance": 0.6,
+    "category": "multi_hazard"
+  },
+  {
+    "id": "scenario_026",
+    "query": "Traffic conditions on I-495 in Virginia on a clear day",
+    "filters": {"routeId": null, "timeFrom": "2026-05-01", "timeTo": "2026-05-31", "minRiskScore": null},
+    "expected_keywords": [],
+    "expected_min_relevance": 0.0,
+    "category": "no_match"
+  },
+  {
+    "id": "scenario_027",
+    "query": "Weather events on I-5 in December 2030",
+    "filters": {"routeId": null, "timeFrom": "2030-12-01", "timeTo": "2030-12-31", "minRiskScore": null},
+    "expected_keywords": [],
+    "expected_min_relevance": 0.0,
+    "category": "no_match"
+  },
+  {
+    "id": "scenario_028",
+    "query": "Volcanic ash on Highway 1 near Mount St Helens",
+    "filters": {"routeId": null, "timeFrom": null, "timeTo": null, "minRiskScore": null},
+    "expected_keywords": [],
+    "expected_min_relevance": 0.0,
+    "category": "no_match"
+  },
+  {
+    "id": "scenario_029",
+    "query": "Best restaurants along I-70 in Colorado",
+    "filters": {"routeId": null, "timeFrom": null, "timeTo": null, "minRiskScore": null},
+    "expected_keywords": [],
+    "expected_min_relevance": 0.0,
+    "category": "no_match"
+  },
+  {
+    "id": "scenario_030",
+    "query": "Earthquake damage on I-15 in Utah from the 1992 event",
+    "filters": {"routeId": null, "timeFrom": "1992-01-01", "timeTo": "1992-12-31", "minRiskScore": null},
+    "expected_keywords": [],
+    "expected_min_relevance": 0.0,
+    "category": "no_match"
+  }
+]
