@@ -40,6 +40,7 @@ from .repository_factory import create_repository
 from .optimization_service import OptimizationService
 from .vrp.ml.routes import router as ml_workflow_router
 from .vrp.routes import router as route_engine_router
+from .nl2opt.routes import router as nl2opt_router
 
 app = FastAPI(title="AtmosPath Internal Risk Engine", version="0.2.0")
 cors_origins = os.getenv(
@@ -59,6 +60,7 @@ repository.seed()
 optimization_service = OptimizationService()
 app.include_router(route_engine_router)
 app.include_router(ml_workflow_router)
+app.include_router(nl2opt_router)
 
 T = TypeVar("T")
 _CACHE_TTL_SECONDS = int(os.getenv("RISK_ENGINE_CACHE_TTL_SECONDS", "60"))

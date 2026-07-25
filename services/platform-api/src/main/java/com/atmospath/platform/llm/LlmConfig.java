@@ -2,6 +2,7 @@ package com.atmospath.platform.llm;
 
 import java.time.Duration;
 
+import com.atmospath.platform.llm.nl2opt.VrpConstraintValidator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -45,5 +46,10 @@ public class LlmConfig {
     @Bean
     LlmTokenBudgetService llmTokenBudgetService(StringRedisTemplate redis, LlmProperties props) {
         return new LlmTokenBudgetService(redis, props);
+    }
+
+    @Bean
+    VrpConstraintValidator vrpConstraintValidator() {
+        return new VrpConstraintValidator();
     }
 }
