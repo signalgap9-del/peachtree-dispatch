@@ -1,4 +1,4 @@
-﻿package com.atmospath.platform.llm.rag;
+package com.atmospath.platform.llm.rag;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
