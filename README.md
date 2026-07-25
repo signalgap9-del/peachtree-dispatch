@@ -7,7 +7,7 @@ AtmosPath compares route alternatives not just by travel time, but by live weath
 
 [Live preview](https://d23c97ytqgl4xu.cloudfront.net/) | [API health](https://d23c97ytqgl4xu.cloudfront.net/api/health) | [Demo playbook](docs/demo-playbook.md) | [Changelog](CHANGELOG.md)
 
-English | **[í•œêµ­ì–´](README.ko.md)**
+English | **[?œêµ­??(README.ko.md)**
 
 ![AtmosPath route comparison](docs/screenshots/map-route-live.png)
 
@@ -46,6 +46,36 @@ flowchart LR
 ```
 
 The frontend is a React 19 SPA served from private S3 through CloudFront. API calls route through API Gateway to two backends: a Java Spring Boot service that owns authentication, tenant context, entitlements, and persisted user data; and a Python FastAPI service that owns routing, weather risk scoring, alert aggregation, and vehicle-routing optimization. DynamoDB is the operational store (zero idle cost); PostgreSQL/PostGIS is documented as the expansion path for spatial joins.
+
+---
+
+## LLM Integration
+
+AtmosPath integrates LLMs as an optimization-adjacent reasoning layer, not as a chatbot. The architecture follows the OptiMUS multi-agent pattern (Stanford, 2024) with OPRO-style repair loops (DeepMind, ICLR 2024).
+
+**NL2Opt: natural language ¡æ VRP constraints.** Users describe routing needs in English, Korean, or mixed language. A 3-agent pipeline (extraction ¡æ formulation ¡æ interpretation) translates natural language into structured VRP constraints, solves them with OR-Tools, and explains results back in natural language. Extraction uses few-shot prompting with schema validation and an OPRO repair loop (max 3 attempts) for self-correction.
+
+**RAG: grounded route explanations.** Route explanations are grounded in historical observations via hybrid search (pgvector cosine similarity + PostgreSQL full-text), fused with Reciprocal Rank Fusion, and reranked by a cross-encoder. Responses include source citations, preventing hallucinated risk statistics.
+
+**Proactive risk intelligence.** Saved routes are monitored on a scheduled interval. When a risk threshold breaches, an LLM judgment layer assesses whether the change is actionable before pushing an SSE notification. A 6-hour dedup window prevents notification spam.
+
+**Safety: injection defense + output validation + 3-tier fallback.**
+- Input sanitizer blocks prompt injection (English, Korean, Chinese, JSON, nested patterns)
+- Output validator masks PII, strips URLs, flags dangerous driving advice
+- Fallback chain: primary model ¡æ secondary model ¡æ structured template (no LLM)
+
+**Evaluation:**
+| Benchmark | Scenarios | Metrics |
+| --- | --- | --- |
+| NL2Opt extraction | 50 | Precision, Recall, F1, geocoding accuracy |
+| RAG golden set | 30 | MRR, NDCG@5, recall@k |
+| Conversation E2E | 20 | Intent accuracy, context retention |
+| Safety | 20+ attack vectors | Injection block rate, PII mask rate |
+
+Architecture details: [docs/architecture/llm-integration.md](docs/architecture/llm-integration.md).
+Key decisions: [ADR-0016](docs/adr/0016-rag-hybrid-search.md) (RAG hybrid search),
+[ADR-0017](docs/adr/0017-nl2opt-agent-design.md) (NL2Opt pipeline),
+[ADR-0018](docs/adr/0018-proactive-risk-intelligence.md) (proactive intelligence).
 
 ---
 
@@ -246,9 +276,9 @@ Verified by: `test_vrp_route_engine.py`, `test_road_event_edge_risk.py`
 | Layer | Technologies |
 | --- | --- |
 | Frontend | React 19, TypeScript, Vite, MapLibre GL, Lucide icons, Playwright E2E, axe-core a11y |
-| Platform API | Java 21, Spring Boot 3.5, Spring Security (OAuth2 Resource Server), AWS SDK v2 |
+| Platform API | Java 21, Spring Boot 3.5, Spring Security (OAuth2 Resource Server), AWS SDK v2, LiteLLM, Langfuse |
 | Risk Engine | Python 3.12, FastAPI, Pydantic, OR-Tools, scikit-learn (ML workflow) |
-| Data | DynamoDB (single-table preview), PostgreSQL 16 + TimescaleDB (production), Redis 7, S3 (weather artifacts) |
+| Data | DynamoDB (single-table preview), PostgreSQL 16 + TimescaleDB + pgvector (production), Redis 7, S3 (weather artifacts) |
 | Data Streaming | Kafka (KRaft), Debezium CDC, PgBouncer |
 | Infrastructure | CloudFront, API Gateway, Lambda, Cognito, CloudWatch, Terraform |
 | CI/CD | GitHub Actions (OIDC, no long-lived keys), Maven, pytest, Playwright, bundle budget checks |
@@ -306,7 +336,7 @@ No system-wide Java/Maven install needed on Windows; the repo bundles both in `.
 
 ```powershell
 cd services/platform-api
-../../scripts/mvn.ps1 --batch-mode test   # 53 tests
+../../scripts/mvn.ps1 --batch-mode test   # 73 tests
 ```
 
 ### Risk Engine (Python)
@@ -365,7 +395,7 @@ python services/api/scripts/run_vrp_served_cost_demo.py --artifact-dir tmp/demo-
 | Layer | Tests | Line coverage | Tool |
 | --- | --- | --- | --- |
 | Python Risk Engine | 78 | **80%** | pytest-cov |
-| Spring Platform API | 53 (all passing) | not measured | JUnit 5 (JaCoCo not yet configured) |
+| Spring Platform API | 73 (all passing) | not measured | JUnit 5 (JaCoCo not yet configured) |
 | Playwright E2E | 28 | n/a | Playwright |
 
 ### Key Module Coverage (Risk Engine)
@@ -399,7 +429,7 @@ and Redis dual-ledger reconciliation under parallel access.
 
 - `risk.py` (28%): the low number reflects external HTTP fetch paths (NWS, NOAA) that require live APIs. The scoring math itself is covered through `test_weather_snapshot.py` and `test_hazards.py`.
 - `directions.py` (54%): OSRM call paths need a running router; contract shape is tested, live routing is not.
-- Spring Platform API has no JaCoCo coverage report yet. All 53 tests pass; coverage measurement is a planned CI addition.
+- Spring Platform API has no JaCoCo coverage report yet. All 73 tests pass; coverage measurement is a planned CI addition.
 - E2E tests mock the backend; true end-to-end against deployed Lambda is a manual step (demo playbook).
 
 ### Running the Suites
@@ -409,7 +439,7 @@ and Redis dual-ledger reconciliation under parallel access.
 $env:PYTHONPATH = 'services/api'
 python -m pytest services/api/tests -q --cov=services/api --cov-report=term-missing
 
-# Platform API (Spring) - 53 tests, ~20s
+# Platform API (Spring) - 73 tests, ~20s
 cd services/platform-api
 ../../scripts/mvn.ps1 --batch-mode test
 
@@ -484,6 +514,7 @@ Release: `v0.1.0-preview` (July 2026). Roadmap in [CHANGELOG.md](CHANGELOG.md).
 - [WZDx road-event feeds](docs/architecture/road-events-wzdx-feeds.md)
 - [SaaS hardening checklist](docs/saas-production-hardening-checklist.md)
 - [Deployment guide](docs/deployment.md)
+- [LLM integration architecture](docs/architecture/llm-integration.md)
 - [Google OAuth setup](docs/google-auth.md)
 - [Runbooks](docs/runbooks/)
 - [ADRs](docs/adr/)

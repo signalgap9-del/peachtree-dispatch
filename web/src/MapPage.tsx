@@ -2,16 +2,18 @@ import {
   ArrowDownUp,
   Car,
   CloudRain,
+  FileText,
   Flame,
   Layers3,
   LocateFixed,
   MapPin,
   Navigation,
   ShieldAlert,
+  Sparkles,
   Truck,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
 
 import type { Navigate } from "./App";
@@ -20,11 +22,14 @@ import { currentUser, login } from "./auth";
 import { RouteAlternativeCard } from "./components/RouteAlternativeCard";
 import { RouteDecisionSummary } from "./components/RouteDecisionSummary";
 import { RouteSegmentRiskStrip } from "./components/RouteSegmentRiskStrip";
+import { streamLlmChat } from "./llmApi";
 import { NetworkMap } from "./NetworkMap";
 import { deriveRouteDecision } from "./routeDecision";
 import { deriveRouteRiskSegments } from "./routeSegments";
 import type { DirectionsPlan, LocationRisk, NationalRiskOverview, NationalWeatherSnapshot, Place, RouteAlternative, VehicleType, WeatherRasterManifest, WeatherRisk } from "./types";
 import { notify } from "./ui";
+
+const ROUTE_AI_SYSTEM = "당신은 기후 인식 경로 플래너 AtmosPath의 AI입니다. 제공된 경로 데이터만 근거로 한국어로 간결하게 답합니다. 데이터에 없는 정보는 지어내지 마세요.";
 
 type Field = "origin" | "destination";
 type Alternative = "fastest" | "lower" | "balanced";
@@ -52,6 +57,15 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
   const [selectedAlternative, setSelectedAlternative] = useState<Alternative>("lower");
   const [showWhy, setShowWhy] = useState(false);
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
+  const [showAiExplanation, setShowAiExplanation] = useState(false);
+  const [aiExplanation, setAiExplanation] = useState("");
+  const [aiExplaining, setAiExplaining] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [report, setReport] = useState("");
+  const [reportStreaming, setReportStreaming] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const aiAbortRef = useRef<AbortController | null>(null);
   const resolvedUrlPlaces = useRef({ origin: "", destination: "" });
   const urlQuerySeeded = useRef(false);
 
@@ -191,6 +205,104 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
     setSelectedAlternative(recommended ? alternativeKind(recommended) : alternatives.some((alternative) => alternativeKind(alternative) === "lower") ? "lower" : alternativeKind(alternatives[0]));
   }, [alternatives, decision]);
 
+  const abortAiStreams = useCallback(() => {
+    aiAbortRef.current?.abort();
+    aiAbortRef.current = null;
+  }, []);
+
+  useEffect(() => abortAiStreams, [abortAiStreams]);
+
+  // A new plan invalidates any previous AI output.
+  useEffect(() => {
+    abortAiStreams();
+    setShowAiExplanation(false);
+    setAiExplanation("");
+    setAiExplaining(false);
+    setAiError(null);
+    setReport("");
+    setReportStreaming(false);
+    setReportError(null);
+    setReportOpen(false);
+  }, [plan, abortAiStreams]);
+
+  useEffect(() => {
+    if (!reportOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setReportOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [reportOpen]);
+
+  function routeContext(): string {
+    if (!plan) return "";
+    const lines = alternatives.map((alternative, index) => {
+      const hazards = alternative.hazards.filter((hazard) => hazard.score >= 40).slice(0, 3).map((hazard) => hazard.category).join(", ");
+      return `- 대안 ${index + 1} "${alternative.label}": ${Math.round(alternative.distance_miles)}mi, ${Math.round(alternative.duration_minutes)}분, 기후 지연 ${Math.round(alternative.climate_delay_minutes)}분, 위험 ${alternative.risk_score}${hazards ? `, 주요 위험: ${hazards}` : ""}`;
+    });
+    return [
+      `출발: ${plan.origin.display_name}`,
+      `도착: ${plan.destination.display_name}`,
+      `차량: ${plan.vehicle_type}`,
+      ...lines,
+      selectedRoute ? `선택된 경로: "${selectedRoute.label}"` : "",
+      decision ? `권장 경로: "${decision.recommendedLabel}" - ${decision.summary}` : "",
+    ].filter(Boolean).join("\n");
+  }
+
+  function runAiStream(prompt: string, onText: (accumulated: string) => void, onState: (streaming: boolean) => void, onError: (message: string) => void) {
+    abortAiStreams();
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
+    onState(true);
+    let accumulated = "";
+    void streamLlmChat([
+      { role: "system", content: ROUTE_AI_SYSTEM },
+      { role: "user", content: prompt },
+    ], {
+      onChunk: (chunk) => {
+        accumulated += chunk;
+        onText(accumulated);
+      },
+      onError,
+      signal: controller.signal,
+    })
+      .then(() => {
+        if (!controller.signal.aborted) onState(false);
+      })
+      .catch((caught) => {
+        if (controller.signal.aborted) return;
+        onError(caught instanceof Error ? caught.message : "AI 응답을 가져오지 못했습니다.");
+        onState(false);
+      });
+  }
+
+  function toggleAiExplanation() {
+    if (showAiExplanation) {
+      setShowAiExplanation(false);
+      return;
+    }
+    setShowAiExplanation(true);
+    if (aiExplanation || aiExplaining) return;
+    runAiStream(
+      `다음 경로 데이터를 기반으로 선택된 경로의 날씨 위험과 주의 구간을 한국어 3-4문장으로 설명하세요.\n\n${routeContext()}`,
+      setAiExplanation,
+      setAiExplaining,
+      setAiError,
+    );
+  }
+
+  function openComparisonReport() {
+    setReportOpen(true);
+    if (report || reportStreaming) return;
+    runAiStream(
+      `다음 경로 대안들을 시간, 위험, 기후 지연 관점에서 비교하고 각각 어떤 상황에서 적합한지 한국어 리포트로 작성하세요. 짧은 문단 2-3개와 마지막에 "추천:"으로 시작하는 결론 한 문장으로 끝내세요.\n\n${routeContext()}`,
+      setReport,
+      setReportStreaming,
+      setReportError,
+    );
+  }
+
   function choosePlace(place: Place) {
     if (activeField === "origin") {
       setOrigin(place);
@@ -205,7 +317,7 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
     void api.locationRisk(place).then(setSelectedRisk).catch(() => setSelectedRisk(null));
   }
 
-  function handleSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+  function handleSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
     if (!results.length) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
@@ -272,7 +384,7 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
               const recommended = alternatives.find((alternative) => alternative.alternative_id === decision.recommendedAlternativeId);
               if (recommended) setSelectedAlternative(alternativeKind(recommended));
             }} />}
-            <div className="section-label"><strong>Route options</strong><button onClick={() => setShowWhy((value) => !value)}>Why these routes?</button></div>
+            <div className="section-label"><strong>Route options</strong><span className="section-label-actions"><button type="button" className={`ai-toggle${showAiExplanation ? " active" : ""}`} onClick={toggleAiExplanation}><Sparkles size={13} /> AI 설명</button><button type="button" className="ai-toggle" onClick={openComparisonReport}><FileText size={13} /> AI 비교 리포트</button><button onClick={() => setShowWhy((value) => !value)}>Why these routes?</button></span></div>
             {showWhy && <p className="route-explanation">Alternatives balance travel time with live precipitation, wind, heat, and active NWS alerts. Lower-risk routes may take longer.</p>}
             {fastestRoute && alternatives.map((alternative) => (
               <RouteAlternativeCard
@@ -288,6 +400,14 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
               setSelectedSegmentId(segment.id);
               notify(`${segment.label}: ${segment.summary}`);
             }} />
+            {showAiExplanation && (
+              <div className="ai-explanation" aria-live="polite">
+                <span className="ai-explanation-head"><Sparkles size={13} /><strong>AI 설명</strong>{aiExplaining && <i className="ai-streaming-dot" aria-hidden="true" />}</span>
+                {aiError
+                  ? <p className="ai-error">{aiError}</p>
+                  : <p className="ai-explanation-text">{aiExplanation}{aiExplaining && <span className="ai-caret" aria-hidden="true" />}</p>}
+              </div>
+            )}
             <button className="text-action" onClick={() => void saveSelectedTrip()}>Save this trip</button>
           </section>
         )}
@@ -300,6 +420,21 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
         <button aria-label="Toggle weather layer" className={showWeather ? "active" : ""} onClick={() => setShowWeather((value) => !value)}><CloudRain size={19} /></button>
       </div>
       <RiskInspector national={national} selected={selectedRisk} plan={displayedPlan} route={selectedRoute} selectedAlternative={selectedAlternative} showWeather={showWeather} setShowWeather={setShowWeather} navigate={navigate} />
+      {reportOpen && (
+        <div className="ai-report-overlay" onClick={(event) => { if (event.target === event.currentTarget) setReportOpen(false); }}>
+          <div className="ai-report-modal" role="dialog" aria-modal="true" aria-label="AI 비교 리포트">
+            <header><Sparkles size={16} /><strong>AI 비교 리포트</strong><button type="button" onClick={() => setReportOpen(false)} aria-label="닫기"><X size={16} /></button></header>
+            <div className="ai-report-body">
+              {reportError
+                ? <p className="ai-error">{reportError}</p>
+                : report || reportStreaming
+                  ? <p className="ai-report-text">{report}{reportStreaming && <span className="ai-caret" aria-hidden="true" />}</p>
+                  : <p className="ai-report-loading">리포트를 생성하고 있습니다...</p>}
+            </div>
+            {plan && <footer>{plan.summary}</footer>}
+          </div>
+        </div>
+      )}
     </main>
   );
 }

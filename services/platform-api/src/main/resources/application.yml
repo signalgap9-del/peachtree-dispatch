@@ -83,6 +83,11 @@ atmospath:
       rerank-top-k: ${RAG_RERANK_TOP_K:3}
       rrf-k: ${RAG_RRF_K:60}
       similarity-threshold: ${RAG_SIMILARITY_THRESHOLD:0.3}
+    proactive:
+      enabled: ${PROACTIVE_ENABLED:false}
+      check-interval-ms: ${PROACTIVE_CHECK_INTERVAL:300000}
+      dedup-window-minutes: ${PROACTIVE_DEDUP_WINDOW:60}
+      max-suggestions-per-tenant: ${PROACTIVE_MAX_SUGGESTIONS:10}
   relational:
     enabled: ${RELATIONAL_STORE_ENABLED:false}
     initialize-schema: ${RELATIONAL_INITIALIZE_SCHEMA:false}

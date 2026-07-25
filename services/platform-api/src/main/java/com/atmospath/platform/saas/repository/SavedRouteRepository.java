@@ -11,4 +11,6 @@ public interface SavedRouteRepository extends JpaRepository<SavedRouteEntity, UU
     List<SavedRouteEntity> findByMemberIdAndDeletedAtIsNull(UUID memberId);
 
     List<SavedRouteEntity> findByWorkspaceIdAndDeletedAtIsNull(UUID workspaceId);
+
+    List<SavedRouteEntity> findByMonitorEnabledTrueAndDeletedAtIsNull();
 }

@@ -281,3 +281,50 @@ export interface LocationRisk {
   model_version?: string;
   source_status?: Record<string, string>;
 }
+
+// ---- LLM integration (Phase 5) ----
+
+export type ChatRole = "user" | "assistant" | "system";
+
+export interface ChatMessage {
+  role: ChatRole;
+  content: string;
+}
+
+/** Proactive risk suggestion pushed over the alert SSE stream (`risk_suggestion` event). */
+export type RiskSuggestion = {
+  id: string;
+  routeId: string;
+  routeName: string;
+  severity: string;
+  suggestionText: string;
+  currentRisk: number;
+  alternativeRisk?: number;
+  alternativeRoute?: string;
+  createdAt: string;
+};
+
+/** UI-facing LLM service status, merged from /llm/status and /rag/health. */
+export type LlmStatus = {
+  enabled: boolean;
+  model: string;
+  dailyTokensUsed: number;
+  dailyTokenBudget: number;
+  ragEnabled: boolean;
+  ragVectorCount?: number;
+};
+
+/** Raw shape of GET /api/v1/llm/status. */
+export interface LlmStatusResponse {
+  enabled: boolean;
+  model: string;
+  dailyBudgetUsed: number;
+  dailyBudgetRemaining: number;
+}
+
+/** Raw shape of GET /api/v1/rag/health. */
+export interface RagHealthResponse {
+  status: "UP" | "DOWN" | string;
+  searchAvailable: boolean;
+  indexCount: number;
+}

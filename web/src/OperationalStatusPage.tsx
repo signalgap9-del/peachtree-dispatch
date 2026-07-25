@@ -1,9 +1,10 @@
-import { AlertTriangle, Activity, Gauge, RadioTower, RefreshCw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Activity, Gauge, RadioTower, RefreshCw, ShieldCheck, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { ALERT_STREAM_URL } from "./alertStream";
 import type { DataStatus, Navigate } from "./App";
-import type { NationalRiskOverview, NationalWeatherSnapshot, WeatherRasterManifest } from "./types";
+import { getLlmLatencyStats, getLlmServiceStatus, LLM_STATUS_URL } from "./llmApi";
+import type { LlmStatus, NationalRiskOverview, NationalWeatherSnapshot, WeatherRasterManifest } from "./types";
 import {
   clearClientIssues,
   readClientIssues,
@@ -96,6 +97,7 @@ export function OperationalStatusPage({ navigate, dataStatus, national, weatherS
           <StatusSectionHeader icon={<RadioTower size={20} />} title="Alert stream" meta={ALERT_STREAM_URL} />
           <AlertStreamGrid stream={alertStream} />
         </div>
+        <LlmServicePanel />
       </section>
 
       <section className="surface status-panel">
@@ -166,6 +168,53 @@ function AlertStreamGrid({ stream }: { stream: AlertStreamState }) {
   return (
     <div className="performance-grid alert-stream-grid">
       {metrics.map((metric) => <article key={metric.label}><strong>{metric.label}</strong><b className={metric.tone}>{metric.value}</b><small>{metric.target}</small></article>)}
+    </div>
+  );
+}
+
+function LlmServicePanel() {
+  const [status, setStatus] = useState<LlmStatus | null>(null);
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void getLlmServiceStatus().then((value) => {
+      if (!active) return;
+      setStatus(value);
+      setChecked(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const latency = getLlmLatencyStats();
+  const usedPct = status && status.dailyTokenBudget > 0
+    ? Math.min(100, Math.round((status.dailyTokensUsed / status.dailyTokenBudget) * 100))
+    : 0;
+
+  return (
+    <div className="surface status-panel llm-status-panel">
+      <StatusSectionHeader icon={<Sparkles size={20} />} title="LLM service" meta={LLM_STATUS_URL} />
+      {!checked ? (
+        <EmptyOpsState title="Checking LLM service" detail="Querying /api/v1/llm/status and /api/v1/rag/health on the platform API." />
+      ) : !status ? (
+        <EmptyOpsState title="LLM module not deployed" detail="atmospath.llm.enabled is false or the platform API is unreachable, so /api/v1/llm endpoints return 404. Chat, AI summaries, and proactive suggestions stay off until the module is enabled." />
+      ) : (
+        <>
+          <div className="performance-grid llm-grid">
+            <article><strong>Connection</strong><b className={status.enabled ? "low" : "high"}>{status.enabled ? "enabled" : "disabled"}</b><small>atmospath.llm.enabled</small></article>
+            <article><strong>Model</strong><b className="low">{status.model || "unknown"}</b><small>via LiteLLM proxy</small></article>
+            <article><strong>Avg first-chunk latency</strong><b className={latency && latency.averageMs <= 2500 ? "low" : "moderate"}>{latency ? `${latency.averageMs.toLocaleString()} ms` : "no samples"}</b><small>{latency ? `${latency.samples} chat sample(s) this session` : "client-measured during chat streams"}</small></article>
+            <article><strong>RAG index</strong><b className={status.ragEnabled ? "low" : "moderate"}>{status.ragEnabled ? "up" : "down"}</b><small>{status.ragVectorCount !== undefined ? `${status.ragVectorCount.toLocaleString()} vectors indexed` : "hybrid search unavailable"}</small></article>
+          </div>
+          <div className="token-budget">
+            <span>Daily token budget</span>
+            <i><b className={usedPct >= 90 ? "high" : ""} style={{ width: `${usedPct}%` }} /></i>
+            <em>{status.dailyTokensUsed.toLocaleString()} / {status.dailyTokenBudget.toLocaleString()}</em>
+          </div>
+        </>
+      )}
     </div>
   );
 }

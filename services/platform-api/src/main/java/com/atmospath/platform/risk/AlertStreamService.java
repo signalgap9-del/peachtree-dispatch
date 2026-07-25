@@ -69,6 +69,17 @@ public class AlertStreamService {
         sendToAll(TENANT_ALERT_EVENT, payload);
     }
 
+    /**
+     * Broadcasts an arbitrary named event to all connected SSE clients.
+     * Used by the proactive suggestion subsystem to push risk suggestions.
+     */
+    public void broadcastEvent(String eventName, Object data) {
+        if (emitters.isEmpty()) {
+            return;
+        }
+        sendToAll(eventName, data);
+    }
+
     void addEmitter(SseEmitter emitter) {
         emitters.add(emitter);
         emitter.onCompletion(() -> removeEmitter(emitter, "completed"));

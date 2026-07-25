@@ -10,20 +10,23 @@ import {
   Map,
   ShieldAlert,
 } from "lucide-react";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { BrowserRouter, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { api } from "./api";
 import { AlertLiveBanner } from "./AlertLiveBanner";
-import { connectAlertStream, disconnectAlertStream, subscribeAlertUpdates } from "./alertStream";
+import { connectAlertStream, disconnectAlertStream, subscribeAlertUpdates, subscribeRiskSuggestions } from "./alertStream";
 import { authConfigured, completeLogin, currentUser, googleAuthConfigured, login, loginWithGoogle, logout, type AuthUser } from "./auth";
+import { ChatPanel, type ChatDraft } from "./ChatPanel";
+import { ChatToggleButton } from "./ChatToggleButton";
 import { useI18n } from "./i18n";
 import { LanguageToggle } from "./LanguageToggle";
 import { NetworkStatusBanner } from "./NetworkStatusBanner";
 import { OperationalStatusPage } from "./OperationalStatusPage";
+import { ProactiveSuggestionBanner } from "./ProactiveSuggestionBanner";
 import { AlertsPage, DashboardPage, HomePage, PlaceDetailPage, PricingPage, SavedPage, UsagePage } from "./ProductPages";
-import type { NationalRiskOverview, NationalWeatherSnapshot, WeatherRasterManifest } from "./types";
+import type { NationalRiskOverview, NationalWeatherSnapshot, RiskSuggestion, WeatherRasterManifest } from "./types";
 import { notify } from "./ui";
 import "./styles.css";
 
@@ -60,6 +63,10 @@ function AppShell() {
   const [toast, setToast] = useState("");
   const [user, setUser] = useState<AuthUser | null>(() => currentUser());
   const [dataStatus, setDataStatus] = useState<DataStatus>("loading");
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatUnread, setChatUnread] = useState(0);
+  const [chatDraft, setChatDraft] = useState<ChatDraft | null>(null);
+  const [suggestion, setSuggestion] = useState<RiskSuggestion | null>(null);
 
   useEffect(() => {
     void completeLogin()
@@ -95,6 +102,34 @@ function AppShell() {
     return () => window.removeEventListener("atmospath:toast", onToast);
   }, []);
 
+  // Proactive attention: risk suggestions pushed on the alert stream badge
+  // the assistant toggle while the panel is closed.
+  useEffect(() => {
+    if (chatOpen) return;
+    return subscribeRiskSuggestions(() => setChatUnread((count) => count + 1));
+  }, [chatOpen]);
+
+  // The latest suggestion also drives the amber banner, independent of chat state.
+  useEffect(() => subscribeRiskSuggestions(setSuggestion), []);
+
+  const openChat = () => {
+    setChatOpen(true);
+    setChatUnread(0);
+  };
+
+  const openChatWithDraft = useCallback((text: string) => {
+    setChatDraft({ text, nonce: Date.now() });
+    setChatOpen(true);
+    setChatUnread(0);
+  }, []);
+
+  const dismissSuggestionBanner = useCallback(() => setSuggestion(null), []);
+
+  const handleSuggestionSwitch = useCallback(() => {
+    setSuggestion(null);
+    openChatWithDraft("이 경로로 전환해줘");
+  }, [openChatWithDraft]);
+
   const navigate: Navigate = (nextPath) => {
     routerNavigate(nextPath);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -104,6 +139,7 @@ function AppShell() {
     <div className={`product-app ${path === "/map" || path === "/directions" ? "map-active" : ""}`}>
       <AppHeader path={path} navigate={navigate} user={user} onUserChange={setUser} national={nationalRisk} weatherSnapshot={weatherSnapshot} />
       <NetworkStatusBanner />
+      <ProactiveSuggestionBanner suggestion={suggestion} onSwitch={handleSuggestionSwitch} onDismissed={dismissSuggestionBanner} />
       <AlertLiveBanner />
       <Routes>
         <Route path="/" element={<HomePage navigate={navigate} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} dataStatus={dataStatus} />} />
@@ -119,6 +155,13 @@ function AppShell() {
         <Route path="*" element={<NotFound navigate={navigate} />} />
       </Routes>
       {toast && <div className="app-toast" role="status">{toast}</div>}
+      <ChatToggleButton
+        open={chatOpen}
+        unread={chatUnread}
+        attention={chatUnread > 0}
+        onClick={() => (chatOpen ? setChatOpen(false) : openChat())}
+      />
+      <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} draft={chatDraft} />
     </div>
   );
 }

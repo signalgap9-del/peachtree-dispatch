@@ -1,4 +1,4 @@
-import type { NationalRiskOverview } from "./types";
+import type { NationalRiskOverview, RiskSuggestion } from "./types";
 
 const PLATFORM_API_URL = import.meta.env.VITE_PLATFORM_API_URL ?? "http://localhost:8080";
 export const ALERT_STREAM_URL = `${PLATFORM_API_URL}/api/v1/alerts/stream`;
@@ -9,12 +9,13 @@ const RECONNECT_MAX_DELAY_MS = 60000;
 export type AlertStreamStatus = "connecting" | "connected" | "disconnected" | "error";
 
 export type AlertStreamEvent = {
-  type: "national_risk" | "heartbeat";
-  data: NationalRiskOverview | { ts: string };
+  type: "national_risk" | "heartbeat" | "risk_suggestion";
+  data: NationalRiskOverview | { ts: string } | RiskSuggestion;
   receivedAt: string;
 };
 
 export type AlertUpdateCallback = (overview: NationalRiskOverview) => void;
+export type RiskSuggestionCallback = (suggestion: RiskSuggestion) => void;
 
 export type AlertStreamSnapshot = {
   status: AlertStreamStatus;
@@ -32,6 +33,7 @@ let reconnectAttempts = 0;
 let reconnectTimer: number | undefined;
 let connectionRefs = 0;
 const subscribers = new Set<AlertUpdateCallback>();
+const suggestionSubscribers = new Set<RiskSuggestionCallback>();
 const snapshotListeners = new Set<SnapshotListener>();
 
 // Connect/disconnect are reference-counted so the app shell, the live banner,
@@ -52,6 +54,14 @@ export function subscribeAlertUpdates(callback: AlertUpdateCallback): () => void
   if (lastOverview) callback(lastOverview);
   return () => {
     subscribers.delete(callback);
+  };
+}
+
+/** Proactive risk suggestions pushed as `risk_suggestion` events on the alert stream. */
+export function subscribeRiskSuggestions(callback: RiskSuggestionCallback): () => void {
+  suggestionSubscribers.add(callback);
+  return () => {
+    suggestionSubscribers.delete(callback);
   };
 }
 
@@ -79,6 +89,7 @@ function openConnection(): void {
   eventSource = source;
   source.addEventListener("national_risk", (event) => handleStreamEvent(toStreamEvent("national_risk", event)));
   source.addEventListener("heartbeat", (event) => handleStreamEvent(toStreamEvent("heartbeat", event)));
+  source.addEventListener("risk_suggestion", (event) => handleStreamEvent(toStreamEvent("risk_suggestion", event)));
   source.onopen = () => {
     reconnectAttempts = 0;
     updateStatus("connected");
@@ -141,6 +152,9 @@ function handleStreamEvent(streamEvent: AlertStreamEvent | null): void {
     lastOverview = streamEvent.data;
     for (const subscriber of subscribers) subscriber(streamEvent.data);
   }
+  if (streamEvent.type === "risk_suggestion" && isRiskSuggestion(streamEvent.data)) {
+    for (const subscriber of suggestionSubscribers) subscriber(streamEvent.data);
+  }
   notifySnapshotListeners();
 }
 
@@ -153,6 +167,15 @@ function isNationalRiskOverview(value: unknown): value is NationalRiskOverview {
     && typeof overview.active_alerts === "number"
     && typeof overview.severe_alerts === "number"
     && Array.isArray(overview.alerts);
+}
+
+function isRiskSuggestion(value: unknown): value is RiskSuggestion {
+  if (!value || typeof value !== "object") return false;
+  const suggestion = value as RiskSuggestion;
+  return typeof suggestion.id === "string"
+    && typeof suggestion.routeName === "string"
+    && typeof suggestion.suggestionText === "string"
+    && typeof suggestion.currentRisk === "number";
 }
 
 function updateStatus(next: AlertStreamStatus): void {

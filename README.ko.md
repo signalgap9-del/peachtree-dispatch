@@ -1,4 +1,4 @@
-# AtmosPath
+﻿# AtmosPath
 
 **"지금 이 구간을 지나가면, 어느 루트가 날씨·도로 위험을 가장 덜 타는가?"**
 
@@ -48,6 +48,35 @@ React 19 SPA를 Private S3에 올리고 CloudFront로 서빙합니다. API 호�
 
 ---
 
+## LLM 통합
+
+AtmosPath는 LLM을 챗봇이 아닌 **최적화 인접 추론 계층**으로 통합합니다. OptiMUS 멀티 에이전트 패턴(Stanford, 2024)과 OPRO 스타일 수리 루프(DeepMind, ICLR 2024)를 따릅니다.
+
+**NL2Opt: 자연어 → VRP 제약 조건.** 사용자가 영어, 한국어, 또는 혼용 언어로 라우팅 요구를 기술합니다. 3-에이전트 파이프라인(추출 → 공식화 → 해석)이 자연어를 구조화된 VRP 제약 조건으로 변환하고, OR-Tools로 해결한 뒤, 결과를 자연어로 설명합니다. 추출은 few-shot 프롬프트와 스키마 검증을 사용하며, OPRO 수리 루프(최대 3회)로 자기 수정합니다.
+
+**RAG: 근거 기반 경로 설명.** 경로 설명은 역사적 관측 데이터에 기반합니다. 하이브리드 검색(pgvector 코사인 유사도 + PostgreSQL 전문 검색)을 Reciprocal Rank Fusion으로 결합하고, cross-encoder로 재순위화합니다. 응답에 출처 인용을 포함하여 환각을 방지합니다.
+
+**능동적 리스크 인텔리전스.** 저장된 경로를 정기적으로 모니터링합니다. 리스크 임계값 초과 시 LLM 판단 계층이 해당 변경이 실행 가능한지 평가한 후 SSE 알림을 전송합니다. 6시간 중복 제거 창이 알림 스팸을 방지합니다.
+
+**안전: 인젝션 방어 + 출력 검증 + 3단계 폴백.**
+- 입력 살균기: 프롬프트 인젝션 차단(영어, 한국어, 중국어, JSON, 중첩 패턴)
+- 출력 검증기: PII 마스킹, URL 제거, 위험 운전 조언 플래그
+- 폴백 체인: 주 모델 → 보조 모델 → 구조화 템플릿(LLM 없음)
+
+**평가:**
+| 벤치마크 | 시나리오 | 지표 |
+| --- | --- | --- |
+| NL2Opt 추출 | 50개 | Precision, Recall, F1, 지오코딩 정확도 |
+| RAG 골든셋 | 30개 | MRR, NDCG@5, recall@k |
+| 대화 E2E | 20개 | 의도 정확도, 컨텍스트 유지 |
+| 안전 | 20+ 공격 벡터 | 인젝션 차단율, PII 마스킹율 |
+
+아키텍처 상세: [docs/architecture/llm-integration.md](docs/architecture/llm-integration.md).
+주요 결정: [ADR-0016](docs/adr/0016-rag-hybrid-search.md)(RAG 하이브리드 검색),
+[ADR-0017](docs/adr/0017-nl2opt-agent-design.md)(NL2Opt 파이프라인),
+[ADR-0018](docs/adr/0018-proactive-risk-intelligence.md)(능동적 인텔리전스).
+
+---
 ## 프로덕션 데이터 스택
 
 SaaS 프로덕션 경로는 DynamoDB를 관계형 스택으로 대체합니다. 전부를 Docker
@@ -247,14 +276,14 @@ adjusted_cost = base_duration * duration_weight
 | 레이어 | 도구 | 규모 | 라인 커버리지 |
 | --- | --- | --- | --- |
 | Python 리스크 엔진 | pytest + pytest-cov | 78개 테스트 | **80%** |
-| Spring Platform API | JUnit 5 + Mockito | 53개 테스트 | 전체 통과 |
+| Spring Platform API | JUnit 5 + Mockito | 73개 테스트 | 전체 통과 |
 | Playwright E2E | Playwright | 28개 테스트 | 전체 통과 |
 
 ### 레이어별 목적
 
 **Python 리스크 엔진 (80% 라인 커버리지).** 기상 스코어링, SSRF 차단, VRP 코스트 행렬, ML 워크플로우 등 핵심 비즈니스 로직을 검증합니다. 외부 API 호출 경로는 제외하고 내부 로직에 집중합니다.
 
-**Spring Platform API (53개 테스트).** 인증과 인가, 레이트 리밋, 멱등성, 쿼터, DynamoDB 리포지토리 등 플랫폼 계약을 검증합니다. 컨트롤러는 얇게 유지하고 서비스 레이어 로직을 단위 테스트로 커버합니다.
+**Spring Platform API (73개 테스트).** 인증과 인가, 레이트 리밋, 멱등성, 쿼터, DynamoDB 리포지토리 등 플랫폼 계약을 검증합니다. 컨트롤러는 얇게 유지하고 서비스 레이어 로직을 단위 테스트로 커버합니다.
 
 **Playwright E2E (28개 테스트).** 실제 브라우저에서 사용자 시나리오를 검증합니다. 지도 렌더링, 경로 비교, XSS 하드닝, 인증 불가 시 메시징, stale 데이터 폴백, 접근성(axe-core)을 다룹니다.
 
@@ -280,7 +309,7 @@ adjusted_cost = base_duration * duration_weight
 $env:PYTHONPATH = 'services/api'
 python -m pytest services/api/tests -q --cov=services/api --cov-report=term-missing
 
-# Spring Platform API (53개 테스트)
+# Spring Platform API (73개 테스트)
 cd services/platform-api
 ../../scripts/mvn.ps1 --batch-mode test
 
@@ -295,9 +324,9 @@ npm run test:e2e --prefix web
 | 레이어 | 기술 |
 | --- | --- |
 | 프론트엔드 | React 19, TypeScript, Vite, MapLibre GL, Lucide, Playwright E2E, axe-core |
-| Platform API | Java 21, Spring Boot 3.5, Spring Security (OAuth2 Resource Server), AWS SDK v2 |
+| Platform API | Java 21, Spring Boot 3.5, Spring Security (OAuth2 Resource Server), AWS SDK v2, LiteLLM, Langfuse |
 | 리스크 엔진 | Python 3.12, FastAPI, Pydantic, OR-Tools, scikit-learn |
-| 데이터 | DynamoDB 싱글 테이블(미리보기), PostgreSQL 16 + TimescaleDB(프로덕션), Redis 7, S3 기상 아티팩트 |
+| 데이터 | DynamoDB 싱글 테이블(미리보기), PostgreSQL 16 + TimescaleDB + pgvector(프로덕션), Redis 7, S3 기상 아티팩트 |
 | 데이터 스트리밍 | Kafka (KRaft), Debezium CDC, PgBouncer |
 | 인프라 | CloudFront, API Gateway, Lambda, Cognito, CloudWatch, Terraform |
 | CI/CD | GitHub Actions OIDC (장기 키 없음), Maven, pytest, Playwright, 번들 예산 |
@@ -355,7 +384,7 @@ npm run test:e2e --prefix web   # Playwright E2E 28개
 
 ```powershell
 cd services/platform-api
-../../scripts/mvn.ps1 --batch-mode test   # 53개 테스트
+../../scripts/mvn.ps1 --batch-mode test   # 73개 테스트
 ```
 
 ### 리스크 엔진 (Python)
@@ -415,7 +444,7 @@ python services/api/scripts/run_vrp_served_cost_demo.py --artifact-dir tmp/demo-
 
 | 대상 | 결과 |
 | --- | --- |
-| Spring Platform API (53개) | 통과 |
+| Spring Platform API (73개) | 통과 |
 | Python 리스크 엔진 (78개) | 통과 |
 | Playwright E2E (28개) | 통과 |
 | 프론트엔드 lint + 빌드 + 번들 예산 | 통과 |
@@ -489,6 +518,7 @@ AWS `us-east-1`, 서버리스 우선입니다. CloudFront + Private S3, API Gate
 - [WZDx 도로 이벤트 피드](docs/architecture/road-events-wzdx-feeds.md)
 - [SaaS 하드닝 체크리스트](docs/saas-production-hardening-checklist.md)
 - [배포 가이드](docs/deployment.md)
+- [LLM 통합 아키텍처](docs/architecture/llm-integration.md)
 - [Google OAuth 설정](docs/google-auth.md)
 - [런북](docs/runbooks/)
 - [ADR](docs/adr/)

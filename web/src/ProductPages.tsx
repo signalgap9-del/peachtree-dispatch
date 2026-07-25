@@ -19,9 +19,10 @@
   ShieldCheck,
   SlidersHorizontal,
   Snowflake,
+  Sparkles,
   Wind,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import type { DataStatus, Navigate } from "./App";
@@ -29,6 +30,7 @@ import { api } from "./api";
 import { currentUser, googleAuthConfigured, login, loginWithGoogle } from "./auth";
 import { LiveRiskMap } from "./components/LiveRiskMap";
 import { useI18n } from "./i18n";
+import { streamLlmChat } from "./llmApi";
 import { places, riskLevel } from "./mockData";
 import type {
   AccountSummary,
@@ -52,6 +54,21 @@ type LiveProps = {
 };
 
 type AlertCategory = "all" | "flood" | "heat" | "storm" | "wind" | "winter" | "fire";
+
+const alertSummaryCache = new Map<string, string>();
+const ALERT_SUMMARY_SYSTEM = "당신은 기상 경보를 운전자에게 요약하는 AtmosPath AI입니다. 제공된 경보 정보만 근거로 한국어 2-3문장 이내로 핵심만 요약합니다.";
+
+function alertSummaryPrompt(alert: RiskAlert): string {
+  return [
+    `경보: ${alert.event}`,
+    `심각도: ${alert.severity} / 긴급성: ${alert.urgency}`,
+    `지역: ${alert.area || "미상"}`,
+    `내용: ${alert.headline}`,
+    alert.instruction ? `공식 지침: ${alert.instruction}` : "",
+    "",
+    "이 경보를 운전자가 바로 이해할 수 있도록 한국어로 요약하세요.",
+  ].filter(Boolean).join("\n");
+}
 
 export function HomePage({
   navigate,
@@ -546,6 +563,49 @@ export function AlertsPage({ navigate, national, weatherSnapshot = null, weather
     if (!userEmail) return;
     void api.savedRoutes().then(setSavedRoutes).catch(() => setSavedRoutes([]));
   }, [userEmail]);
+  const [summaries, setSummaries] = useState<Record<string, string>>({});
+  const [summarizingId, setSummarizingId] = useState<string | null>(null);
+  const summaryAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => summaryAbortRef.current?.abort(), []);
+
+  function summarizeAlert(alert: RiskAlert) {
+    const cached = alertSummaryCache.get(alert.alert_id);
+    if (cached) {
+      setSummaries((previous) => ({ ...previous, [alert.alert_id]: cached }));
+      return;
+    }
+    if (summarizingId === alert.alert_id) return;
+    summaryAbortRef.current?.abort();
+    const controller = new AbortController();
+    summaryAbortRef.current = controller;
+    setSummarizingId(alert.alert_id);
+    let accumulated = "";
+    let errored = false;
+    void streamLlmChat([
+      { role: "system", content: ALERT_SUMMARY_SYSTEM },
+      { role: "user", content: alertSummaryPrompt(alert) },
+    ], {
+      onChunk: (chunk) => {
+        accumulated += chunk;
+        setSummaries((previous) => ({ ...previous, [alert.alert_id]: accumulated }));
+      },
+      onError: (message) => {
+        errored = true;
+        setSummaries((previous) => ({ ...previous, [alert.alert_id]: `요약을 생성하지 못했습니다: ${message}` }));
+      },
+      signal: controller.signal,
+    })
+      .then(() => {
+        if (controller.signal.aborted) return;
+        if (!errored && accumulated.trim()) alertSummaryCache.set(alert.alert_id, accumulated);
+        setSummarizingId(null);
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setSummaries((previous) => ({ ...previous, [alert.alert_id]: "요약을 생성하지 못했습니다." }));
+        setSummarizingId(null);
+      });
+  }
   const alerts = useMemo(() => {
     const live = national?.alerts ?? [];
     return live
@@ -609,13 +669,34 @@ export function AlertsPage({ navigate, national, weatherSnapshot = null, weather
         <div className="alerts-workspace">
           <div className="alerts-list">
             <strong>{alerts.length} matching active alerts</strong>
-            {alerts.map((alert) => <button className={selected?.alert_id === alert.alert_id ? "selected alert-card-rich" : "alert-card-rich"} key={alert.alert_id} onClick={() => setSelectedId(alert.alert_id)}>
-              <AlertTriangle size={18} />
-              <span><strong>{alert.event}</strong><small>{alert.area || "Affected U.S. region"}</small><em>{alertCategoryLabel(alertCategory(alert))} · {alert.urgency || "Unknown urgency"}</em></span>
-              <i className={riskClass(alert.severity)}>{alert.severity}</i>
-              <b>{alertDriverAction(alert)}</b>
-              <ChevronRight size={15} />
-            </button>)}
+            {alerts.map((alert) => (
+              <div
+                role="button"
+                tabIndex={0}
+                className={selected?.alert_id === alert.alert_id ? "selected alert-card alert-card-rich" : "alert-card alert-card-rich"}
+                key={alert.alert_id}
+                onClick={() => setSelectedId(alert.alert_id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setSelectedId(alert.alert_id);
+                  }
+                }}
+              >
+                <AlertTriangle size={18} />
+                <span><strong>{alert.event}</strong><small>{alert.area || "Affected U.S. region"}</small><em>{alertCategoryLabel(alertCategory(alert))} · {alert.urgency || "Unknown urgency"}</em>
+                  <span className="alert-summary-row">
+                    <button type="button" className={`ai-toggle alert-summary-toggle${summarizingId === alert.alert_id ? " active" : ""}`} onClick={(event) => { event.stopPropagation(); summarizeAlert(alert); }}>
+                      <Sparkles size={12} /> {summarizingId === alert.alert_id ? "요약 중..." : "요약"}
+                    </button>
+                  </span>
+                  {summaries[alert.alert_id] && <span className="ai-summary">{summaries[alert.alert_id]}{summarizingId === alert.alert_id && <span className="ai-caret" aria-hidden="true" />}</span>}
+                </span>
+                <i className={riskClass(alert.severity)}>{alert.severity}</i>
+                <b>{alertDriverAction(alert)}</b>
+                <ChevronRight size={15} />
+              </div>
+            ))}
             {!alerts.length && <EmptyState title="No matching active alerts" detail="Try flood, heat, wind, a city, a county, or clear filters. We do not show fabricated warnings." />}
           </div>
           <div className="alerts-map"><RiskMapVisual national={mapNational} weatherSnapshot={mapWeatherSnapshot} weatherRaster={weatherRaster} regional />
