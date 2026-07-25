@@ -168,6 +168,105 @@ The exact objective value can change if solver or model constants change. The
 contract is that the route remains feasible, no jobs are dropped, a promoted
 model is reported, and the high-risk edge explains the applied ML delay.
 
+## LLM Demo (5 minutes)
+
+Use this when the interviewer asks about the AI/LLM features or wants to see
+the natural-language planning pipeline.
+
+### Setup
+
+Make sure the Spring Boot platform API and FastAPI risk engine are running
+locally. The LLM calls go through Alibaba Cloud MaaS (no local GPU needed).
+
+### 0:00-0:30 - Open the Chat Panel
+
+Open `/map` and click the chat panel toggle.
+
+Type:
+
+> Seattle to Miami, truck with hazmat, avoid highways, arrive before the storm
+
+Say:
+
+> This is the NL2Opt pipeline. The LLM does not just answer a question. It
+> translates natural language into structured VRP constraints, the solver
+> optimizes against them, and a second LLM pass explains the tradeoffs.
+
+### 0:30-1:30 - Walk the Pipeline
+
+Show each stage as the response streams in:
+
+1. **Intent classification**: the orchestrator classifies this as `route_plan`
+   (not `modify`, `compare`, `fleet_optimize`, or `explain`).
+2. **Constraint extraction**: the LLM outputs structured JSON with
+   `hazmat=true`, `departure`, `avoid=highway`, `objective=min_risk`.
+   Point out the extracted constraint tags rendered in the chat UI.
+3. **Route comparison**: the risk engine returns fastest vs. lower-risk
+   alternatives. Fastest is ~3,658 mi at risk 58/100; the lower-risk route
+   is ~4,039 mi at risk 15/100.
+4. **AI explanation**: the interpretation agent streams a natural-language
+   summary explaining why the lower-risk route adds ~8 hours but cuts risk
+   by 75%, referencing specific corridors and weather data.
+
+### 1:30-2:30 - Proactive Suggestion (if enabled)
+
+If a saved route has monitoring enabled and a threshold breach is active,
+the proactive banner appears at the top of `/saved`.
+
+Show:
+
+- The suggestion banner with LLM-generated recommendation.
+- The dedup window (same alert will not re-fire for 6 hours).
+- The "switch route" action that re-optimizes with the new constraints.
+
+Say:
+
+> The LLM acts as a noise filter here. Not every threshold breach becomes a
+> notification. The model judges severity, time sensitivity, and user context
+> before pushing.
+
+### 2:30-3:30 - Multi-turn Context
+
+Back in the chat panel, type a follow-up:
+
+> What if I leave 2 hours later?
+
+Show that the system modifies only the departure constraint and keeps
+hazmat, avoid, and objective from the previous turn. This is the
+`ConstraintDiff` merge, not a full re-extraction.
+
+### 3:30-4:30 - Status Page
+
+Open `/status` and scroll to the LLM section.
+
+Show:
+
+- Model name and provider (qwen3.8-max-preview, Alibaba MaaS).
+- Token usage and budget remaining.
+- Latency percentiles.
+- Fallback chain status (Qwen, DeepSeek, structured fallback).
+
+### 4:30-5:00 - Talking Points
+
+If the interviewer asks follow-up questions:
+
+- **"Why not just prompt GPT-4?"** The OptiMUS agent separation (extraction,
+  formulation, interpretation) makes each stage independently testable and
+  repairable. The OPRO repair loop fixes 90%+ of schema validation failures
+  within 2 retries.
+- **"How do you prevent hallucination?"** RAG grounds explanations in
+  historical route observations via hybrid search (pgvector + tsvector +
+  RRF + cross-encoder rerank). The output validator blocks dangerous driving
+  advice, masks PII, and strips URLs.
+- **"What about prompt injection?"** Input sanitizer checks length, known
+  injection patterns (English, Korean, Chinese, JSON), and control characters
+  before the text reaches the LLM.
+- **"What is not working yet?"** Two soft constraint types (`arrive_before`,
+  `avoid`) are extracted correctly but not yet mapped to solver penalties.
+  Embeddings use local sentence-transformers because the Alibaba token plan
+  does not include the embedding API. Intent classification is 4/5 on the
+  test set (fleet_optimize gets confused with route_plan).
+
 ## Cloud Preview Demo
 
 Use the CloudFront preview for public-facing portfolio review:

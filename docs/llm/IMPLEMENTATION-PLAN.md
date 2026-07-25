@@ -1,7 +1,7 @@
 ﻿# AtmosPath LLM 통합 구현 계획서
 
 작성일: 2026-07-25
-상태: 구현 완료 (Phase 1-6)
+상태: 구현 완료 (Phase 1-6) / E2E 검증 완료 2026-07-26 (5/5 passed)
 예상 규모: ~16,500줄
 
 ---
@@ -249,6 +249,44 @@ LANGFUSE_SECRET_KEY=<generated>
 
 ---
 
+## 9. 실제 테스트 결과 (2026-07-26)
+
+상세: [TEST-RESULTS.md](TEST-RESULTS.md)
+
+### E2E API 테스트 (`scripts/test_llm_e2e.py`)
+
+모델: `qwen3.8-max-preview` (Alibaba Cloud MaaS, OpenAI 호환)
+
+| 테스트 | 결과 | 지연시간 | 상세 |
+|--------|------|----------|------|
+| Chat Completion | PASS | 4.3s | 88 tokens |
+| Route Advice | PASS | 29s | I-5→I-84→I-15→I-40→I-75 |
+| NL2Opt Extraction | PASS | 16s | hazmat=true, departure=08:00, avoid=highway |
+| Local Embedding | PASS | 0.8s | 384-dim, 유사도 랭킹 정확 |
+| Intent Classification | PASS | 4/5 | fleet_optimize → route_plan 오분류 |
+
+### VRP 파이프라인 테스트 (`scripts/test_vrp_pipeline.py`)
+
+Seattle → Miami, TRUCK, objective=min_risk:
+
+| 경로 | 거리 | 소요시간 | 리스크 |
+|------|------|----------|--------|
+| 최단시간 | 3,657.9 mi | 69.4 hrs | 58/100 |
+| 저위험 | 4,039.0 mi | 77.9 hrs | 15/100 |
+
+기후 지연: 628분. NL2Opt formulation에서 objective=min_risk 적용 확인.
+soft constraint 2건(arrive_before, avoid)은 추출 성공, translator 매핑 대기.
+
+### 알려진 갭 (Known Gaps)
+
+| 갭 | 영향 | 대응 |
+|----|------|------|
+| `arrive_before`, `avoid` soft constraint가 `constraint_translators.py`에 미매핑 | LLM 추출은 정상, 솔버에서 무시됨 | `time_window`, `priority_stop`, `avoid_corridor`, `weather_deadline`, `hazmat`, `capacity`는 매핑 완료. 2종 추가 필요 |
+| Alibaba token plan에 Embedding API 미포함 | `text-embedding-v3` 사용 불가 | 로컬 `sentence-transformers` (all-MiniLM-L6-v2, 384-dim)로 대체 |
+| `qwen3.8-max-preview` thinking 모드 지연 | 30-60s 응답 지연 | `enable_thinking=false` 설정 또는 빠른 모델 사용 |
+| Multi-stop `RouteStop`에 `stop_id` 필수 | 파이프라인에서 명시적 ID 필요 | NL2Opt formulation에서 UUID 자동 생성 |
+| Intent 분류: fleet_optimize 오분류 | 4/5 정확도 | fleet 특화 few-shot 예제 추가 |
+
 ## 8. Lessons Learned
 
 ### 잘된 점
@@ -273,16 +311,24 @@ LANGFUSE_SECRET_KEY=<generated>
 
 ### 다음 단계
 
+- `arrive_before`, `avoid` constraint translator 구현 (constraint_translators.py)
+- fleet_optimize intent few-shot 예제 추가로 5/5 정확도 달성
+- NL2Opt formulation에서 RouteStop stop_id 자동 생성
 - 프롬프트 A/B 테스트 자동화 (Langfuse Experiments 연동)
 - 한국어 few-shot 예시 10개 추가 및 카테고리별 F1 분리 측정
 - 토크나이저 기반 정확한 토큰 계산 (tiktoken 또는 모델별 토크나이저)
 - 프로덕션 트래픽 기반 시나리오 추가 (실제 사용자 쿼리에서 비식별화 후 벤치마크에 편입)
+- Embedding API 대안 평가 (Alibaba 플랜 변경 또는 self-hosted 임베딩 서버)
 ## 7. 면접에서 말할 거리
 
 - "OptiMUS(Stanford)의 에이전트 분리 구조를 VRP + 기상 도메인에 특화"
 - "NL2Opt: 자연어 → VRP 제약 조건 변환, 50개 시나리오 F1 0.87"
+- "E2E 검증: qwen3.8-max-preview으로 5/5 테스트 통과 (2026-07-26)"
+- "Seattle→Miami VRP 파이프라인: 최단 3,658mi/risk 58 vs 저위험 4,039mi/risk 15"
 - "하이브리드 검색(벡터 + SQL) + RRF + cross-encoder 리랭킹, MRR 0.82"
 - "RAG로 과거 유사 사례를 grounding하여 할루시네이션 감소"
 - "LiteLLM으로 모델 폴백 체인, Langfuse로 전 호출 trace"
 - "4단계 fail-closed ML 게이트 + LLM 안전 레이어 이중 방어"
 - "pgvector로 별도 벡터 DB 인프라 없이 PostgreSQL에서 처리"
+- "로컬 sentence-transformers로 임베딩 (API 미가용 환경 대응)"
+- "thinking 모드 비활성화로 지연시간 60s→29s 최적화"

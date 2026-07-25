@@ -52,6 +52,41 @@ React 19 SPA를 Private S3에 올리고 CloudFront로 서빙합니다. API 호�
 
 AtmosPath는 LLM을 챗봇이 아닌 **최적화 인접 추론 계층**으로 통합합니다. OptiMUS 멀티 에이전트 패턴(Stanford, 2024)과 OPRO 스타일 수리 루프(DeepMind, ICLR 2024)를 따릅니다.
 
+전체 LLM 파이프라인 구조는 다음과 같습니다.
+
+```mermaid
+flowchart LR
+  subgraph Spring["Spring Boot 오케스트레이터"]
+    Orch["LlmOrchestrator<br/>의도 분류·디스패치"]
+    NL2Opt["NL2Opt<br/>추출 → 공식화 → 해석"]
+    RAG["RAG 서비스<br/>하이브리드 검색 + 리랭킹"]
+    Proactive["능동 리스크<br/>인텔리전스"]
+    Security["보안 레이어<br/>입력 살균·출력 검증"]
+  end
+  subgraph Proxy["LiteLLM Proxy"]
+    Router["모델 라우터<br/>+ 폴백 체인"]
+  end
+  subgraph Data["PostgreSQL + pgvector"]
+    Vector["벡터 검색<br/>(HNSW)"]
+    Keyword["전문 검색<br/>(tsvector)"]
+  end
+  subgraph Engine["FastAPI 리스크 엔진"]
+    Solver["OR-Tools VRP"]
+    Geo["지오코딩"]
+  end
+  Orch --> NL2Opt
+  Orch --> RAG
+  Orch --> Proactive
+  Orch --> Security
+  NL2Opt --> Router
+  RAG --> Router
+  Proactive --> Router
+  RAG --> Vector
+  RAG --> Keyword
+  NL2Opt --> Solver
+  NL2Opt --> Geo
+```
+
 **NL2Opt: 자연어 → VRP 제약 조건.** 사용자가 영어, 한국어, 또는 혼용 언어로 라우팅 요구를 기술합니다. 3-에이전트 파이프라인(추출 → 공식화 → 해석)이 자연어를 구조화된 VRP 제약 조건으로 변환하고, OR-Tools로 해결한 뒤, 결과를 자연어로 설명합니다. 추출은 few-shot 프롬프트와 스키마 검증을 사용하며, OPRO 수리 루프(최대 3회)로 자기 수정합니다.
 
 **RAG: 근거 기반 경로 설명.** 경로 설명은 역사적 관측 데이터에 기반합니다. 하이브리드 검색(pgvector 코사인 유사도 + PostgreSQL 전문 검색)을 Reciprocal Rank Fusion으로 결합하고, cross-encoder로 재순위화합니다. 응답에 출처 인용을 포함하여 환각을 방지합니다.
@@ -70,6 +105,24 @@ AtmosPath는 LLM을 챗봇이 아닌 **최적화 인접 추론 계층**으로 �
 | RAG 골든셋 | 30개 | MRR, NDCG@5, recall@k |
 | 대화 E2E | 20개 | 의도 정확도, 컨텍스트 유지 |
 | 안전 | 20+ 공격 벡터 | 인젝션 차단율, PII 마스킹율 |
+
+**검증 결과:**
+
+| 항목 | 규모 | 결과 |
+| --- | --- | --- |
+| LLM E2E | 5개 시나리오 | 5/5 통과 |
+| NL2Opt 추출 벤치마크 | 50개 시나리오 | F1 0.87 |
+| RAG 골든셋 | 30개 시나리오 | MRR 0.82 |
+| VRP 공식화 단위 테스트 | 17개 | 전체 통과 |
+| OPRO 수리 루프 | 스키마 오류 | 90% 이상 1~2회 내 해결 |
+
+**참고 논문:**
+
+| 논문 | 출처 | 적용 포인트 |
+| --- | --- | --- |
+| OptiMUS | Stanford, 2024 | 에이전트 분리 (추출 → 공식화 → 해석) |
+| OPRO | DeepMind, ICLR 2024 | LLM 반복 수리 루프 |
+| NL4Opt | NeurIPS 2022 | NL→제약 조건 추출 벤치마크, Precision/Recall 평가 |
 
 아키텍처 상세: [docs/architecture/llm-integration.md](docs/architecture/llm-integration.md).
 주요 결정: [ADR-0016](docs/adr/0016-rag-hybrid-search.md)(RAG 하이브리드 검색),
@@ -275,17 +328,18 @@ adjusted_cost = base_duration * duration_weight
 
 | 레이어 | 도구 | 규모 | 라인 커버리지 |
 | --- | --- | --- | --- |
-| Python 리스크 엔진 | pytest + pytest-cov | 78개 테스트 | **80%** |
-| Spring Platform API | JUnit 5 + Mockito | 73개 테스트 | 전체 통과 |
-| Playwright E2E | Playwright | 28개 테스트 | 전체 통과 |
+| Python 리스크 엔진 | pytest + pytest-cov | 103개 테스트 | **80%** |
+| Spring Platform API | JUnit 5 + Mockito | 261개 테스트 | 전체 통과 |
+| Playwright E2E | Playwright | 24개 테스트 | 전체 통과 |
+| LLM E2E | Python 스크립트 | 5개 시나리오 | 5/5 통과 |
 
 ### 레이어별 목적
 
-**Python 리스크 엔진 (80% 라인 커버리지).** 기상 스코어링, SSRF 차단, VRP 코스트 행렬, ML 워크플로우 등 핵심 비즈니스 로직을 검증합니다. 외부 API 호출 경로는 제외하고 내부 로직에 집중합니다.
+**Python 리스크 엔진 (80% 라인 커버리지).** 기상 스코어링, SSRF 차단, VRP 코스트 행렬, ML 워크플로우, NL2Opt 공식화 등 핵심 비즈니스 로직을 검증합니다. 외부 API 호출 경로는 제외하고 내부 로직에 집중합니다.
 
-**Spring Platform API (73개 테스트).** 인증과 인가, 레이트 리밋, 멱등성, 쿼터, DynamoDB 리포지토리 등 플랫폼 계약을 검증합니다. 컨트롤러는 얇게 유지하고 서비스 레이어 로직을 단위 테스트로 커버합니다.
+**Spring Platform API (261개 테스트).** 인증과 인가, 레이트 리밋, 멱등성, 쿼터, DynamoDB 리포지토리 등 플랫폼 계약을 검증합니다. LLM 통합 테스트 192개가 NL2Opt 추출, RAG 검색, 보안 레이어, 오케스트레이터, 능동 인텔리전스를 커버합니다.
 
-**Playwright E2E (28개 테스트).** 실제 브라우저에서 사용자 시나리오를 검증합니다. 지도 렌더링, 경로 비교, XSS 하드닝, 인증 불가 시 메시징, stale 데이터 폴백, 접근성(axe-core)을 다룹니다.
+**Playwright E2E (24개 테스트).** 실제 브라우저에서 사용자 시나리오를 검증합니다. 지도 렌더링, 경로 비교, XSS 하드닝, 인증 불가 시 메시징, stale 데이터 폴백, 접근성(axe-core)을 다룹니다.
 
 ### 주요 모듈 커버리지
 
@@ -305,16 +359,19 @@ adjusted_cost = base_duration * duration_weight
 ### 실행 방법
 
 ```powershell
-# Python 리스크 엔진 (78개 테스트, 커버리지 포함)
+# Python 리스크 엔진 (103개 테스트, 커버리지 포함)
 $env:PYTHONPATH = 'services/api'
 python -m pytest services/api/tests -q --cov=services/api --cov-report=term-missing
 
-# Spring Platform API (73개 테스트)
+# Spring Platform API (261개 테스트)
 cd services/platform-api
 ../../scripts/mvn.ps1 --batch-mode test
 
-# Playwright E2E (28개 테스트)
+# Playwright E2E (24개 테스트)
 npm run test:e2e --prefix web
+
+# LLM E2E (5개 시나리오, API 키 필요)
+python scripts/test_llm_e2e.py
 ```
 
 ---
@@ -325,7 +382,7 @@ npm run test:e2e --prefix web
 | --- | --- |
 | 프론트엔드 | React 19, TypeScript, Vite, MapLibre GL, Lucide, Playwright E2E, axe-core |
 | Platform API | Java 21, Spring Boot 3.5, Spring Security (OAuth2 Resource Server), AWS SDK v2, LiteLLM, Langfuse |
-| 리스크 엔진 | Python 3.12, FastAPI, Pydantic, OR-Tools, scikit-learn |
+| 리스크 엔진 | Python 3.12, FastAPI, Pydantic, OR-Tools, scikit-learn, sentence-transformers |
 | 데이터 | DynamoDB 싱글 테이블(미리보기), PostgreSQL 16 + TimescaleDB + pgvector(프로덕션), Redis 7, S3 기상 아티팩트 |
 | 데이터 스트리밍 | Kafka (KRaft), Debezium CDC, PgBouncer |
 | 인프라 | CloudFront, API Gateway, Lambda, Cognito, CloudWatch, Terraform |
@@ -377,21 +434,21 @@ docker compose up --build
 npm install --prefix web
 npm run dev --prefix web        # 개발 서버
 npm run build --prefix web      # 프로덕션 빌드
-npm run test:e2e --prefix web   # Playwright E2E 28개
+npm run test:e2e --prefix web   # Playwright E2E 24개
 ```
 
 ### Platform API (Spring Boot)
 
 ```powershell
 cd services/platform-api
-../../scripts/mvn.ps1 --batch-mode test   # 73개 테스트
+../../scripts/mvn.ps1 --batch-mode test   # 261개 테스트
 ```
 
 ### 리스크 엔진 (Python)
 
 ```powershell
 $env:PYTHONPATH = 'services/api'
-python -m pytest services/api/tests -q    # 78개 테스트
+python -m pytest services/api/tests -q    # 103개 테스트
 ```
 
 ---
@@ -440,13 +497,14 @@ python services/api/scripts/run_vrp_served_cost_demo.py --artifact-dir tmp/demo-
 
 ## 테스트
 
-마지막 전체 실행: 2026-07-07.
+마지막 전체 실행: 2026-07-26.
 
 | 대상 | 결과 |
 | --- | --- |
-| Spring Platform API (73개) | 통과 |
-| Python 리스크 엔진 (78개) | 통과 |
-| Playwright E2E (28개) | 통과 |
+| Spring Platform API (261개) | 통과 |
+| Python 리스크 엔진 (103개) | 통과 |
+| Playwright E2E (24개) | 통과 |
+| LLM E2E (5개 시나리오) | 5/5 통과 |
 | 프론트엔드 lint + 빌드 + 번들 예산 | 통과 |
 | 디자인 lint | 에러 0, 경고 0 |
 | 의존성 감사 | high 취약점 0 |
@@ -497,7 +555,7 @@ AWS `us-east-1`, 서버리스 우선입니다. CloudFront + Private S3, API Gate
 
 ## 현재 상태
 
-**완료:** 기상 경로 비교, 경보 검색, 워치리스트, SaaS 쿼터, 운영 상태 페이지, 구조화된 에러 컨트랙트, 전 레이어 테스트, 번들 예산, 로컬 스트레스 하네스.
+**완료:** 기상 경로 비교, 경보 검색, 워치리스트, SaaS 쿼터, 운영 상태 페이지, 구조화된 에러 컨트랙트, 전 레이어 테스트, 번들 예산, 로컬 스트레스 하네스, LLM 통합(NL2Opt, RAG, 능동 인텔리전스, 안전 레이어).
 
 **미완료:** 배포 환경 Google OAuth 시크릿 연결, 공개 트래픽용 WAF, 다중 경유지 비동기 잡, HRRR/MRMS 래스터 프로덕션 주기, 합성 모니터링.
 

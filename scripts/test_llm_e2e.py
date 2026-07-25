@@ -30,6 +30,14 @@ def api_call(endpoint, payload, api_key):
         print(f"  Timeout/Network error: {e}")
         return None, 0
 
+def api_call_no_think(endpoint, payload, api_key):
+    """API call with thinking mode disabled for faster responses."""
+    payload = dict(payload)
+    payload["extra_body"] = {"enable_thinking": False}
+    if "chat" in endpoint:
+        payload.setdefault("extra_body", {})
+    return api_call(endpoint, payload, api_key)
+
 def test_chat(api_key):
     print("\n=== Test 1: Chat Completion ===")
     r, ms = api_call("chat/completions", {"model": MODEL, "messages": [
@@ -39,21 +47,23 @@ def test_chat(api_key):
     if r:
         c = r["choices"][0]["message"]["content"]
         u = r.get("usage", {})
-        print(f"  ({ms}ms) {c[:150]}")
+        print(f"  Latency: {ms}ms")
+        print(f"  Response: {c}")
         print(f"  Tokens: in={u.get('prompt_tokens')}, out={u.get('completion_tokens')}")
         print("  PASS"); return True
     print("  FAIL"); return False
 
 def test_route_advice(api_key):
-    print("\n=== Test 2: Route Advice ===")
+    print("\n=== Test 2: Route Advice (thinking disabled) ===")
     r, ms = api_call("chat/completions", {"model": MODEL, "messages": [
-        {"role": "system", "content": "You are a driving safety analyst. Answer concisely in English."},
+        {"role": "system", "content": "You are a driving safety analyst. Answer concisely in English. Do not show internal reasoning."},
         {"role": "user", "content": "I need to drive from Seattle to Miami in a truck carrying hazardous materials. A storm is approaching. What route do you recommend and why?"}
-    ], "max_tokens": 150, "temperature": 0.3}, api_key)
+    ], "max_tokens": 200, "temperature": 0.3, "extra_body": {"enable_thinking": False}}, api_key)
     if r:
         c = r["choices"][0]["message"]["content"]
         has_route = any(w in c.lower() for w in ["route", "i-", "highway", "corridor", "avoid"])
-        print(f"  ({ms}ms) {c[:250]}")
+        print(f"  Latency: {ms}ms")
+        print(f"  Response: {c}")
         print(f"  Route advice detected: {has_route}")
         print("  PASS" if has_route else "  FAIL"); return has_route
     print("  FAIL"); return False
@@ -80,7 +90,10 @@ def test_nl2opt(api_key):
             dep = "earliest" in str(c.get("departure", {}))
             avoid = any(x.get("type") == "avoid" for x in c.get("softConstraints", []))
             obj = c.get("objective", "N/A")
-            print(f"  ({ms}ms) hazmat={hazmat}, departure={dep}, avoid_highway={avoid}, objective={obj}")
+            print(f"  Latency: {ms}ms")
+            print(f"  Extracted JSON:")
+            print(f"    {json.dumps(c, indent=2, ensure_ascii=False)[:500]}")
+            print(f"  Checks: hazmat={hazmat}, departure={dep}, avoid_highway={avoid}, objective={obj}")
             ok = hazmat and dep
             print(f"  {'PASS' if ok else 'PARTIAL'}"); return ok
         except json.JSONDecodeError as e:

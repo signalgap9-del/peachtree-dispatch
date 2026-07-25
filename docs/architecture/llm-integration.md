@@ -6,6 +6,9 @@ and proactive risk intelligence. The design follows the OptiMUS
 multi-agent pattern (Stanford, 2024) with OPRO-style repair loops
 (DeepMind, ICLR 2024).
 
+Last verified: 2026-07-26 (E2E API test 5/5 passed, VRP pipeline demo
+Seattle to Miami completed). See [TEST-RESULTS](../llm/TEST-RESULTS.md).
+
 ---
 
 ## System Overview
@@ -40,6 +43,10 @@ flowchart LR
         Keyword["Full-text search<br/>(tsvector)"]
     end
 
+    subgraph Embedding["Embedding"]
+        LocalEmb["sentence-transformers<br/>(all-MiniLM-L6-v2, 384-dim)<br/>local fallback"]
+    end
+
     subgraph RiskEngine["FastAPI Risk Engine"]
         Solver["OR-Tools VRP"]
         Weather["Weather scoring"]
@@ -59,9 +66,47 @@ flowchart LR
     Router -->|"traces"| Trace
     RAG --> Vector
     RAG --> Keyword
+    RAG --> LocalEmb
     NL2Opt --> Geo
     NL2Opt --> Solver
     Proactive --> Weather
+```
+
+### Verified end-to-end flow (2026-07-26)
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as Alibaba MaaS<br/>(qwen3.8-max-preview)
+    participant RT as Risk Engine<br/>(FastAPI)
+    participant EMB as sentence-transformers<br/>(local)
+
+    Note over U,EMB: E2E test 5/5 passed
+
+    U->>API: Chat completion (4.3s, 88 tokens)
+    API-->>U: Safety analysis response
+
+    U->>API: Route advice, thinking disabled (29s)
+    API-->>U: I-5 to I-84 to I-15 to I-40 to I-75
+
+    U->>API: NL2Opt extraction (16s)
+    API-->>U: hazmat=true, departure=08:00,<br/>avoid=highway, objective=min_risk
+
+    U->>EMB: Embed query (0.8s)
+    EMB-->>U: 384-dim vector, similarity ranking correct
+
+    U->>API: Intent classification (5 cases)
+    API-->>U: 4/5 correct (fleet_optimize misclassified)
+
+    Note over U,EMB: VRP pipeline Seattle to Miami
+
+    U->>RT: Directions (TRUCK)
+    RT-->>U: Fastest 3657.9 mi / 69.4 hrs / risk 58
+    RT-->>U: Lower-risk 4039.0 mi / 77.9 hrs / risk 15
+    RT-->>U: Climate delay 628 min
+
+    U->>RT: NL2Opt formulate (min_risk)
+    RT-->>U: Objective applied, 2 soft constraints pending
 ```
 
 ---
@@ -299,3 +344,46 @@ horizontal or managed-service upgrade path.
 - [ADR-0016](../adr/0016-rag-hybrid-search.md): RAG with hybrid search
 - [ADR-0017](../adr/0017-nl2opt-agent-design.md): NL2Opt agent design
 - [ADR-0018](../adr/0018-proactive-risk-intelligence.md): Proactive risk intelligence
+
+---
+
+## Actual Test Results (2026-07-26)
+
+Full details in [docs/llm/TEST-RESULTS.md](../llm/TEST-RESULTS.md).
+
+### E2E API test (`scripts/test_llm_e2e.py`)
+
+Model: `qwen3.8-max-preview` via Alibaba Cloud MaaS (OpenAI-compatible).
+
+| Test | Result | Latency | Details |
+|------|--------|---------|---------|
+| Chat Completion | PASS | 4.3s | 88 tokens |
+| Route Advice | PASS | 29s | I-5, I-84, I-15, I-40, I-75 |
+| NL2Opt Extraction | PASS | 16s | hazmat=true, departure=08:00, avoid=highway |
+| Local Embedding | PASS | 0.8s | 384-dim, similarity ranking correct |
+| Intent Classification | PASS | 4/5 | fleet_optimize misclassified as route_plan |
+
+### VRP pipeline demo (`scripts/test_vrp_pipeline.py`)
+
+Seattle to Miami, TRUCK, objective `min_risk`:
+
+| Route | Distance | Duration | Risk |
+|-------|----------|----------|------|
+| Fastest | 3,657.9 mi | 69.4 hrs | 58/100 |
+| Lower weather risk | 4,039.0 mi | 77.9 hrs | 15/100 |
+
+Climate delay: 628 min. NL2Opt formulation applied `objective=min_risk`;
+2 soft constraints (`arrive_before`, `avoid`) extracted but pending
+translator mapping.
+
+---
+
+## Known Gaps
+
+| Gap | Impact | Mitigation |
+|-----|--------|------------|
+| `arrive_before` and `avoid` soft constraint types not mapped in `constraint_translators.py` | LLM extracts them correctly, but the VRP solver ignores them | Mapped types: `time_window`, `priority_stop`, `avoid_corridor`, `weather_deadline`, `hazmat`, `capacity`. Add translators for the two missing types. |
+| Embedding API not available on Alibaba token plan | Cannot use `text-embedding-v3` via MaaS | Using local `sentence-transformers` (`all-MiniLM-L6-v2`, 384-dim). Works for dev/preview scale. |
+| `qwen3.8-max-preview` thinking mode causes slow responses | 30-60s latency with thinking enabled | Set `enable_thinking=false` in `extra_body`, or use a faster model for latency-sensitive paths. |
+| Multi-stop `RouteStop` requires `stop_id` field | Pipeline test must supply explicit stop IDs | Generate UUIDs in the NL2Opt formulation layer before calling the VRP solver. |
+| Intent classification: `fleet_optimize` misclassified as `route_plan` | 4/5 accuracy on intent test | Add more fleet-specific few-shot examples to `intent_classification.yaml`. |

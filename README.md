@@ -7,7 +7,7 @@ AtmosPath compares route alternatives not just by travel time, but by live weath
 
 [Live preview](https://d23c97ytqgl4xu.cloudfront.net/) | [API health](https://d23c97ytqgl4xu.cloudfront.net/api/health) | [Demo playbook](docs/demo-playbook.md) | [Changelog](CHANGELOG.md)
 
-English | **[?�국??(README.ko.md)**
+English | **[한국어](README.ko.md)**
 
 ![AtmosPath route comparison](docs/screenshots/map-route-live.png)
 
@@ -51,26 +51,85 @@ The frontend is a React 19 SPA served from private S3 through CloudFront. API ca
 
 ## LLM Integration
 
-AtmosPath integrates LLMs as an optimization-adjacent reasoning layer, not as a chatbot. The architecture follows the OptiMUS multi-agent pattern (Stanford, 2024) with OPRO-style repair loops (DeepMind, ICLR 2024).
+AtmosPath integrates LLMs as an optimization-adjacent reasoning layer, not as a
+chatbot. Four capabilities work together:
 
-**NL2Opt: natural language �� VRP constraints.** Users describe routing needs in English, Korean, or mixed language. A 3-agent pipeline (extraction �� formulation �� interpretation) translates natural language into structured VRP constraints, solves them with OR-Tools, and explains results back in natural language. Extraction uses few-shot prompting with schema validation and an OPRO repair loop (max 3 attempts) for self-correction.
+- **NL2Opt** -- natural language → VRP constraints → OR-Tools solver → route.
+  A 3-agent pipeline (extraction → formulation → interpretation) translates
+  English, Korean, or mixed-language requests into structured VRP constraints,
+  solves them, and explains results back in natural language.
+- **RAG** -- pgvector hybrid search (cosine + full-text), Reciprocal Rank
+  Fusion, and cross-encoder reranking ground explanations in historical
+  observations with source citations.
+- **Proactive intelligence** -- scheduled risk monitoring on saved routes;
+  an LLM judgment layer filters threshold breaches before pushing SSE
+  notifications (6-hour dedup window).
+- **Safety** -- injection defense (EN/KO/ZH/JSON/nested patterns), output
+  validation (PII masking, URL stripping, dangerous-advice detection), and a
+  3-tier fallback chain: primary model → secondary model → structured template.
 
-**RAG: grounded route explanations.** Route explanations are grounded in historical observations via hybrid search (pgvector cosine similarity + PostgreSQL full-text), fused with Reciprocal Rank Fusion, and reranked by a cross-encoder. Responses include source citations, preventing hallucinated risk statistics.
+### Architecture
 
-**Proactive risk intelligence.** Saved routes are monitored on a scheduled interval. When a risk threshold breaches, an LLM judgment layer assesses whether the change is actionable before pushing an SSE notification. A 6-hour dedup window prevents notification spam.
+```mermaid
+flowchart LR
+  User["User"] --> ChatUI["Chat UI<br/>(SSE stream)"]
+  ChatUI --> Orch["Spring<br/>Orchestrator"]
+  Orch --> Intent["Intent<br/>Classification"]
+  Intent --> NL2Opt["NL2Opt<br/>Extraction"]
+  NL2Opt --> VRP["OR-Tools<br/>VRP Solver"]
+  VRP --> Interp["Route<br/>Interpretation"]
+  Interp --> ChatUI
 
-**Safety: injection defense + output validation + 3-tier fallback.**
-- Input sanitizer blocks prompt injection (English, Korean, Chinese, JSON, nested patterns)
-- Output validator masks PII, strips URLs, flags dangerous driving advice
-- Fallback chain: primary model �� secondary model �� structured template (no LLM)
+  Orch --> LiteLLM["LiteLLM Proxy"]
+  LiteLLM --> Qwen["Qwen 2.5"]
+  LiteLLM --> DS["DeepSeek V3"]
+  Orch --> Langfuse["Langfuse<br/>Tracing"]
+  Orch --> RAG["pgvector RAG<br/>Hybrid Search"]
+```
 
-**Evaluation:**
-| Benchmark | Scenarios | Metrics |
+### E2E Test Results
+
+Actual numbers from the integration suite (5/5 passed):
+
+| Scenario | Latency | Result |
 | --- | --- | --- |
-| NL2Opt extraction | 50 | Precision, Recall, F1, geocoding accuracy |
-| RAG golden set | 30 | MRR, NDCG@5, recall@k |
-| Conversation E2E | 20 | Intent accuracy, context retention |
-| Safety | 20+ attack vectors | Injection block rate, PII mask rate |
+| Chat completion | 4.3 s | 88 tokens, streamed via SSE |
+| Route advice | 29 s | Corridor recommendation: I-5 → I-84 → I-15 → I-40 → I-75 |
+| NL2Opt extraction (Korean input) | 16 s | Correct JSON: `hazmat=true, departure=08:00, avoid=highway, objective=min_risk` |
+| Local embedding | -- | 384-dim; flood ↔ flood similarity 0.862, flood ↔ sunny 0.277 |
+| Intent classification | -- | 4/5 correct |
+
+### VRP Pipeline Demo
+
+```
+Seattle → Miami (TRUCK):
+  Fastest:            3,657.9 mi | 69.4 hrs | risk 58/100
+  Lower weather risk:  4,039.0 mi | 77.9 hrs | risk 15/100
+  Climate delay: 628 min (10.5 hrs)
+  Segments: WIND(22), HEAT(28), RAIN(23), RAIN(28)
+```
+
+### Key Design Decisions
+
+| Decision | Basis | Reference |
+| --- | --- | --- |
+| 3-agent pipeline (extraction → formulation → interpretation) | OptiMUS multi-agent pattern | OptiMUS, Stanford 2024 |
+| OPRO repair loop (max 3 attempts) for validation failures | Self-correction via iterative prompting | OPRO, DeepMind ICLR 2024 |
+| Precision / Recall / F1 evaluation methodology | NL4Opt benchmark design | NL4Opt, NeurIPS 2022 |
+| pgvector + keyword + RRF + cross-encoder reranking | Hybrid retrieval outperforms pure vector search | [ADR-0016](docs/adr/0016-rag-hybrid-search.md) |
+
+### Research Papers
+
+Six papers in [docs/llm/papers/](docs/llm/papers/) inform the architecture:
+
+| Paper | Relevance |
+| --- | --- |
+| OptiMUS (Stanford, 2024) | Multi-agent NL → optimization pipeline |
+| OPRO (DeepMind, 2023) | LLM-as-optimizer repair loops |
+| NL4Opt (NeurIPS, 2022) | NL → optimization benchmark and evaluation |
+| LLM4Opt Survey (2024) | Taxonomy of LLM applications in optimization |
+| FunSearch (DeepMind, Nature 2024) | Evolutionary LLM search for combinatorial problems |
+| ReEvo (2024) | LLM hyper-heuristic for combinatorial optimization |
 
 Architecture details: [docs/architecture/llm-integration.md](docs/architecture/llm-integration.md).
 Key decisions: [ADR-0016](docs/adr/0016-rag-hybrid-search.md) (RAG hybrid search),
@@ -276,8 +335,8 @@ Verified by: `test_vrp_route_engine.py`, `test_road_event_edge_risk.py`
 | Layer | Technologies |
 | --- | --- |
 | Frontend | React 19, TypeScript, Vite, MapLibre GL, Lucide icons, Playwright E2E, axe-core a11y |
-| Platform API | Java 21, Spring Boot 3.5, Spring Security (OAuth2 Resource Server), AWS SDK v2, LiteLLM, Langfuse |
-| Risk Engine | Python 3.12, FastAPI, Pydantic, OR-Tools, scikit-learn (ML workflow) |
+| Platform API | Java 21, Spring Boot 3.5, Spring Security (OAuth2 Resource Server), AWS SDK v2, LiteLLM, Langfuse, sentence-transformers (384-dim embeddings) |
+| Risk Engine | Python 3.12, FastAPI, Pydantic, OR-Tools, scikit-learn (ML workflow), sentence-transformers |
 | Data | DynamoDB (single-table preview), PostgreSQL 16 + TimescaleDB + pgvector (production), Redis 7, S3 (weather artifacts) |
 | Data Streaming | Kafka (KRaft), Debezium CDC, PgBouncer |
 | Infrastructure | CloudFront, API Gateway, Lambda, Cognito, CloudWatch, Terraform |
@@ -336,14 +395,14 @@ No system-wide Java/Maven install needed on Windows; the repo bundles both in `.
 
 ```powershell
 cd services/platform-api
-../../scripts/mvn.ps1 --batch-mode test   # 73 tests
+../../scripts/mvn.ps1 --batch-mode test   # 261 tests
 ```
 
 ### Risk Engine (Python)
 
 ```powershell
 $env:PYTHONPATH = 'services/api'
-python -m pytest services/api/tests -q    # 78 tests
+python -m pytest services/api/tests -q    # 110 tests
 ```
 
 ---
@@ -394,8 +453,8 @@ python services/api/scripts/run_vrp_served_cost_demo.py --artifact-dir tmp/demo-
 
 | Layer | Tests | Line coverage | Tool |
 | --- | --- | --- | --- |
-| Python Risk Engine | 78 | **80%** | pytest-cov |
-| Spring Platform API | 73 (all passing) | not measured | JUnit 5 (JaCoCo not yet configured) |
+| Python Risk Engine | 110 | **80%** | pytest-cov |
+| Spring Platform API | 261 (all passing) | not measured | JUnit 5 (JaCoCo not yet configured) |
 | Playwright E2E | 28 | n/a | Playwright |
 
 ### Key Module Coverage (Risk Engine)
@@ -429,17 +488,17 @@ and Redis dual-ledger reconciliation under parallel access.
 
 - `risk.py` (28%): the low number reflects external HTTP fetch paths (NWS, NOAA) that require live APIs. The scoring math itself is covered through `test_weather_snapshot.py` and `test_hazards.py`.
 - `directions.py` (54%): OSRM call paths need a running router; contract shape is tested, live routing is not.
-- Spring Platform API has no JaCoCo coverage report yet. All 73 tests pass; coverage measurement is a planned CI addition.
+- Spring Platform API has no JaCoCo coverage report yet. All 261 tests pass; coverage measurement is a planned CI addition.
 - E2E tests mock the backend; true end-to-end against deployed Lambda is a manual step (demo playbook).
 
 ### Running the Suites
 
 ```powershell
-# Risk Engine (Python) - 78 tests, ~4s
+# Risk Engine (Python) - 110 tests, ~4s
 $env:PYTHONPATH = 'services/api'
 python -m pytest services/api/tests -q --cov=services/api --cov-report=term-missing
 
-# Platform API (Spring) - 73 tests, ~20s
+# Platform API (Spring) - 261 tests, ~20s
 cd services/platform-api
 ../../scripts/mvn.ps1 --batch-mode test
 
@@ -493,7 +552,7 @@ Full deployment docs: [docs/deployment.md](docs/deployment.md). Cost model: [doc
 
 ## Project Status
 
-**Ready now:** weather route comparison, alert search, saved watchlist, SaaS quotas, operational status page, structured error contract, full test coverage across all layers, bundle budgets, local stress harness.
+**Ready now:** weather route comparison, alert search, saved watchlist, SaaS quotas, operational status page, structured error contract, full test coverage across all layers, bundle budgets, local stress harness, LLM chat with NL2Opt (EN/KO), RAG-grounded route explanations, proactive risk monitoring with SSE push, injection defense and 3-tier LLM fallback, Langfuse observability.
 
 **Not yet:** Google OAuth secrets in the deployed environment, WAF rules for broad public traffic, async multi-stop job execution, HRRR/MRMS raster ingestion at production cadence, synthetic monitoring.
 

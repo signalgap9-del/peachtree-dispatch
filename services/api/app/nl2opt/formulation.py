@@ -24,6 +24,23 @@ DEFAULT_VEHICLE_COUNT = 1
 DEFAULT_CAPACITY = 100
 DEFAULT_MAX_TIME_SECONDS = 12 * 3600
 
+# LLM-extracted constraint types do not always match translator names.
+# Resolve aliases before dispatching to the translator functions.
+CONSTRAINT_ALIASES: dict[str, str] = {
+    "arrive_before": "weather_deadline",
+    "avoid": "avoid_corridor",
+    "avoid_highway": "avoid_corridor",
+    "time_window": "time_window",
+    "hazmat": "hazmat",
+    "capacity": "capacity",
+    "priority": "priority_stop",
+}
+
+
+def _resolve_constraint_type(raw_type: str) -> str:
+    """Map an LLM-extracted constraint type to its canonical translator name."""
+    return CONSTRAINT_ALIASES.get(raw_type, raw_type)
+
 
 class RiskDataProvider(Protocol):
     """Provides national risk data (storm ETA, etc.) for weather deadlines."""
@@ -186,7 +203,7 @@ def formulate_vrp(
     # --- Step 4: Soft constraints -> edge penalties --------------------------
     edge_penalties: dict[tuple[int, int], int] = {}
     for soft in constraints.get("softConstraints") or []:
-        ctype = soft.get("type", "")
+        ctype = _resolve_constraint_type(soft.get("type", ""))
         if ctype == "avoid_corridor":
             result = translate_avoid_corridor(soft, node_count, adjusted_matrix)
         elif ctype == "weather_deadline":
@@ -205,7 +222,7 @@ def formulate_vrp(
     # --- Step 5: Hard constraints -> edge masks ------------------------------
     edge_masks: list[tuple[int, int]] = []
     for hard in constraints.get("hardConstraints") or []:
-        ctype = hard.get("type", "")
+        ctype = _resolve_constraint_type(hard.get("type", ""))
         if ctype == "hazmat":
             result = translate_hazmat(hard, node_count)
         elif ctype == "weather_deadline":
