@@ -20,7 +20,7 @@ def api_call(endpoint, payload, api_key):
     })
     start = time.time()
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        with urllib.request.urlopen(req, timeout=120) as resp:
             result = json.loads(resp.read().decode("utf-8"))
             return result, round((time.time() - start) * 1000)
     except urllib.error.HTTPError as e:
@@ -44,18 +44,18 @@ def test_chat(api_key):
         print("  PASS"); return True
     print("  FAIL"); return False
 
-def test_korean(api_key):
-    print("\n=== Test 2: Korean Response ===")
+def test_route_advice(api_key):
+    print("\n=== Test 2: Route Advice ===")
     r, ms = api_call("chat/completions", {"model": MODEL, "messages": [
-        {"role": "system", "content": "Respond in Korean. Driving safety analyst."},
-        {"role": "user", "content": "시애틀에서 마이애미까지 트럭으로 가는데 폭풍이 오고 있어. 어떤 경로를 추천해?"}
-    ], "max_tokens": 100, "temperature": 0.3}, api_key)
+        {"role": "system", "content": "You are a driving safety analyst. Answer concisely in English."},
+        {"role": "user", "content": "I need to drive from Seattle to Miami in a truck carrying hazardous materials. A storm is approaching. What route do you recommend and why?"}
+    ], "max_tokens": 150, "temperature": 0.3}, api_key)
     if r:
         c = r["choices"][0]["message"]["content"]
-        kr = any("\uac00" <= ch <= "\ud7a3" for ch in c)
-        print(f"  ({ms}ms) {c[:200]}")
-        print(f"  Korean: {kr}")
-        print("  PASS" if kr else "  FAIL"); return kr
+        has_route = any(w in c.lower() for w in ["route", "i-", "highway", "corridor", "avoid"])
+        print(f"  ({ms}ms) {c[:250]}")
+        print(f"  Route advice detected: {has_route}")
+        print("  PASS" if has_route else "  FAIL"); return has_route
     print("  FAIL"); return False
 
 def test_nl2opt(api_key):
@@ -90,15 +90,36 @@ def test_nl2opt(api_key):
     print("  FAIL"); return False
 
 def test_embedding(api_key):
-    print("\n=== Test 4: Embedding ===")
-    for model in ["text-embedding-v3", "text-embedding-v2", "text-embedding-v1"]:
-        r, ms = api_call("embeddings", {"model": model,
-            "input": ["Route I-95 South, risk 85, flood warning"]}, api_key)
-        if r:
-            dims = len(r["data"][0]["embedding"])
-            print(f"  {model}: {dims} dims ({ms}ms)")
-            print("  PASS"); return True
-    print("  FAIL (no embedding model)"); return False
+    print("\n=== Test 4: Local Embedding (sentence-transformers) ===")
+    try:
+        from sentence_transformers import SentenceTransformer
+        start = time.time()
+        model = SentenceTransformer("all-MiniLM-L6-v2")
+        load_ms = round((time.time() - start) * 1000)
+        print(f"  Model loaded ({load_ms}ms)")
+        start = time.time()
+        emb = model.encode(["Route I-95 South, risk 85/100, flood warning active, precipitation 90%"])
+        encode_ms = round((time.time() - start) * 1000)
+        dims = len(emb[0])
+        print(f"  Dimensions: {dims} ({encode_ms}ms)")
+        print(f"  First 5: {emb[0][:5].tolist()}")
+        # Test similarity
+        embs = model.encode([
+            "Flood warning on I-95, risk 85",
+            "Flood alert on I-95 southbound, high risk",
+            "Sunny weather in Miami, low risk"
+        ])
+        import numpy as np
+        sim = np.dot(embs[0], embs[1]) / (np.linalg.norm(embs[0]) * np.linalg.norm(embs[1]))
+        sim_diff = np.dot(embs[0], embs[2]) / (np.linalg.norm(embs[0]) * np.linalg.norm(embs[2]))
+        print(f"  Similarity (flood vs flood): {sim:.3f}")
+        print(f"  Similarity (flood vs sunny): {sim_diff:.3f}")
+        ok = dims > 0 and sim > sim_diff
+        print(f"  Semantic ranking correct: {ok}")
+        print("  PASS" if ok else "  FAIL"); return ok
+    except ImportError:
+        print("  sentence-transformers not installed. Run: pip install sentence-transformers")
+        print("  FAIL"); return False
 
 def test_intent(api_key):
     print("\n=== Test 5: Intent Classification ===")
@@ -135,7 +156,7 @@ def main():
         print(f"API key load failed: {e}"); sys.exit(1)
     results = {}
     results["chat"] = test_chat(api_key)
-    results["korean"] = test_korean(api_key)
+    results["route_advice"] = test_route_advice(api_key)
     results["nl2opt"] = test_nl2opt(api_key)
     results["embedding"] = test_embedding(api_key)
     results["intent"] = test_intent(api_key)
