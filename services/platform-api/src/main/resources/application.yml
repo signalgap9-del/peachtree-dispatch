@@ -1,6 +1,11 @@
 spring:
   application:
     name: atmospath-platform-api
+  data:
+    redis:
+      url: ${REDIS_URL:redis://localhost:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 server:
   port: ${PORT:8080}
 management:
@@ -13,6 +18,22 @@ management:
       probes:
         enabled: true
 atmospath:
+  saas:
+    enabled: ${SAAS_ENABLED:false}
+  datasource:
+    # Primary goes through PgBouncer (transaction pooling): prepareThreshold=0
+    # keeps server-prepared statements off.
+    primary-url: ${DATASOURCE_PRIMARY_URL:jdbc:postgresql://localhost:6432/atmospath?prepareThreshold=0}
+    replica-url: ${DATASOURCE_REPLICA_URL:}
+    username: ${DATASOURCE_USERNAME:atmospath}
+    password: ${DATASOURCE_PASSWORD:}
+    max-pool-size: ${DATASOURCE_MAX_POOL_SIZE:20}
+    connection-timeout-ms: ${DATASOURCE_CONNECTION_TIMEOUT_MS:5000}
+  redis:
+    url: ${REDIS_URL:redis://localhost:6379}
+  cdc:
+    enabled: ${CDC_ENABLED:false}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
   risk-engine-mode: ${RISK_ENGINE_MODE:http}
   risk-engine-url: ${RISK_ENGINE_URL:http://localhost:8000}
   risk-engine-function-name: ${RISK_ENGINE_FUNCTION_NAME:}
@@ -34,6 +55,9 @@ atmospath:
     authenticated-mutation-limit-per-minute: ${RATE_LIMIT_AUTHENTICATED_MUTATION_PER_MINUTE:90}
   alert-stream:
     enabled: ${ALERT_STREAM_ENABLED:true}
+    # polling: poll the risk engine (default). pubsub: receive alert state
+    # changes from Redis Pub/Sub (requires the SaaS stack publishing them).
+    mode: ${ALERT_STREAM_MODE:polling}
     poll-interval-ms: ${ALERT_STREAM_POLL_INTERVAL:30000}
     heartbeat-interval-ms: ${ALERT_STREAM_HEARTBEAT_INTERVAL:15000}
     emitter-timeout-ms: ${ALERT_STREAM_EMITTER_TIMEOUT:300000}

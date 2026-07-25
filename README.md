@@ -49,6 +49,50 @@ The frontend is a React 19 SPA served from private S3 through CloudFront. API ca
 
 ---
 
+## Production Data Stack
+
+The SaaS production path replaces DynamoDB with a relational stack that runs
+entirely in Docker Compose at zero cloud cost:
+
+```mermaid
+flowchart LR
+  App["Spring Boot"] --> PgB["PgBouncer"]
+  PgB --> PGW["PostgreSQL 16<br/>+ TimescaleDB<br/>(primary, writes)"]
+  PgB --> PGR["PostgreSQL 16<br/>(replica, reads)"]
+  PGW -. "WAL stream" .-> PGR
+  PGW -. "WAL / Debezium" .-> Kafka["Kafka"]
+  Kafka --> Consumers["CDC consumers<br/>alerts, usage, audit"]
+  App --> Redis["Redis 7<br/>quota counters<br/>rate limits"]
+```
+
+| Component | Role |
+| --- | --- |
+| **PostgreSQL 16 + TimescaleDB** | OLTP, spatial (PostGIS), time-series (hypertables), RLS tenant isolation |
+| **Redis 7** | Sub-ms quota counters (dual-ledger), rate-limit counters, response cache |
+| **Kafka + Debezium** | Change data capture for async alert processing, usage reconciliation, audit fan-out |
+| **PgBouncer** | Transaction-mode connection pooling in front of primary and replica |
+| **Read replica** | Streaming replication; `@Transactional(readOnly = true)` routes to replica |
+
+Start the full stack locally:
+
+```powershell
+docker compose --profile production-data up -d
+```
+
+The 15-table relational schema (tenant, subscription, entitlement, saved
+routes/places, alert lifecycle, usage metering, audit) is documented in
+[docs/relational-data-model.md](docs/relational-data-model.md) with a full ERD,
+RLS policies, and stored function contracts. Scaling path from single instance
+to global distribution: [docs/architecture/production-scaling.md](docs/architecture/production-scaling.md).
+Operations runbook: [docs/runbooks/production-data-stack.md](docs/runbooks/production-data-stack.md).
+
+Key decisions: [ADR-0010](docs/adr/0010-production-data-stack.md) (data stack),
+[ADR-0011](docs/adr/0011-dual-ledger-quota.md) (dual-ledger quota),
+[ADR-0012](docs/adr/0012-alert-state-machine-in-db.md) (alert state machine in DB),
+[ADR-0013](docs/adr/0013-read-write-splitting.md) (read/write splitting).
+
+---
+
 ## Engineering Decisions
 
 This section explains *how* key subsystems work and *why* they are built this way. Each entry is a conversation starter for technical review.
@@ -204,7 +248,8 @@ Verified by: `test_vrp_route_engine.py`, `test_road_event_edge_risk.py`
 | Frontend | React 19, TypeScript, Vite, MapLibre GL, Lucide icons, Playwright E2E, axe-core a11y |
 | Platform API | Java 21, Spring Boot 3.5, Spring Security (OAuth2 Resource Server), AWS SDK v2 |
 | Risk Engine | Python 3.12, FastAPI, Pydantic, OR-Tools, scikit-learn (ML workflow) |
-| Data | DynamoDB (single-table), S3 (weather artifacts), optional PostGIS |
+| Data | DynamoDB (single-table preview), PostgreSQL 16 + TimescaleDB (production), Redis 7, S3 (weather artifacts) |
+| Data Streaming | Kafka (KRaft), Debezium CDC, PgBouncer |
 | Infrastructure | CloudFront, API Gateway, Lambda, Cognito, CloudWatch, Terraform |
 | CI/CD | GitHub Actions (OIDC, no long-lived keys), Maven, pytest, Playwright, bundle budget checks |
 
@@ -345,6 +390,11 @@ python services/api/scripts/run_vrp_served_cost_demo.py --artifact-dir tmp/demo-
 
 **Stress tests** detect performance regressions locally without cloud cost: 180 requests at concurrency 8, asserting zero failures and p95 baselines (cached endpoints < 500 ms, multi-stop planning ~3.2 s).
 
+**Database load tests** use pgbench against the production data stack to
+validate read/write throughput and quota contention under concurrent load.
+Concurrency tests verify RLS tenant isolation, alert state machine transitions,
+and Redis dual-ledger reconciliation under parallel access.
+
 ### Known Gaps
 
 - `risk.py` (28%): the low number reflects external HTTP fetch paths (NWS, NOAA) that require live APIs. The scoring math itself is covered through `test_weather_snapshot.py` and `test_hazards.py`.
@@ -395,6 +445,9 @@ DynamoDB single-table design for the preview deployment:
 | `TENANT#{tenantId}` | `USAGE#{date}#{feature}` | Daily usage counters |
 
 PostGIS expansion (documented, not deployed by default): spatial columns with GiST indexes, owner-based RLS policies, route exposure observations, and future tenant/workspace tables. See [docs/data-model.md](docs/data-model.md) and [docs/relational-data-model.md](docs/relational-data-model.md).
+
+The production relational schema (15 tables, full ERD, RLS policies, stored
+functions) is documented in [docs/relational-data-model.md](docs/relational-data-model.md).
 
 ---
 

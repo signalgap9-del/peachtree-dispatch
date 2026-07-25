@@ -25,7 +25,7 @@ class AlertStreamServiceTests {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final RiskEngineGateway riskEngine = mock(RiskEngineGateway.class);
-    private final AlertStreamProperties properties = new AlertStreamProperties(true, 30_000, 15_000, 300_000);
+    private final AlertStreamProperties properties = new AlertStreamProperties(true, 30_000, 15_000, 300_000, "polling");
     private final AlertStreamService service = new AlertStreamService(riskEngine, properties);
 
     @Test

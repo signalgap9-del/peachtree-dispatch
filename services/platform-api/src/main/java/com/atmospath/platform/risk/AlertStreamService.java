@@ -19,9 +19,11 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
  * Fans out national risk snapshots to connected Server-Sent Events clients.
- * The risk engine is polled on a fixed interval; a snapshot is broadcast only
- * when its alert counts or top alert event names change, so clients receive
- * meaningful deltas plus periodic heartbeats to keep connections alive.
+ * Two delivery modes are supported: {@code polling} (default) polls the risk
+ * engine on a fixed interval and broadcasts a snapshot only when its alert
+ * counts or top alert event names change; {@code pubsub} disables polling
+ * and lets {@link AlertStreamPubSubBridge} push tenant alert state changes
+ * received from Redis Pub/Sub. Both modes keep the heartbeat alive.
  */
 @Service
 @ConditionalOnProperty(name = "atmospath.alert-stream.enabled", havingValue = "true", matchIfMissing = true)
@@ -29,6 +31,7 @@ public class AlertStreamService {
 
     static final String NATIONAL_RISK_EVENT = "national_risk";
     static final String HEARTBEAT_EVENT = "heartbeat";
+    static final String TENANT_ALERT_EVENT = "tenant_alert";
 
     private static final Logger log = LoggerFactory.getLogger(AlertStreamService.class);
     private static final int TOP_ALERT_HASH_LIMIT = 10;
@@ -54,6 +57,18 @@ public class AlertStreamService {
         return emitters.size();
     }
 
+    /**
+     * Pushes a tenant alert state change received over Redis Pub/Sub.
+     * Only used when {@code atmospath.alert-stream.mode=pubsub}.
+     */
+    public void broadcastTenantAlert(String tenantId, JsonNode payload) {
+        if (emitters.isEmpty()) {
+            return;
+        }
+        log.debug("Broadcasting tenant alert for {} to {} client(s)", tenantId, emitters.size());
+        sendToAll(TENANT_ALERT_EVENT, payload);
+    }
+
     void addEmitter(SseEmitter emitter) {
         emitters.add(emitter);
         emitter.onCompletion(() -> removeEmitter(emitter, "completed"));
@@ -70,6 +85,9 @@ public class AlertStreamService {
 
     @Scheduled(fixedDelayString = "${atmospath.alert-stream.poll-interval-ms:30000}")
     public void pollAndBroadcast() {
+        if (!"polling".equals(properties.mode())) {
+            return;
+        }
         if (emitters.isEmpty()) {
             return;
         }

@@ -48,6 +48,52 @@ React 19 SPA를 Private S3에 올리고 CloudFront로 서빙합니다. API 호�
 
 ---
 
+## 프로덕션 데이터 스택
+
+SaaS 프로덕션 경로는 DynamoDB를 관계형 스택으로 대체합니다. 전부를 Docker
+Compose에서 실행하며 클라우드 비용은 0입니다.
+
+```mermaid
+flowchart LR
+  App["Spring Boot"] --> PgB["PgBouncer"]
+  PgB --> PGW["PostgreSQL 16<br/>+ TimescaleDB<br/>(프라이머리, 쓰기)"]
+  PgB --> PGR["PostgreSQL 16<br/>(레플리카, 읽기)"]
+  PGW -. "WAL 스트림" .-> PGR
+  PGW -. "WAL / Debezium" .-> Kafka["Kafka"]
+  Kafka --> Consumers["CDC 컨슈머<br/>경보, 사용량, 감사"]
+  App --> Redis["Redis 7<br/>쿼터 카운터<br/>레이트 리밋"]
+```
+
+| 구성 요소 | 역할 |
+| --- | --- |
+| **PostgreSQL 16 + TimescaleDB** | OLTP, 공간(PostGIS), 시계열(하이퍼테이블), RLS 테넌트 격리 |
+| **Redis 7** | 서브밀리초 쿼터 카운터(이중 원장), 레이트 리밋, 응답 캐시 |
+| **Kafka + Debezium** | 변경 데이터 캡처. 경보 처리, 사용량 정산, 감사 팬아웃을 비동기로 수행 |
+| **PgBouncer** | 트랜잭션 모드 커넥션 풀링. 프라이머리와 레플리카 앞에 배치 |
+| **읽기 레플리카** | 스트리밍 복제. `@Transactional(readOnly = true)` 트랜잭션을 레플리카로 라우팅 |
+
+로컬에서 전체 스택을 시작합니다:
+
+```powershell
+docker compose --profile production-data up -d
+```
+
+15개 테이블 관계형 스키마(테넌트, 구독, 권한, 저장 경로/장소, 경보
+라이프사이클, 사용량 미터링, 감사 로그)는
+[docs/relational-data-model.md](docs/relational-data-model.md)에서 ERD, RLS
+정책, 저장 함수 계약과 함께 문서화했습니다. 단일 인스턴스에서 글로벌
+배포까지의 스케일링 경로는
+[docs/architecture/production-scaling.md](docs/architecture/production-scaling.md),
+운영 런북은
+[docs/runbooks/production-data-stack.md](docs/runbooks/production-data-stack.md)에서
+확인합니다.
+
+주요 결정: [ADR-0010](docs/adr/0010-production-data-stack.md)(데이터 스택),
+[ADR-0011](docs/adr/0011-dual-ledger-quota.md)(이중 원장 쿼터),
+[ADR-0012](docs/adr/0012-alert-state-machine-in-db.md)(DB 내 경보 상태 머신),
+[ADR-0013](docs/adr/0013-read-write-splitting.md)(읽기/쓰기 분리).
+
+---
 ## 엔지니어링 결정
 
 면접에서 "이거 왜 이렇게 만들었습니까?"라는 질문에 바로 답할 수 있는 내용입니다.
@@ -251,7 +297,8 @@ npm run test:e2e --prefix web
 | 프론트엔드 | React 19, TypeScript, Vite, MapLibre GL, Lucide, Playwright E2E, axe-core |
 | Platform API | Java 21, Spring Boot 3.5, Spring Security (OAuth2 Resource Server), AWS SDK v2 |
 | 리스크 엔진 | Python 3.12, FastAPI, Pydantic, OR-Tools, scikit-learn |
-| 데이터 | DynamoDB 싱글 테이블, S3 기상 아티팩트, PostGIS (확장 경로) |
+| 데이터 | DynamoDB 싱글 테이블(미리보기), PostgreSQL 16 + TimescaleDB(프로덕션), Redis 7, S3 기상 아티팩트 |
+| 데이터 스트리밍 | Kafka (KRaft), Debezium CDC, PgBouncer |
 | 인프라 | CloudFront, API Gateway, Lambda, Cognito, CloudWatch, Terraform |
 | CI/CD | GitHub Actions OIDC (장기 키 없음), Maven, pytest, Playwright, 번들 예산 |
 
@@ -384,6 +431,11 @@ python services/api/scripts/run_vrp_served_cost_demo.py --artifact-dir tmp/demo-
 python perf/local_api_stress.py --requests 180 --concurrency 8
 ```
 
+**데이터베이스 부하 테스트**는 pgbench로 프로덕션 데이터 스택의 읽기/쓰기
+처리량과 쿼터 경합을 동시 부하 조건에서 검증합니다. 동시성 테스트는 RLS
+테넌트 격리, 경보 상태 머신 전이, Redis 이중 원장 정산을 병렬 접근 조건에서
+확인합니다.
+
 ---
 
 ## 데이터 모델
@@ -399,6 +451,9 @@ DynamoDB 싱글 테이블:
 
 PostGIS 확장 경로는 문서화만 되어 있고, 기본 배포에는 포함하지 않습니다. GiST 인덱스, 소유자 RLS, 경로 노출 관측, 테넌트/워크스페이스 테이블까지 설계했습니다. [docs/data-model.md](docs/data-model.md), [docs/relational-data-model.md](docs/relational-data-model.md)에서 확인합니다.
 
+
+프로덕션 관계형 스키마(15개 테이블, 전체 ERD, RLS 정책, 저장 함수)는
+[docs/relational-data-model.md](docs/relational-data-model.md)에서 문서화했습니다.
 ---
 
 ## 배포

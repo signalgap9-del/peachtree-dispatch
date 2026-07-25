@@ -7,10 +7,14 @@ public record AlertStreamProperties(
         boolean enabled,
         long pollIntervalMs,
         long heartbeatIntervalMs,
-        long emitterTimeoutMs) {
+        long emitterTimeoutMs,
+        String mode) {
     public AlertStreamProperties {
         pollIntervalMs = Math.max(1_000L, pollIntervalMs);
         heartbeatIntervalMs = Math.max(1_000L, heartbeatIntervalMs);
         emitterTimeoutMs = Math.max(10_000L, emitterTimeoutMs);
+        // "polling" (default) polls the risk engine; "pubsub" receives alert
+        // state changes from Redis Pub/Sub instead.
+        mode = "pubsub".equalsIgnoreCase(mode) ? "pubsub" : "polling";
     }
 }
