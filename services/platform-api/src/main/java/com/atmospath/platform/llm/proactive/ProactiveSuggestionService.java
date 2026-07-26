@@ -107,7 +107,7 @@ public class ProactiveSuggestionService {
                     .comparingInt((RiskSuggestion s) -> severityRank(s.severity())).reversed()
                     .thenComparing(RiskSuggestion::createdAt));
             return List.copyOf(suggestions);
-        } catch (RuntimeException ex) {
+        } catch (Exception ex) {
             log.warn("Redis read failed for tenant {}: {}", tenantId, ex.toString());
             return List.of();
         }
@@ -180,7 +180,7 @@ public class ProactiveSuggestionService {
             RiskSuggestion updated = existing.withAcknowledged(acknowledged);
             redis.opsForHash().put(key, suggestionId.toString(),
                     objectMapper.writeValueAsString(updated));
-        } catch (RuntimeException ex) {
+        } catch (Exception ex) {
             log.warn("Redis update failed for suggestion {}: {}", suggestionId, ex.toString());
         }
     }

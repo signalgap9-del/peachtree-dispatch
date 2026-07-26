@@ -33,6 +33,8 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, UUID
 
     List<Subscription> findByTenantIdOrderByValidToDesc(UUID tenantId);
 
+    Optional<Subscription> findByLemonsqueezySubscriptionId(String lemonsqueezySubscriptionId);
+
     /**
      * Server-side proration: computes the credit for the unused part of the
      * current period, closes this subscription row, and inserts a new

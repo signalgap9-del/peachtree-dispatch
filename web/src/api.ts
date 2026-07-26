@@ -1,6 +1,9 @@
 import type {
   AccountSummary,
   ApiErrorEnvelope,
+  BillingCheckoutResponse,
+  BillingPortalResponse,
+  BillingSubscription,
   DirectionsPlan,
   LocationRisk,
   NationalRiskOverview,
@@ -50,6 +53,8 @@ type RequestOptions = RequestInit & {
   retryBaseDelayMs?: number;
   staleCacheKey?: string;
   staleMaxAgeMs?: number;
+  /** Skip failure telemetry for probes where an error is an expected outcome (e.g. billing not live yet). */
+  quiet?: boolean;
 };
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -59,6 +64,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     retryBaseDelayMs = DEFAULT_RETRY_BASE_DELAY_MS,
     staleCacheKey,
     staleMaxAgeMs = PUBLIC_RISK_CACHE_MAX_AGE_MS,
+    quiet = false,
     signal,
     headers,
     ...requestOptions
@@ -97,7 +103,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   recordApiFailure({ path, kind: classifyFailure(lastError) });
-  reportRequestFailure(path, lastError, timeoutMs);
+  if (!quiet) reportRequestFailure(path, lastError, timeoutMs);
   throw lastError instanceof Error ? lastError : new Error("Network request failed");
 }
 
@@ -127,6 +133,16 @@ export const api = {
   locationRisk: (place: Place) =>
     request<LocationRisk>("/risk/location", { method: "POST", body: JSON.stringify(place) }),
   accountSummary: () => request<AccountSummary>("/me/account"),
+  billingSubscription: (options?: RequestOptions) =>
+    request<BillingSubscription>("/billing/subscription", options),
+  createBillingCheckout: (variantId?: string) =>
+    request<BillingCheckoutResponse>("/billing/checkout", {
+      method: "POST",
+      retries: 0,
+      body: JSON.stringify(variantId ? { variantId } : {}),
+    }),
+  billingPortal: () =>
+    request<BillingPortalResponse>("/billing/portal", { method: "POST", retries: 0 }),
   savedPlaces: () => request<SavedPlaceRecord[]>("/me/saved/places"),
   savedRoutes: async () => (await request<SavedRouteRecord[]>("/me/saved/routes")).map(normalizeSavedRoute),
   savedRoute: async (savedItemId: string) => normalizeSavedRoute(await request<SavedRouteRecord>(`/me/saved/routes/${savedItemId}`)),
@@ -179,6 +195,16 @@ export const api = {
 
 function isApiErrorEnvelope(value: unknown): value is ApiErrorEnvelope {
   return Boolean(value && typeof value === "object" && "error" in value);
+}
+
+/** True when a billing endpoint reports it is not deployed/enabled (404/503). */
+export function isBillingDisabledError(error: unknown): boolean {
+  return error instanceof ApiError && (error.status === 404 || error.status === 503);
+}
+
+/** True when the platform API rejected the credentials (401/403). */
+export function isAuthError(error: unknown): boolean {
+  return error instanceof ApiError && (error.status === 401 || error.status === 403);
 }
 
 class RequestTimeoutError extends Error {

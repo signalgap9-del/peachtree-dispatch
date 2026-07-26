@@ -1126,3 +1126,90 @@ button { color: inherit; }
 .segmented-control button small{font:600 11px "DM Mono",monospace}
 .segmented-control button.active{background:var(--surface);color:var(--blue);box-shadow:0 1px 4px rgba(0,0,0,.12)}
 .segmented-control button.active strong{font-weight:800}
+
+/* ============ Billing: pricing checkout, account page, upgrade prompt ============ */
+a.button{text-decoration:none}
+.button:disabled{opacity:.65;cursor:default;transform:none!important;box-shadow:none!important}
+
+/* --- pricing page --- */
+.pricing-grid{align-items:stretch}
+.pricing-card{position:relative;display:grid;gap:12px;padding:22px;align-content:start}
+.pricing-card.featured{border:2px solid var(--blue);box-shadow:0 8px 28px rgba(11,87,208,.16)}
+.pricing-flag{position:absolute;top:0;left:22px;transform:translateY(-50%);padding:4px 12px;border-radius:999px;background:var(--blue);color:#fff;font-size:11px;font-weight:800;letter-spacing:.7px;text-transform:uppercase}
+.pricing-price{display:flex;align-items:baseline;gap:6px;margin:2px 0 0}
+.pricing-price strong{font:500 34px "DM Mono",monospace;color:var(--ink);letter-spacing:-1px}
+.pricing-card.featured .pricing-price strong{color:var(--blue)}
+.pricing-price span{color:var(--muted);font-size:13px;font-weight:600}
+.pricing-tagline{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+.pricing-card ul{margin-top:4px}
+.pricing-cta{display:grid;gap:10px;margin-top:6px}
+.pricing-current{display:inline-flex;align-items:center;justify-content:center;gap:7px;width:100%;min-height:36px;padding:0 14px;border-radius:8px;background:#e6f4ea;color:var(--green);font-size:13px;font-weight:700}
+.pricing-status{margin:0;padding:10px 12px;border-radius:10px;font-size:13px;line-height:1.45}
+.pricing-status.error{background:#fce8e6;color:#b3261e;font-weight:600}
+.pricing-status.soon{background:#f1f3f4;color:var(--muted)}
+.pricing-status.signin{display:grid;gap:8px;background:var(--blue-soft)}
+.pricing-status.signin strong{font-size:13px;color:#174ea6}
+.pricing-status.signin span{font-size:12px;line-height:1.45;color:#3c4043}
+.pricing-status.signin .button{justify-self:start}
+.pricing-spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:page-suspense-spin .7s linear infinite}
+.pricing-note{margin:16px 2px 0;color:var(--muted);font-size:13px}
+
+/* --- account page --- */
+.account-page{max-width:1080px}
+.account-plan{display:grid;gap:18px;margin-top:18px;padding:24px}
+.account-plan-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.account-plan-head h2{margin:6px 0 0;font-size:30px;letter-spacing:-.8px}
+.account-plan-head p{margin:6px 0 0;max-width:520px;color:var(--muted);font-size:14px;line-height:1.5}
+.plan-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:999px;font-size:13px;font-weight:800;letter-spacing:.4px;text-transform:uppercase}
+.plan-chip.free{background:#f1f3f4;color:var(--muted)}
+.plan-chip.pro{background:#e6f4ea;color:var(--green)}
+.plan-chip.team{background:var(--blue-soft);color:var(--blue)}
+.account-facts{display:flex;gap:34px;flex-wrap:wrap;margin:0;padding:16px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.account-facts>div{display:grid;gap:5px}
+.account-facts dt{color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase}
+.account-facts dd{margin:0;font-size:15px;font-weight:600}
+.account-facts dd.mono{font:500 16px "DM Mono",monospace}
+.status-chip{display:inline-flex;align-items:center;gap:7px;padding:4px 12px;border-radius:999px;font-size:13px;font-weight:700}
+.status-chip::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.status-chip.ok{background:#e6f4ea;color:var(--green)}
+.status-chip.warn{background:#fef7e0;color:#8f4e00}
+.status-chip.bad{background:#fce8e6;color:#b3261e}
+.account-cancel-note{display:flex;gap:10px;align-items:flex-start;margin:0;padding:12px 14px;border-radius:10px;background:#fef7e0;color:#663c00;font-size:13px;line-height:1.5}
+.account-cancel-note svg{flex:none;margin-top:1px;color:#8f4e00}
+.account-plan-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.account-portal-error{color:#b3261e;font-size:13px;font-weight:600}
+.account-soon{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border:1px dashed var(--line);border-radius:12px;background:#f8fafd}
+.account-soon svg{flex:none;margin-top:2px;color:var(--muted)}
+.account-soon strong{display:block;font-size:14px}
+.account-soon small{display:block;margin-top:3px;color:var(--muted);font-size:12px;line-height:1.5}
+.account-upgrade{display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center;margin-top:18px;padding:20px 22px;border:1px solid #d2e3fc;border-radius:14px;background:var(--blue-soft)}
+.account-upgrade>svg{color:var(--blue)}
+.account-upgrade h3{margin:0;font-size:17px;letter-spacing:-.3px}
+.account-upgrade p{margin:4px 0 0;max-width:560px;color:#3c4043;font-size:13px;line-height:1.5}
+.account-usage{margin-top:18px;overflow:hidden}
+
+/* --- upgrade prompt (free-tier limit) --- */
+.upgrade-prompt{display:grid;grid-template-columns:auto 1fr auto auto;gap:14px;align-items:center;padding:14px 16px;border:1px solid #d2e3fc;border-radius:12px;background:#f8fbff}
+.upgrade-prompt>i{width:38px;height:38px;display:grid;place-items:center;border-radius:50%;background:var(--blue-soft);color:var(--blue);font-style:normal}
+.upgrade-prompt strong{display:block;font-size:14px;color:var(--ink)}
+.upgrade-prompt span{display:block;margin-top:2px;color:var(--muted);font-size:12px;line-height:1.45}
+.upgrade-prompt .button{white-space:nowrap}
+.upgrade-prompt-dismiss{width:30px;height:30px;display:grid;place-items:center;border:0;border-radius:50%;background:transparent;color:var(--muted)}
+.upgrade-prompt-dismiss:hover{background:#e8eaed;color:var(--ink)}
+.route-error-quota{background:#f8fbff;border:1px solid #d2e3fc;color:var(--ink)}
+.route-error-quota-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 4px}
+.route-error-quota-foot span{color:var(--muted);font-size:11px;line-height:1.4}
+
+/* --- pro badge in primary nav --- */
+.primary-nav .pro-flag{background:#e6f4ea;color:var(--green);border-radius:999px;padding:0 6px}
+
+@media(max-width:760px){
+  .pricing-flag{left:16px}
+  .account-plan{padding:18px}
+  .account-plan-head h2{font-size:24px}
+  .account-facts{gap:22px}
+  .account-upgrade{grid-template-columns:1fr}
+  .account-upgrade>svg{display:none}
+  .upgrade-prompt{grid-template-columns:auto 1fr auto}
+  .upgrade-prompt .button{grid-column:1/-1;justify-self:stretch}
+}

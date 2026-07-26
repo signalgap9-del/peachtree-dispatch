@@ -5,7 +5,6 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -163,8 +162,8 @@ public class VectorSearchRepository {
     }
 
     private static String toVectorLiteral(float[] vector) {
-        return Arrays.stream(vector)
-                .mapToObj(Float::toString)
+        return java.util.stream.IntStream.range(0, vector.length)
+                .mapToObj(i -> Float.toString(vector[i]))
                 .collect(Collectors.joining(",", "[", "]"));
     }
 

@@ -67,8 +67,8 @@ class SaaSIntegrationTests {
         assertThat(subscription.getPlan()).isEqualTo(SubscriptionPlan.PRO);
 
         // Upgrade with proration
-        BigDecimal credit = subscriptionService.upgradePlan(subscription.getId(), SubscriptionPlan.ENTERPRISE);
-        assertThat(credit).isNotNull();
+        Subscription upgraded = subscriptionService.upgradePlan(subscription.getId(), SubscriptionPlan.ENTERPRISE);
+        assertThat(upgraded).isNotNull();
 
         // Consume quota (requires an entitlement row for the subscription)
         // QuotaUsage usage = quotaService.consume(TENANT_A, "ROUTE_PLAN");

@@ -11,6 +11,7 @@ import {
   Map,
   ShieldAlert,
   Settings,
+  User,
 } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { BrowserRouter, Navigate as RouterNavigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
@@ -28,7 +29,7 @@ import { NetworkStatusBanner } from "./NetworkStatusBanner";
 import { Onboarding, shouldShowOnboarding } from "./Onboarding";
 import { ProactiveSuggestionBanner } from "./ProactiveSuggestionBanner";
 import { ToastHost } from "./Toast";
-import type { NationalRiskOverview, NationalWeatherSnapshot, RiskSuggestion, WeatherRasterManifest } from "./types";
+import type { BillingSubscription, NationalRiskOverview, NationalWeatherSnapshot, RiskSuggestion, WeatherRasterManifest } from "./types";
 import { notify } from "./ui";
 import "./styles.css";
 
@@ -42,6 +43,7 @@ const navItems = [
   { path: "/saved", labelKey: "nav.saved", icon: Bookmark },
   { path: "/alerts", labelKey: "nav.alerts", icon: ShieldAlert },
   { path: "/usage", labelKey: "nav.usage", icon: Gauge },
+  { path: "/account", labelKey: "nav.account", icon: User },
 ] as const;
 
 const MapPage = lazy(() => import("./MapPage").then((module) => ({ default: module.MapPage })));
@@ -57,6 +59,7 @@ const SavedPage = lazy(() => import("./ProductPages").then((module) => ({ defaul
 const AlertsPage = lazy(() => import("./ProductPages").then((module) => ({ default: module.AlertsPage })));
 const UsagePage = lazy(() => import("./ProductPages").then((module) => ({ default: module.UsagePage })));
 const PricingPage = lazy(() => import("./ProductPages").then((module) => ({ default: module.PricingPage })));
+const AccountPage = lazy(() => import("./AccountPage").then((module) => ({ default: module.AccountPage })));
 const PlaceDetailPage = lazy(() => import("./ProductPages").then((module) => ({ default: module.PlaceDetailPage })));
 const SettingsPage = lazy(() => import("./SettingsPage").then((module) => ({ default: module.SettingsPage })));
 const TermsPage = lazy(() => import("./LegalPages").then((module) => ({ default: module.TermsPage })));
@@ -105,6 +108,7 @@ function AppShell() {
   const [weatherSnapshot, setWeatherSnapshot] = useState<NationalWeatherSnapshot | null>(null);
   const [weatherRaster, setWeatherRaster] = useState<WeatherRasterManifest | null>(null);
   const [user, setUser] = useState<AuthUser | null>(() => currentUser());
+  const [subscription, setSubscription] = useState<BillingSubscription | null>(null);
   const [dataStatus, setDataStatus] = useState<DataStatus>("loading");
   const [chatOpen, setChatOpen] = useState(false);
   const [chatUnread, setChatUnread] = useState(0);
@@ -117,6 +121,20 @@ function AppShell() {
       .then((completed) => { if (completed) setUser(currentUser()); })
       .catch(() => notify(t("toast.loginFailed")));
   }, [t]);
+
+  // Plan badge in the header. Failures stay silent: while the billing
+  // service rolls out, a missing endpoint simply hides the badge.
+  useEffect(() => {
+    if (!user) {
+      setSubscription(null);
+      return;
+    }
+    let cancelled = false;
+    api.billingSubscription({ quiet: true })
+      .then((current) => { if (!cancelled) setSubscription(current); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [user]);
 
   const loadLiveData = useCallback(() => {
     setDataStatus("loading");
@@ -211,7 +229,7 @@ function AppShell() {
   return (
     <div className={`product-app ${isMapPage ? "map-active" : ""}`}>
       <a className="skip-link" href="#main-content">{t("a11y.skip")}</a>
-      <AppHeader path={path} navigate={navigate} onBackToSite={backToSite} user={user} onUserChange={setUser} national={nationalRisk} weatherSnapshot={weatherSnapshot} />
+      <AppHeader path={path} navigate={navigate} onBackToSite={backToSite} user={user} onUserChange={setUser} national={nationalRisk} weatherSnapshot={weatherSnapshot} plan={subscription?.plan ?? null} />
       <NetworkStatusBanner />
       <ProactiveSuggestionBanner suggestion={suggestion} onSwitch={handleSuggestionSwitch} onDismissed={dismissSuggestionBanner} />
       <AlertLiveBanner />
@@ -226,6 +244,7 @@ function AppShell() {
               <Route path="/app/usage" element={<UsagePage navigate={navigate} />} />
               <Route path="/app/status" element={<OperationalStatusPage navigate={navigate} dataStatus={dataStatus} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} />} />
               <Route path="/app/pricing" element={<PricingPage navigate={navigate} />} />
+              <Route path="/app/account" element={<AccountPage navigate={navigate} />} />
               <Route path="/app/settings" element={<SettingsPage navigate={navigate} />} />
               <Route path="/app/legal/terms" element={<TermsPage navigate={navigate} />} />
               <Route path="/app/legal/privacy" element={<PrivacyPage navigate={navigate} />} />
@@ -280,7 +299,7 @@ function PlaceRoute({ navigate, weatherRaster }: { navigate: Navigate; weatherRa
   return <PlaceDetailPage navigate={navigate} slug={params.slug ?? "miami"} weatherRaster={weatherRaster} />;
 }
 
-function AppHeader({ path, navigate, onBackToSite, user, onUserChange, national, weatherSnapshot }: { path: string; navigate: Navigate; onBackToSite: () => void; user: AuthUser | null; onUserChange: (user: AuthUser | null) => void; national: NationalRiskOverview | null; weatherSnapshot: NationalWeatherSnapshot | null }) {
+function AppHeader({ path, navigate, onBackToSite, user, onUserChange, national, weatherSnapshot, plan }: { path: string; navigate: Navigate; onBackToSite: () => void; user: AuthUser | null; onUserChange: (user: AuthUser | null) => void; national: NationalRiskOverview | null; weatherSnapshot: NationalWeatherSnapshot | null; plan: string | null }) {
   const { t } = useI18n();
   const activePath = path === "/directions" || path.startsWith("/locations/") ? "/map" : path;
   const initials = user?.email?.slice(0, 2).toUpperCase() ?? "IN";
@@ -295,9 +314,10 @@ function AppHeader({ path, navigate, onBackToSite, user, onUserChange, national,
         {navItems.map(({ path: itemPath, labelKey, icon: Icon }) => {
           const label = t(labelKey);
           const isAlerts = labelKey === "nav.alerts";
+          const showProFlag = labelKey === "nav.account" && plan === "PRO";
           return (
             <button key={itemPath} className={activePath === itemPath ? "active" : ""} onClick={() => navigate(itemPath)}>
-              <Icon size={18} /><span>{label}</span>{isAlerts && Boolean(national?.active_alerts) && <em>{national!.active_alerts > 99 ? "99+" : national!.active_alerts}</em>}
+              <Icon size={18} /><span>{label}</span>{isAlerts && Boolean(national?.active_alerts) && <em>{national!.active_alerts > 99 ? "99+" : national!.active_alerts}</em>}{showProFlag && <em className="pro-flag">Pro</em>}
             </button>
           );
         })}
@@ -336,6 +356,7 @@ function AppFooter({ navigate }: { navigate: Navigate }) {
     <footer className="app-footer">
       <span>© 2026 FreightScaler · {t("brand.tagline")}</span>
       <nav aria-label="Footer">
+        <button onClick={() => navigate("/account")}>{t("nav.account")}</button>
         <button onClick={() => navigate("/legal/terms")}>{t("footer.terms")}</button>
         <button onClick={() => navigate("/legal/privacy")}>{t("footer.privacy")}</button>
         <button onClick={() => navigate("/status")}>{t("footer.status")}</button>

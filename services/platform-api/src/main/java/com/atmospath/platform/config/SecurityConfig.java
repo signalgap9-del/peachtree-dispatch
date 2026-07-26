@@ -23,6 +23,10 @@ public class SecurityConfig {
         if (authEnabled) {
             http.authorizeHttpRequests(authorize -> authorize
                             .requestMatchers("/api/v1/me", "/api/v1/me/**").authenticated()
+                            .requestMatchers("/api/v1/llm/**").authenticated()
+                            .requestMatchers("/api/v1/billing/checkout",
+                                    "/api/v1/billing/subscription",
+                                    "/api/v1/billing/portal").authenticated()
                             .requestMatchers("/api/v1/admin/**").denyAll()
                             .anyRequest().permitAll())
                     .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->

@@ -60,6 +60,24 @@ public class Subscription {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(name = "lemonsqueezy_subscription_id")
+    private String lemonsqueezySubscriptionId;
+
+    @Column(name = "lemonsqueezy_customer_id")
+    private String lemonsqueezyCustomerId;
+
+    @Column(name = "lemonsqueezy_variant_id")
+    private String lemonsqueezyVariantId;
+
+    @Column(name = "billing_status")
+    private String billingStatus;
+
+    @Column(name = "billing_period_end")
+    private Instant billingPeriodEnd;
+
+    @Column(name = "cancel_at_period_end")
+    private Boolean cancelAtPeriodEnd;
+
     protected Subscription() {
     }
 
@@ -156,5 +174,53 @@ public class Subscription {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public String getLemonsqueezySubscriptionId() {
+        return lemonsqueezySubscriptionId;
+    }
+
+    public void setLemonsqueezySubscriptionId(String lemonsqueezySubscriptionId) {
+        this.lemonsqueezySubscriptionId = lemonsqueezySubscriptionId;
+    }
+
+    public String getLemonsqueezyCustomerId() {
+        return lemonsqueezyCustomerId;
+    }
+
+    public void setLemonsqueezyCustomerId(String lemonsqueezyCustomerId) {
+        this.lemonsqueezyCustomerId = lemonsqueezyCustomerId;
+    }
+
+    public String getLemonsqueezyVariantId() {
+        return lemonsqueezyVariantId;
+    }
+
+    public void setLemonsqueezyVariantId(String lemonsqueezyVariantId) {
+        this.lemonsqueezyVariantId = lemonsqueezyVariantId;
+    }
+
+    public String getBillingStatus() {
+        return billingStatus;
+    }
+
+    public void setBillingStatus(String billingStatus) {
+        this.billingStatus = billingStatus;
+    }
+
+    public Instant getBillingPeriodEnd() {
+        return billingPeriodEnd;
+    }
+
+    public void setBillingPeriodEnd(Instant billingPeriodEnd) {
+        this.billingPeriodEnd = billingPeriodEnd;
+    }
+
+    public Boolean getCancelAtPeriodEnd() {
+        return cancelAtPeriodEnd;
+    }
+
+    public void setCancelAtPeriodEnd(Boolean cancelAtPeriodEnd) {
+        this.cancelAtPeriodEnd = cancelAtPeriodEnd;
     }
 }

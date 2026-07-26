@@ -146,6 +146,27 @@ export interface ApiErrorEnvelope {
   detail?: string;
 }
 
+// ---- Billing (Lemon Squeezy hosted checkout + portal, proxied by the platform API) ----
+
+/** Raw shape of GET /api/v1/billing/subscription. */
+export interface BillingSubscription {
+  plan: PlanCode | string;
+  status: SubscriptionStatus | string;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  manageUrl?: string;
+}
+
+/** Raw shape of POST /api/v1/billing/checkout. */
+export interface BillingCheckoutResponse {
+  checkoutUrl: string;
+}
+
+/** Raw shape of POST /api/v1/billing/portal. */
+export interface BillingPortalResponse {
+  portalUrl: string;
+}
+
 export interface DirectionsPlan {
   generated_at: string;
   origin: Place;

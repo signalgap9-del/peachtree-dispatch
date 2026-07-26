@@ -20,6 +20,14 @@ management:
 atmospath:
   saas:
     enabled: ${SAAS_ENABLED:false}
+  billing:
+    enabled: ${BILLING_ENABLED:false}
+    provider: lemonsqueezy
+    api-base-url: ${LEMONSQUEEZY_API_BASE_URL:https://api.lemonsqueezy.com/v1}
+    api-key: ${LEMONSQUEEZY_API_KEY:}
+    store-id: ${LEMONSQUEEZY_STORE_ID:}
+    webhook-secret: ${LEMONSQUEEZY_WEBHOOK_SECRET:}
+    pro-variant-id: ${LEMONSQUEEZY_PRO_VARIANT_ID:}
   datasource:
     # Primary goes through PgBouncer (transaction pooling): prepareThreshold=0
     # keeps server-prepared statements off.
@@ -99,3 +107,12 @@ atmospath:
     public-key: ${LANGFUSE_PUBLIC_KEY:}
     secret-key: ${LANGFUSE_SECRET_KEY:}
     host: ${LANGFUSE_HOST:http://localhost:3000}
+  abuse:
+    enabled: ${ABUSE_GUARD_ENABLED:true}
+    llm-daily-cost-cap-usd: ${LLM_DAILY_COST_CAP_USD:5.0}
+    llm-cost-per-1k-input-tokens: ${LLM_COST_PER_1K_INPUT:0.00014}
+    llm-cost-per-1k-output-tokens: ${LLM_COST_PER_1K_OUTPUT:0.00028}
+    llm-max-input-chars: ${LLM_MAX_INPUT_CHARS:4000}
+    llm-rate-per-minute-auth: ${LLM_RATE_PER_MIN_AUTH:20}
+    llm-rate-per-minute-anon: ${LLM_RATE_PER_MIN_ANON:0}
+    half-open-probe-interval-ms: ${LLM_CIRCUIT_PROBE_INTERVAL_MS:60000}

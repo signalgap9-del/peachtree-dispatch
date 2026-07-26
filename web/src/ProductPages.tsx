@@ -1,6 +1,7 @@
 ﻿import {
   AlertTriangle,
   ArrowRight,
+  BadgeCheck,
   Bell,
   Bookmark,
   ChevronRight,
@@ -27,14 +28,16 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import type { DataStatus, Navigate } from "./App";
-import { api } from "./api";
+import { api, isAuthError, isBillingDisabledError } from "./api";
 import { currentUser, googleAuthConfigured, login, loginWithGoogle } from "./auth";
 import { LiveRiskMap } from "./components/LiveRiskMap";
+import { UpgradePrompt } from "./components/UpgradePrompt";
 import { useI18n } from "./i18n";
 import { streamLlmChat } from "./llmApi";
 import { places, riskLevel } from "./mockData";
 import type {
   AccountSummary,
+  BillingSubscription,
   LocationRisk,
   NationalRiskOverview,
   NationalWeatherSnapshot,
@@ -453,6 +456,7 @@ export function UsagePage({ navigate }: { navigate: Navigate }) {
   const [account, setAccount] = useState<AccountSummary | null>(null);
   const [loading, setLoading] = useState(Boolean(currentUser()));
   const [error, setError] = useState("");
+  const [upgradeDismissed, setUpgradeDismissed] = useState(false);
   const userEmail = currentUser()?.email ?? null;
 
   useEffect(() => {
@@ -486,6 +490,9 @@ export function UsagePage({ navigate }: { navigate: Navigate }) {
         <button className="button secondary" onClick={() => navigate("/pricing")}>Compare plans</button>
         <button className="button primary" onClick={() => navigate("/directions")}>Plan route <Navigation size={16} /></button>
       </PageTitle>
+      {account && !upgradeDismissed && (account.dailyUsage.some((usage) => usage.exceeded) || account.savedRoutes.exceeded || account.savedPlaces.exceeded) && (
+        <UpgradePrompt navigate={navigate} onDismissed={() => setUpgradeDismissed(true)} />
+      )}
       {loading && <EmptyState title="Loading your usage" detail="Pulling your account summary." />}
       {error && <div className="data-notice degraded" role="status"><AlertTriangle size={17} /><span><strong>Usage unavailable</strong><small>{error}</small></span></div>}
       {account && (
@@ -536,29 +543,133 @@ export function UsagePage({ navigate }: { navigate: Navigate }) {
 }
 
 export function PricingPage({ navigate }: { navigate: Navigate }) {
+  const { t } = useI18n();
+  const [user, setUser] = useState(() => currentUser());
+  const [subscription, setSubscription] = useState<BillingSubscription | null>(null);
+  const [billingDisabled, setBillingDisabled] = useState(false);
+  const [checkoutState, setCheckoutState] = useState<"idle" | "starting" | "error" | "signIn">("idle");
+
+  // Probe the billing service so "coming soon" shows before the first click
+  // instead of a dead button. Anonymous visitors are probed on click only,
+  // since the endpoint requires a signed-in workspace.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    api.billingSubscription({ quiet: true })
+      .then((current) => { if (!cancelled) setSubscription(current); })
+      .catch((error) => { if (!cancelled && isBillingDisabledError(error)) setBillingDisabled(true); });
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const startProCheckout = async () => {
+    if (billingDisabled) return;
+    if (!user) {
+      setCheckoutState("signIn");
+      return;
+    }
+    setCheckoutState("starting");
+    try {
+      const { checkoutUrl } = await api.createBillingCheckout();
+      window.location.assign(checkoutUrl);
+    } catch (error) {
+      if (isBillingDisabledError(error)) {
+        setBillingDisabled(true);
+        setCheckoutState("idle");
+      } else if (isAuthError(error)) {
+        setUser(null);
+        setCheckoutState("signIn");
+      } else {
+        setCheckoutState("error");
+      }
+    }
+  };
+
   const plans = [
-    { code: "FREE", title: "Free", price: "$0", detail: "Free forever, with daily limits.", limits: ["30 route plans / day", "10 saved routes", "25 saved places", "7 days route history"] },
-    { code: "PRO", title: "Pro", price: "Coming soon", detail: "For owner-operators and daily planners.", limits: ["300 route plans / day", "100 saved routes", "250 saved places", "Dispatch optimizer enabled"] },
-    { code: "TEAM", title: "Team", price: "Coming soon", detail: "For fleets and operations teams.", limits: ["2,000 route plans / day", "1,000 saved routes", "Team workspace controls", "90 days route history"] },
+    {
+      code: "FREE",
+      title: t("account.plan.free"),
+      price: t("pricing.free.price"),
+      period: t("pricing.free.period"),
+      tagline: t("pricing.free.tagline"),
+      features: [t("pricing.free.f1"), t("pricing.free.f2"), t("pricing.free.f3"), t("pricing.free.f4")],
+      featured: false,
+    },
+    {
+      code: "PRO",
+      title: t("account.plan.pro"),
+      price: t("pricing.pro.price"),
+      period: t("pricing.pro.period"),
+      tagline: t("pricing.pro.tagline"),
+      features: [t("pricing.pro.f1"), t("pricing.pro.f2"), t("pricing.pro.f3"), t("pricing.pro.f4"), t("pricing.pro.f5")],
+      featured: true,
+    },
+    {
+      code: "TEAM",
+      title: t("account.plan.team"),
+      price: t("pricing.team.price"),
+      period: t("pricing.team.period"),
+      tagline: t("pricing.team.tagline"),
+      features: [t("pricing.team.f1"), t("pricing.team.f2"), t("pricing.team.f3"), t("pricing.team.f4")],
+      featured: false,
+    },
   ];
+
   return (
     <main className="page-shell pricing-page">
-      <PageTitle title="Simple plans" subtitle="Every plan is free while we finish billing. Daily limits apply per plan.">
-        <button className="button secondary" onClick={() => navigate("/usage")}>View my usage</button>
-        <button className="button primary" onClick={() => navigate("/map")}>Try the map</button>
+      <PageTitle title={t("pricing.title")} subtitle={t("pricing.subtitle")}>
+        <button className="button secondary" onClick={() => navigate("/usage")}>{t("account.viewUsage")}</button>
       </PageTitle>
       <section className="pricing-grid">
         {plans.map((plan) => (
-          <article className="surface pricing-card" key={plan.code}>
+          <article className={`surface pricing-card${plan.featured ? " featured" : ""}`} key={plan.code}>
+            {plan.featured && <span className="pricing-flag">{t("pricing.mostPopular")}</span>}
             <span className="eyebrow">{plan.code}</span>
             <h2>{plan.title}</h2>
-            <strong>{plan.price}</strong>
-            <p>{plan.detail}</p>
-            <ul>{plan.limits.map((limit) => <li key={limit}><ShieldCheck size={15} /> {limit}</li>)}</ul>
-            <button className={plan.code === "FREE" ? "button primary wide" : "button secondary wide"} onClick={() => navigate(plan.code === "FREE" ? "/directions" : "/usage")}>{plan.code === "FREE" ? "Start planning" : "View limits"}</button>
+            <p className="pricing-price"><strong>{plan.price}</strong><span>{plan.period}</span></p>
+            <p className="pricing-tagline">{plan.tagline}</p>
+            <ul>{plan.features.map((feature) => <li key={feature}><ShieldCheck size={15} /> {feature}</li>)}</ul>
+            {plan.code === "PRO" ? (
+              <div className="pricing-cta">
+                {subscription?.plan === "PRO" ? (
+                  <span className="pricing-current"><BadgeCheck size={16} /> {t("pricing.yourPlan")}</span>
+                ) : billingDisabled ? (
+                  <>
+                    <button type="button" className="button secondary wide" disabled>{t("pricing.checkout.comingSoon")}</button>
+                    <p className="pricing-status soon" role="status">{t("pricing.checkout.comingSoonDetail")}</p>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="button primary wide"
+                      onClick={() => void startProCheckout()}
+                      disabled={checkoutState === "starting"}
+                    >
+                      {checkoutState === "starting" && <i className="pricing-spinner" aria-hidden="true" />}
+                      {checkoutState === "starting" ? t("pricing.checkout.starting") : t("pricing.pro.cta")}
+                    </button>
+                    {checkoutState === "error" && <p className="pricing-status error" role="alert">{t("pricing.checkout.error")}</p>}
+                    {checkoutState === "signIn" && (
+                      <div className="pricing-status signin" role="status">
+                        <strong>{t("pricing.signIn.title")}</strong>
+                        <span>{t("pricing.signIn.detail")}</span>
+                        <button type="button" className="button secondary" onClick={() => void login()}>{t("pricing.signIn.action")}</button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            ) : plan.code === "FREE" ? (
+              subscription?.plan === "FREE"
+                ? <span className="pricing-current"><BadgeCheck size={16} /> {t("pricing.yourPlan")}</span>
+                : <button type="button" className="button secondary wide" onClick={() => navigate("/directions")}>{t("pricing.free.cta")}</button>
+            ) : (
+              <a className="button secondary wide" href="mailto:hello@freightscaler.com">{t("pricing.team.cta")}</a>
+            )}
           </article>
         ))}
       </section>
+      <p className="pricing-note">{t("pricing.billedNote")}</p>
     </main>
   );
 }
@@ -601,7 +712,7 @@ export function AlertsPage({ navigate, national, weatherSnapshot = null, weather
         accumulated += chunk;
         setSummaries((previous) => ({ ...previous, [alert.alert_id]: accumulated }));
       },
-        onError: (message) => {
+        onError: () => {
           errored = true;
           setSummaries((previous) => ({ ...previous, [alert.alert_id]: "Summary failed. Try again." }));
         },
@@ -810,11 +921,11 @@ function DataNotice({ status, hasData }: { status: DataStatus; hasData: boolean 
   );
 }
 
-function EmptyState({ title, detail }: { title: string; detail: string }) {
+export function EmptyState({ title, detail }: { title: string; detail: string }) {
   return <div className="inline-empty"><CloudRain size={22} /><strong>{title}</strong><small>{detail}</small></div>;
 }
 
-function CallToAction({ title, detail, action, onClick, secondaryAction, onSecondaryClick }: { title: string; detail: string; action: string; onClick: () => void; secondaryAction?: string; onSecondaryClick?: () => void }) {
+export function CallToAction({ title, detail, action, onClick, secondaryAction, onSecondaryClick }: { title: string; detail: string; action: string; onClick: () => void; secondaryAction?: string; onSecondaryClick?: () => void }) {
   return <div className="surface saved-empty"><Bookmark size={28} /><h2>{title}</h2><p>{detail}</p><div className="cta-actions"><button className="button primary" onClick={onClick}>{action}</button>{secondaryAction && onSecondaryClick && <button className="button secondary" onClick={onSecondaryClick}>{secondaryAction}</button>}</div></div>;
 }
 
@@ -850,11 +961,11 @@ function AlertCardSkeleton() {
   );
 }
 
-function PageTitle({ title, subtitle, children }: { title: string; subtitle: string; children?: React.ReactNode }) {
+export function PageTitle({ title, subtitle, children }: { title: string; subtitle: string; children?: React.ReactNode }) {
   return <header className="page-title"><div><h1>{title}</h1><p>{subtitle}</p></div><div>{children}</div></header>;
 }
 
-function SectionHeader({ title, meta, action, onAction }: { title: string; meta?: string; action?: string; onAction?: () => void }) {
+export function SectionHeader({ title, meta, action, onAction }: { title: string; meta?: string; action?: string; onAction?: () => void }) {
   return <header className="section-header"><div><h2>{title}</h2>{meta && <span>{meta}</span>}</div>{action && onAction && <button onClick={onAction}>{action} <ArrowRight size={14} /></button>}</header>;
 }
 
@@ -868,7 +979,7 @@ function PlanBadge({ account }: { account: AccountSummary }) {
   );
 }
 
-function UsageMeter({ usage }: { usage: { label: string; used: number; limit: number; remaining: number; exceeded: boolean; resetsAt?: string } }) {
+export function UsageMeter({ usage }: { usage: { label: string; used: number; limit: number; remaining: number; exceeded: boolean; resetsAt?: string } }) {
   const percent = usage.limit <= 0 ? 0 : Math.min(100, Math.round((usage.used / usage.limit) * 100));
   return (
     <article className={`usage-meter ${usage.exceeded ? "exceeded" : percent >= 80 ? "warning" : ""}`}>

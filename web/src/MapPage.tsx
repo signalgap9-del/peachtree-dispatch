@@ -23,6 +23,7 @@ import { RouteAlternativeCard } from "./components/RouteAlternativeCard";
 import { RouteDecisionSummary } from "./components/RouteDecisionSummary";
 import { RouteRecommendation } from "./components/RouteRecommendation";
 import { RouteSegmentRiskStrip } from "./components/RouteSegmentRiskStrip";
+import { UpgradePrompt } from "./components/UpgradePrompt";
 import { useI18n } from "./i18n";
 import { streamLlmChat } from "./llmApi";
 import { MapLayerControl } from "./MapLayerControl";
@@ -58,6 +59,7 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
   const [loading, setLoading] = useState(false);
   const [showWeather, setShowWeather] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
   const [recenterToken, setRecenterToken] = useState(0);
   const [selectedRisk, setSelectedRisk] = useState<LocationRisk | null>(null);
   const [layers, setLayers] = useState<MapLayerVisibility>(DEFAULT_LAYER_VISIBILITY);
@@ -113,12 +115,17 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
   const query = activeField === "origin" ? originQuery : destinationQuery;
   useEffect(() => {
     if (!origin || !destination) return;
+    // Never chase the user off the page: outward navigation (e.g. the
+    // upgrade prompt's "Compare plans") must win over URL normalization.
+    if (location.pathname !== "/directions") return;
     const nextSearch = new URLSearchParams({
       origin: origin.display_name,
       destination: destination.display_name,
       vehicle: vehicleType.toLowerCase(),
     }).toString();
-    if (location.pathname !== "/directions" || location.search !== `?${nextSearch}`) navigate(`/directions?${nextSearch}`);
+    // Compare in canonical form; raw vs percent-encoded searches are equal
+    // and re-pushing them loops between this effect and the URL resolver.
+    if (new URLSearchParams(location.search).toString() !== nextSearch) navigate(`/directions?${nextSearch}`);
   }, [destination, location.pathname, location.search, navigate, origin, vehicleType]);
   useEffect(() => {
     const selectedPlace = activeField === "origin" ? origin : destination;
@@ -159,13 +166,16 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
     setError(null);
     try {
       setPlan(await api.directions(origin, destination, vehicleType, { signal, timeoutMs: 20000, riskThreshold: loadRiskThreshold() }));
+      setQuotaExceeded(false);
     } catch (caught) {
       if (signal?.aborted) return;
       if (caught instanceof ApiError && caught.code === "QUOTA_EXCEEDED") {
         const requestHint = caught.requestId ? ` Request ${caught.requestId}.` : "";
-        setError(`Plan limit reached for this workspace. Open Usage to review limits or try again after reset.${requestHint}`);
+        setQuotaExceeded(true);
+        setError(`Plan limit reached for this workspace. Limits reset daily.${requestHint}`);
         return;
       }
+      setQuotaExceeded(false);
       setError(caught instanceof Error ? caught.message : "Unable to calculate directions");
     } finally {
       if (!signal?.aborted) setLoading(false);
@@ -452,11 +462,20 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
             <div><i className="skeleton sk-line w55" /><i className="skeleton sk-line w80" /><i className="skeleton sk-line w40" /></div>
           </div>
         )}
-        {error && (
+        {error && !quotaExceeded && (
           <div className="route-error" role="alert">
             <strong>{t("error.title")}</strong>
             <span>{error}</span>
             <button type="button" onClick={() => void calculate()}>{t("error.retry")}</button>
+          </div>
+        )}
+        {error && quotaExceeded && (
+          <div className="route-error route-error-quota" role="alert">
+            <UpgradePrompt navigate={navigate} onDismissed={() => setError(null)} />
+            <div className="route-error-quota-foot">
+              <span>{error}</span>
+              <button type="button" className="text-action" onClick={() => void calculate()}>{t("error.retry")}</button>
+            </div>
           </div>
         )}
       </aside>
