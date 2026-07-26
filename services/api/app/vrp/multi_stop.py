@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import itertools
-import os
 
 from .cost_model import build_risk_adjusted_matrix, edge_cost_lookup
 from .edge_risk import EdgeRiskProvider, build_default_edge_risk_provider
-from .geometry import FallbackRouteGeometryProvider, OsrmRouteGeometryProvider, ResilientRouteGeometryProvider, RouteGeometryProvider
+from .geometry import RouteGeometryProvider, build_default_route_geometry_provider
 from .matrix import RoutingMatrixProvider, build_default_matrix_provider
 from .ml.shadow_cost_model import ShadowCostModel, load_shadow_cost_model_from_env
 from .models import (
@@ -172,15 +171,10 @@ class MultiStopRouteService:
 
 
 def build_default_multi_stop_service() -> MultiStopRouteService:
-    osrm_base_url = os.environ.get("OSRM_BASE_URL", "https://router.project-osrm.org")
-    timeout_seconds = float(os.environ.get("OSRM_TIMEOUT_SECONDS", "12"))
     return MultiStopRouteService(
         matrix_provider=build_default_matrix_provider(),
         edge_risk_provider=build_default_edge_risk_provider(),
-        geometry_provider=ResilientRouteGeometryProvider(
-            primary=OsrmRouteGeometryProvider(base_url=osrm_base_url, timeout_seconds=timeout_seconds),
-            fallback=FallbackRouteGeometryProvider(),
-        ),
+        geometry_provider=build_default_route_geometry_provider(),
         shadow_cost_model=load_shadow_cost_model_from_env(),
     )
 

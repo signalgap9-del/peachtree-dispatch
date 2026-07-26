@@ -16,6 +16,7 @@ from .models import (
     WeatherRisk,
 )
 from .outbound_http import safe_urlopen as urlopen
+from .routing import get_routing_provider
 from .vehicle_profiles import VEHICLE_PROFILES
 from .weather_snapshot import nearest_snapshot_weather
 
@@ -84,21 +85,17 @@ def build_directions(command: DirectionsRequest) -> DirectionsPlan:
 def fetch_route_alternatives(
     waypoints: list[tuple[float, float]],
 ) -> list[tuple[list[list[float]], float, float]]:
-    coordinate_string = ";".join(f"{lon},{lat}" for lon, lat in waypoints)
-    url = (
-        f"https://router.project-osrm.org/route/v1/driving/{coordinate_string}"
-        "?overview=full&geometries=geojson&steps=false&alternatives=3"
-    )
-    with urlopen(url, timeout=12) as response:
-        routes = json.load(response).get("routes", [])
+    """Fetch route alternatives through the configured routing provider.
+
+    Returns (geometry, distance_miles, duration_minutes) tuples so the
+    scoring pipeline is provider-agnostic. OSRM remains the default for
+    local development; Google Routes is used when configured.
+    """
+    routes = get_routing_provider().route(waypoints, alternatives=True)
     if not routes:
         raise RuntimeError("Routing provider returned no routes")
     return [
-        (
-            route["geometry"]["coordinates"],
-            route["distance"] / 1609.344,
-            route["duration"] / 60,
-        )
+        (route.coordinates, route.distance_miles, route.duration_minutes)
         for route in routes
     ]
 

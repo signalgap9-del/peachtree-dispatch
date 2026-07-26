@@ -17,6 +17,11 @@ DEFAULT_ALLOWED_OUTBOUND_HOSTS = frozenset(
         "geocoding-api.open-meteo.com",
         "nominatim.openstreetmap.org",
         "router.project-osrm.org",
+        # Google Routes API (production routing provider, US-only).
+        "routes.googleapis.com",
+        # MapTiler base-map tiles/styles. Tiles are normally fetched by the
+        # browser; this entry covers server-side map rendering if added later.
+        "api.maptiler.com",
     }
 )
 

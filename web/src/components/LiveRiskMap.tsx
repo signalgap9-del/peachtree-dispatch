@@ -1,6 +1,7 @@
 import maplibregl, { type Map } from "maplibre-gl";
 import { useEffect, useMemo, useRef } from "react";
 
+import { mapStyle } from "../mapStyle";
 import type { LocationRisk, NationalRiskOverview, NationalWeatherSnapshot, RiskAlert, WeatherRasterManifest, WeatherRisk } from "../types";
 
 type Props = {
@@ -11,31 +12,6 @@ type Props = {
   compact?: boolean;
   regional?: boolean;
 };
-
-const productionStyle = {
-  version: 8 as const,
-  sources: {
-    osm: {
-      type: "raster" as const,
-      tiles: ["https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png"],
-      tileSize: 256,
-      attribution: "© OpenStreetMap contributors © CARTO",
-    },
-  },
-  layers: [{ id: "osm", type: "raster" as const, source: "osm" }],
-};
-
-const testStyle = {
-  version: 8 as const,
-  sources: {},
-  layers: [{
-    id: "test-background",
-    type: "background" as const,
-    paint: { "background-color": "#eef3f8" },
-  }],
-};
-
-const mapStyle = import.meta.env.MODE === "test" ? testStyle : productionStyle;
 
 export function LiveRiskMap({ national, weatherSnapshot, weatherRaster, locationRisk, compact, regional }: Props) {
   const container = useRef<HTMLDivElement>(null);

@@ -32,6 +32,13 @@ def test_allows_custom_provider_only_when_explicitly_allowlisted(monkeypatch) ->
     assert_safe_outbound_url("https://feeds.example.test/wzdx")
 
 
+def test_allows_google_routes_and_maptiler_hosts(monkeypatch) -> None:
+    monkeypatch.setenv("ATMOSPATH_VALIDATE_OUTBOUND_DNS", "false")
+
+    assert_safe_outbound_url("https://routes.googleapis.com/directions/v2:computeRoutes")
+    assert_safe_outbound_url("https://api.maptiler.com/maps/streets-v2/style.json?key=placeholder")
+
+
 def test_local_osrm_requires_explicit_local_development_flag(monkeypatch) -> None:
     monkeypatch.delenv("ATMOSPATH_ALLOW_LOCAL_OUTBOUND", raising=False)
 

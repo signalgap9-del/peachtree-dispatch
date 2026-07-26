@@ -124,3 +124,27 @@ variable "relational_max_capacity" {
   type        = number
   default     = 1
 }
+
+variable "kms_key_arn" {
+  description = <<-EOT
+    Optional customer-managed KMS key ARN (from infra/secrets). When set,
+    the DynamoDB table uses SSE-KMS with this key and the S3 buckets
+    default to SSE-KMS; application roles also get decrypt permissions.
+    Leave empty to keep the low-cost defaults (DynamoDB default
+    encryption, SSE-S3).
+  EOT
+  type        = string
+  default     = ""
+}
+
+variable "custom_domain_aliases" {
+  description = "Custom domain aliases (CNAMEs) for the CloudFront distribution. Empty list keeps the default cloudfront.net certificate."
+  type        = list(string)
+  default     = []
+}
+
+variable "acm_certificate_arn" {
+  description = "ARN of the ACM certificate (us-east-1) for custom domain TLS. Required when custom_domain_aliases is non-empty."
+  type        = string
+  default     = ""
+}

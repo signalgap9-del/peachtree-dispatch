@@ -14,6 +14,9 @@ public interface TenantMemberRepository extends JpaRepository<TenantMember, UUID
 
     Optional<TenantMember> findByTenantIdAndEmailAndDeletedAtIsNull(UUID tenantId, String email);
 
+    /** Includes soft-deleted members; used by GDPR erasure so a second request is a no-op. */
+    Optional<TenantMember> findByTenantIdAndEmail(UUID tenantId, String email);
+
     List<TenantMember> findByTenantIdAndDeletedAtIsNullOrderByRoleDesc(UUID tenantId);
 
     List<TenantMember> findByTenantIdAndRoleAndDeletedAtIsNull(UUID tenantId, MemberRole role);

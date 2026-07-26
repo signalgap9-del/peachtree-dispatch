@@ -12,4 +12,7 @@ public interface ApiKeyRepository extends JpaRepository<ApiKeyRecord, UUID> {
     Optional<ApiKeyRecord> findByKeyHash(String keyHash);
 
     List<ApiKeyRecord> findByTenantId(UUID tenantId);
+
+    /** GDPR erasure: the member FK is ON DELETE SET NULL, so delete explicitly. */
+    void deleteByMemberId(UUID memberId);
 }

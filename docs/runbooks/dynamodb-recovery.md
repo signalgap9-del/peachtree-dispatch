@@ -6,6 +6,28 @@ Accidental item deletion/overwrite, data corruption, or a bad migration that
 cannot be fixed in place. **RPO < 5 min, RTO < 60 min.** PITR is enabled on
 all operational tables.
 
+## Automated Drill Script
+
+A validated, repeatable drill procedure is available at
+[`scripts/dr_restore_test.ps1`](../../scripts/dr_restore_test.ps1). It
+automates the full restore-verify-test-teardown cycle and records RTO/RPO
+metrics. Run it quarterly or after any schema change:
+
+```powershell
+# Full drill (restore + verify + contract tests + teardown)
+./scripts/dr_restore_test.ps1
+
+# Quick count-only check (skip pytest, keep table for inspection)
+./scripts/dr_restore_test.ps1 -SkipContractTests -KeepTestTable
+
+# Restore to a specific timestamp
+./scripts/dr_restore_test.ps1 -RestoreDateTime "2026-07-27T03:00:00Z"
+```
+
+The script appends results to `docs/dr-drill-results.md`. See
+[`docs/dr-game-day.md`](../dr-game-day.md) for the full game-day runbook
+including multi-failure scenarios.
+
 ## PITR Restore
 
 1. Identify the last known-good timestamp (before the bad write).
@@ -44,3 +66,9 @@ all operational tables.
 
 > Destructive data migrations are not part of normal deployment. Schema changes
 > are backward compatible; this runbook covers data loss only.
+
+## Drill History
+
+| Date | RTO | RPO | Result | Notes |
+|------|-----|-----|--------|-------|
+| _(template — no drill run yet)_ | — | — | — | Run `scripts/dr_restore_test.ps1` to populate |

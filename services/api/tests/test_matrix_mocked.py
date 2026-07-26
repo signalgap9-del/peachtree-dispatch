@@ -44,7 +44,7 @@ def test_osrm_table_success_is_live(monkeypatch) -> None:
         "durations": [[0.0, 600.0], [600.0, 0.0]],
         "distances": [[0.0, 12000.0], [12000.0, 0.0]],
     }
-    monkeypatch.setattr("app.vrp.matrix.urlopen", lambda *a, **k: FakeResponse(json.dumps(payload).encode()))
+    monkeypatch.setattr("app.routing.osrm.urlopen", lambda *a, **k: FakeResponse(json.dumps(payload).encode()))
 
     matrix = OsrmTableMatrixProvider().build_matrix(_nodes())
 
@@ -60,7 +60,7 @@ def test_osrm_table_with_gaps_is_partial(monkeypatch) -> None:
         "durations": [[0.0, None], [600.0, 0.0]],
         "distances": [[0.0, 12000.0], [12000.0, 0.0]],
     }
-    monkeypatch.setattr("app.vrp.matrix.urlopen", lambda *a, **k: FakeResponse(json.dumps(payload).encode()))
+    monkeypatch.setattr("app.routing.osrm.urlopen", lambda *a, **k: FakeResponse(json.dumps(payload).encode()))
 
     matrix = OsrmTableMatrixProvider().build_matrix(_nodes())
 
@@ -68,7 +68,7 @@ def test_osrm_table_with_gaps_is_partial(monkeypatch) -> None:
 
 
 def test_osrm_table_malformed_response_raises(monkeypatch) -> None:
-    monkeypatch.setattr("app.vrp.matrix.urlopen", lambda *a, **k: FakeResponse(b'{"unexpected": true}'))
+    monkeypatch.setattr("app.routing.osrm.urlopen", lambda *a, **k: FakeResponse(b'{"unexpected": true}'))
 
     with pytest.raises(MatrixProviderError, match="duration and distance"):
         OsrmTableMatrixProvider().build_matrix(_nodes())
@@ -78,7 +78,7 @@ def test_osrm_table_network_error_raises(monkeypatch) -> None:
     def boom(*args, **kwargs):
         raise RuntimeError("connection refused")
 
-    monkeypatch.setattr("app.vrp.matrix.urlopen", boom)
+    monkeypatch.setattr("app.routing.osrm.urlopen", boom)
 
     with pytest.raises(MatrixProviderError, match="request failed"):
         OsrmTableMatrixProvider().build_matrix(_nodes())

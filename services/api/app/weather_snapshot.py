@@ -9,7 +9,7 @@ from urllib.request import Request
 
 from .hazards import USER_AGENT
 from .models import NationalWeatherSnapshot, WeatherRisk
-from .outbound_http import safe_urlopen as urlopen
+from .resilience import resilient_urlopen
 
 
 MAJOR_CITY_POINTS = [
@@ -286,7 +286,7 @@ def _normalize_snapshot_labels(snapshot: NationalWeatherSnapshot) -> NationalWea
 
 def _get_json(url: str) -> dict:
     request = Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/geo+json"})
-    with urlopen(request, timeout=10) as response:
+    with resilient_urlopen("nws", request, timeout=10) as response:
         return json.load(response)
 
 

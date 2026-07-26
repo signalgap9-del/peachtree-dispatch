@@ -4,7 +4,7 @@ from urllib.parse import urlencode
 from urllib.request import Request
 
 from .models import RiskAlert
-from .outbound_http import safe_urlopen as urlopen
+from .resilience import resilient_urlopen
 
 
 USER_AGENT = "AtmosPath/0.2 (https://github.com/signalgap9-del/peachtree-dispatch)"
@@ -88,7 +88,7 @@ def _nws_alerts_result(query: str) -> tuple[list[dict], str]:
         headers={"User-Agent": USER_AGENT, "Accept": "application/geo+json"},
     )
     try:
-        with urlopen(request, timeout=10) as response:
+        with resilient_urlopen("nws", request, timeout=10) as response:
             return json.load(response).get("features", []), "LIVE"
     except Exception:
         return [], "UNAVAILABLE"

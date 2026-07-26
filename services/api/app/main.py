@@ -38,6 +38,7 @@ from .network import build_network
 from .repository_contract import DuplicateEventError
 from .repository_factory import create_repository
 from .optimization_service import OptimizationService
+from .resilience import ingestion_monitor
 from .vrp.ml.routes import router as ml_workflow_router
 from .vrp.routes import router as route_engine_router
 from .nl2opt.routes import router as nl2opt_router
@@ -72,8 +73,15 @@ LEGACY_DISPATCH_LINK = '</legacy/dispatch>; rel="successor-version"'
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "healthy", "service": "atmospath-risk-engine"}
+def health() -> dict:
+    provider_health = ingestion_monitor.health()
+    stale = [name for name, info in provider_health.items() if info["status"] != "ok"]
+    return {
+        "status": "healthy",
+        "service": "atmospath-risk-engine",
+        "providers": provider_health,
+        "stale_providers": stale,
+    }
 
 
 @app.get("/dashboard", response_model=DashboardSummary)

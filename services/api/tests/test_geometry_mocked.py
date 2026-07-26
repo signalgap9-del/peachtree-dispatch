@@ -42,7 +42,7 @@ def test_osrm_route_geometry_success(monkeypatch) -> None:
             {"geometry": {"coordinates": [[-84.0, 33.0], [-81.0, 32.0]]}, "distance": 160934.4, "duration": 3600}
         ]
     }
-    monkeypatch.setattr("app.vrp.geometry.urlopen", lambda *a, **k: FakeResponse(json.dumps(payload).encode()))
+    monkeypatch.setattr("app.routing.osrm.urlopen", lambda *a, **k: FakeResponse(json.dumps(payload).encode()))
 
     leg = OsrmRouteGeometryProvider().route_leg(_origin(), _destination())
 
@@ -52,7 +52,7 @@ def test_osrm_route_geometry_success(monkeypatch) -> None:
 
 
 def test_osrm_route_geometry_no_routes_raises(monkeypatch) -> None:
-    monkeypatch.setattr("app.vrp.geometry.urlopen", lambda *a, **k: FakeResponse(b'{"routes": []}'))
+    monkeypatch.setattr("app.routing.osrm.urlopen", lambda *a, **k: FakeResponse(b'{"routes": []}'))
 
     with pytest.raises(RuntimeError, match="no leg geometry"):
         OsrmRouteGeometryProvider().route_leg(_origin(), _destination())

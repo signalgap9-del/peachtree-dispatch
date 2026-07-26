@@ -10,6 +10,11 @@ public interface SavedRouteRepository extends JpaRepository<SavedRouteEntity, UU
 
     List<SavedRouteEntity> findByMemberIdAndDeletedAtIsNull(UUID memberId);
 
+    /** All rows including soft-deleted; GDPR erasure removes both. */
+    List<SavedRouteEntity> findByMemberId(UUID memberId);
+
+    void deleteByMemberId(UUID memberId);
+
     List<SavedRouteEntity> findByWorkspaceIdAndDeletedAtIsNull(UUID workspaceId);
 
     List<SavedRouteEntity> findByMonitorEnabledTrueAndDeletedAtIsNull();

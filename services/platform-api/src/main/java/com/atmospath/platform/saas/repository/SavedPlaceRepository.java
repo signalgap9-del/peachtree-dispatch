@@ -10,5 +10,7 @@ public interface SavedPlaceRepository extends JpaRepository<SavedPlaceEntity, UU
 
     List<SavedPlaceEntity> findByMemberIdAndDeletedAtIsNull(UUID memberId);
 
+    void deleteByMemberId(UUID memberId);
+
     List<SavedPlaceEntity> findByWorkspaceIdAndDeletedAtIsNull(UUID workspaceId);
 }

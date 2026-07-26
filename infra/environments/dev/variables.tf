@@ -42,3 +42,21 @@ variable "google_oauth_client_secret" {
   default   = ""
   sensitive = true
 }
+
+variable "alert_email" {
+  description = "Email address for operational alarm notifications."
+  type        = string
+  default     = ""
+}
+
+variable "kms_key_arn" {
+  description = "Customer-managed KMS key ARN from infra/secrets. Enables SSE-KMS on DynamoDB and S3 when set."
+  type        = string
+  default     = ""
+}
+
+variable "enable_custom_domain" {
+  description = "Provision the ACM certificate and attach freightscaler.com to CloudFront. CONFIG READY — set to true only when ready to apply."
+  type        = bool
+  default     = false
+}

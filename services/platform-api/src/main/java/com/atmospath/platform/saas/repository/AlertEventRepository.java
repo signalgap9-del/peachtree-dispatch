@@ -1,6 +1,7 @@
 package com.atmospath.platform.saas.repository;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,6 +24,9 @@ public interface AlertEventRepository extends JpaRepository<AlertEvent, UUID> {
     List<AlertEvent> findOpenByRouteId(@Param("savedRouteId") UUID savedRouteId);
 
     long countByTenantIdAndStateAndTriggeredAtAfter(UUID tenantId, AlertState state, Instant triggeredAt);
+
+    /** GDPR erasure: escalations cascade via FK; events are deleted by route. */
+    void deleteBySavedRouteIdIn(Collection<UUID> savedRouteIds);
 
     /**
      * Validates and applies a state transition through the database function.

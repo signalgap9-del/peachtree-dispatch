@@ -55,7 +55,7 @@ def _feature(event: str = "Flood Warning", severity: str = "Severe", geometry=No
 
 def test_nws_alerts_result_success_is_live(monkeypatch) -> None:
     payload = {"features": [_feature()]}
-    monkeypatch.setattr("app.hazards.urlopen", lambda *a, **k: FakeResponse(json.dumps(payload).encode()))
+    monkeypatch.setattr("app.hazards.resilient_urlopen", lambda *a, **k: FakeResponse(json.dumps(payload).encode()))
 
     features, status = _nws_alerts_result("status=actual")
 
@@ -67,7 +67,7 @@ def test_nws_alerts_result_failure_is_unavailable(monkeypatch) -> None:
     def boom(*args, **kwargs):
         raise RuntimeError("NWS down")
 
-    monkeypatch.setattr("app.hazards.urlopen", boom)
+    monkeypatch.setattr("app.hazards.resilient_urlopen", boom)
 
     features, status = _nws_alerts_result("status=actual")
 

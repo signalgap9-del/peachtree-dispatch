@@ -9,6 +9,7 @@ credentials
 
 # Infrastructure state and generated files
 .terraform/
+.build/
 *.tfstate
 *.tfstate.*
 *.tfplan

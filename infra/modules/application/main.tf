@@ -215,6 +215,11 @@ resource "aws_dynamodb_table" "operational" {
     enabled = true
   }
 
+  server_side_encryption {
+    enabled     = true
+    kms_key_arn = var.kms_key_arn != "" ? var.kms_key_arn : null
+  }
+
   ttl {
     attribute_name = "expiresAt"
     enabled        = true
@@ -359,7 +364,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "weather" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = var.kms_key_arn != "" ? "aws:kms" : "AES256"
+      kms_master_key_id = var.kms_key_arn != "" ? var.kms_key_arn : null
     }
   }
 }
@@ -401,7 +407,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "web" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = var.kms_key_arn != "" ? "aws:kms" : "AES256"
+      kms_master_key_id = var.kms_key_arn != "" ? var.kms_key_arn : null
     }
   }
 }
@@ -535,6 +542,7 @@ resource "aws_cloudfront_distribution" "web" {
   enabled             = true
   default_root_object = "index.html"
   price_class         = "PriceClass_100"
+  aliases             = var.custom_domain_aliases
 
   origin {
     domain_name              = aws_s3_bucket.web.bucket_regional_domain_name
@@ -609,7 +617,10 @@ resource "aws_cloudfront_distribution" "web" {
   }
 
   viewer_certificate {
-    cloudfront_default_certificate = true
+    cloudfront_default_certificate = length(var.custom_domain_aliases) == 0
+    acm_certificate_arn            = length(var.custom_domain_aliases) > 0 ? var.acm_certificate_arn : null
+    ssl_support_method             = length(var.custom_domain_aliases) > 0 ? "sni-only" : null
+    minimum_protocol_version       = length(var.custom_domain_aliases) > 0 ? "TLSv1.2_2021" : null
   }
 }
 
@@ -702,6 +713,14 @@ data "aws_iam_policy_document" "api" {
       resources = [local.relational_secret_arn]
     }
   }
+
+  dynamic "statement" {
+    for_each = var.kms_key_arn != "" ? [1] : []
+    content {
+      actions   = ["kms:Decrypt", "kms:DescribeKey", "kms:GenerateDataKey"]
+      resources = [var.kms_key_arn]
+    }
+  }
 }
 
 data "aws_iam_policy_document" "worker" {
@@ -726,6 +745,14 @@ data "aws_iam_policy_document" "worker" {
   statement {
     actions   = ["s3:GetObject", "s3:PutObject"]
     resources = ["${aws_s3_bucket.weather.arn}/weather/*"]
+  }
+
+  dynamic "statement" {
+    for_each = var.kms_key_arn != "" ? [1] : []
+    content {
+      actions   = ["kms:Decrypt", "kms:DescribeKey", "kms:GenerateDataKey"]
+      resources = [var.kms_key_arn]
+    }
   }
 }
 

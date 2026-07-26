@@ -16,8 +16,16 @@ updates:
     directory: /infra/environments/prod
     schedule:
       interval: weekly
+  - package-ecosystem: terraform
+    directory: /infra/secrets
+    schedule:
+      interval: weekly
   - package-ecosystem: pip
     directory: /services/api
+    schedule:
+      interval: weekly
+  - package-ecosystem: maven
+    directory: /services/platform-api
     schedule:
       interval: weekly
   - package-ecosystem: npm

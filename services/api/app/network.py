@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from urllib.parse import urlencode
 
 from .models import DeliverySummary, Location, NetworkOverview, OptimizedRoute, RouteStop, VehicleType, WeatherRisk
-from .outbound_http import safe_urlopen as urlopen
+from .resilience import resilient_urlopen
 from .optimizer import solve_routes
 from .vehicle_profiles import VEHICLE_PROFILES
 
@@ -158,7 +158,7 @@ def fetch_weather(city: str) -> WeatherRisk:
         }
     )
     try:
-        with urlopen(f"https://api.open-meteo.com/v1/forecast?{query}", timeout=5) as response:
+        with resilient_urlopen("open-meteo", f"https://api.open-meteo.com/v1/forecast?{query}", timeout=5) as response:
             data = json.load(response)
         current = data["current"]
         precipitation_probability = max(data["hourly"]["precipitation_probability"][:6])
@@ -204,7 +204,7 @@ def fetch_route(waypoints: list[tuple[float, float]]) -> tuple[list[list[float]]
         "?overview=full&geometries=geojson&steps=false"
     )
     try:
-        with urlopen(url, timeout=8) as response:
+        with resilient_urlopen("osrm", url, timeout=8) as response:
             route = json.load(response)["routes"][0]
         return (
             route["geometry"]["coordinates"],

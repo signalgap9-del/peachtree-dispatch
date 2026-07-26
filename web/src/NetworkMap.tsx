@@ -1,6 +1,7 @@
 import maplibregl, { type Map, type MapGeoJSONFeature } from "maplibre-gl";
 import { useEffect, useRef } from "react";
 
+import { mapStyle } from "./mapStyle";
 import type { MapLayerVisibility } from "./mapLayers";
 import type { DirectionsPlan, HazardKind, NationalRiskOverview, NationalWeatherSnapshot, RiskAlert, RouteRiskSegment, WeatherRasterManifest } from "./types";
 
@@ -67,31 +68,6 @@ const LAYER_GROUPS: Record<keyof MapLayerVisibility, readonly string[]> = {
   routeSegments: ["route-segment-dots", "route-segment-dots-halo"],
 };
 
-const productionStyle = {
-  version: 8 as const,
-  sources: {
-    osm: {
-      type: "raster" as const,
-      tiles: ["https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png"],
-      tileSize: 256,
-      attribution: "© OpenStreetMap contributors © CARTO",
-    },
-  },
-  layers: [{ id: "osm", type: "raster" as const, source: "osm" }],
-};
-
-const testStyle = {
-  version: 8 as const,
-  sources: {},
-  layers: [{
-    id: "test-background",
-    type: "background" as const,
-    paint: { "background-color": "#eef3f8" },
-  }],
-};
-
-const style = import.meta.env.MODE === "test" ? testStyle : productionStyle;
-
 export function NetworkMap({ plan, risk, weatherSnapshot, weatherRaster, layers, segments, recenterToken }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
@@ -106,7 +82,7 @@ export function NetworkMap({ plan, risk, weatherSnapshot, weatherRaster, layers,
     if (!host || mapRef.current) return;
     const map = new maplibregl.Map({
       container: host,
-      style,
+      style: mapStyle,
       center: [-98.58, 39.83],
       zoom: 3.4,
       pitch: 0,

@@ -70,3 +70,11 @@ output "relational_master_username" {
     : aws_rds_cluster.relational[0].master_username
   )
 }
+
+output "api_gateway_id" {
+  value = local.deploy_app ? aws_apigatewayv2_api.api[0].id : null
+}
+
+output "optimization_dlq_name" {
+  value = aws_sqs_queue.optimization_dlq.name
+}

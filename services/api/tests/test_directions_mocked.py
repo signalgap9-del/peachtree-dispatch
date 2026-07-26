@@ -147,7 +147,7 @@ def test_fetch_route_alternatives_parses_osrm(monkeypatch) -> None:
             {"geometry": {"coordinates": [[-84.0, 33.0], [-81.0, 32.0]]}, "distance": 160934.4, "duration": 3600}
         ]
     }
-    monkeypatch.setattr("app.directions.urlopen", lambda *a, **k: _json_response(payload))
+    monkeypatch.setattr("app.routing.osrm.urlopen", lambda *a, **k: _json_response(payload))
 
     routes = fetch_route_alternatives([(-84.0, 33.0), (-81.0, 32.0)])
 
@@ -159,7 +159,7 @@ def test_fetch_route_alternatives_parses_osrm(monkeypatch) -> None:
 
 
 def test_fetch_route_alternatives_raises_when_no_routes(monkeypatch) -> None:
-    monkeypatch.setattr("app.directions.urlopen", lambda *a, **k: _json_response({"routes": []}))
+    monkeypatch.setattr("app.routing.osrm.urlopen", lambda *a, **k: _json_response({"routes": []}))
 
     with pytest.raises(RuntimeError, match="no routes"):
         fetch_route_alternatives([(-84.0, 33.0), (-81.0, 32.0)])

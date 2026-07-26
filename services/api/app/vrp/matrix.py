@@ -1,19 +1,18 @@
 from __future__ import annotations
 
-import json
 import math
-import os
 from typing import Protocol
-from urllib.parse import urlencode
-from urllib.request import Request
 from uuid import uuid4
 
+from ..routing.factory import get_routing_provider
+from ..routing.osrm import DEFAULT_OSRM_BASE_URL, OsrmProvider
+from ..routing.osrm import has_missing as _has_missing  # noqa: F401  (re-exported for callers/tests)
+from ..routing.provider import Matrix as ProviderMatrix
+from ..routing.provider import RoutingProvider
 from .models import GeoNode, RoutingMatrix
-from ..outbound_http import safe_urlopen as urlopen
 
 MILES_PER_METER = 1 / 1609.344
 DEFAULT_SPEED_MPH = 48
-USER_AGENT = "AtmosPath route-engine/0.1"
 
 
 class RoutingMatrixProvider(Protocol):
@@ -26,41 +25,71 @@ class MatrixProviderError(RuntimeError):
 
 
 class OsrmTableMatrixProvider:
-    """OSRM Table API provider for road-duration and road-distance matrices."""
+    """OSRM Table API provider for road-duration and road-distance matrices.
 
-    def __init__(self, base_url: str = "https://router.project-osrm.org", timeout_seconds: float = 12.0):
-        self.base_url = base_url.rstrip("/")
-        self.timeout_seconds = timeout_seconds
+    Thin VRP adapter over :class:`app.routing.osrm.OsrmProvider` that maps the
+    provider-neutral matrix into the pydantic ``RoutingMatrix`` contract and
+    preserves the historical ``osrm-table`` provider label.
+    """
+
+    def __init__(self, base_url: str = DEFAULT_OSRM_BASE_URL, timeout_seconds: float = 12.0):
+        self._osrm = OsrmProvider(base_url=base_url, timeout_seconds=timeout_seconds)
 
     def build_matrix(self, nodes: list[GeoNode]) -> RoutingMatrix:
         if len(nodes) < 2:
             raise ValueError("at least two nodes are required for a routing matrix")
-        coordinates = ";".join(f"{node.longitude},{node.latitude}" for node in nodes)
-        params = urlencode({"annotations": "duration,distance"})
-        request = Request(
-            f"{self.base_url}/table/v1/driving/{coordinates}?{params}",
-            headers={"User-Agent": USER_AGENT},
-        )
         try:
-            with urlopen(request, timeout=self.timeout_seconds) as response:
-                payload = json.load(response)
+            matrix = self._osrm.distance_matrix([(node.longitude, node.latitude) for node in nodes])
         except Exception as exc:
-            raise MatrixProviderError("OSRM table request failed") from exc
+            raise MatrixProviderError(str(exc)) from exc
+        return _to_routing_matrix(matrix, nodes, provider_label="osrm-table", request_prefix="osrm")
 
-        durations = payload.get("durations")
-        distances = payload.get("distances")
-        if not isinstance(durations, list) or not isinstance(distances, list):
-            raise MatrixProviderError("OSRM table response did not contain duration and distance matrices")
 
-        status = "PARTIAL" if _has_missing(durations) or _has_missing(distances) else "LIVE"
-        return RoutingMatrix(
-            provider="osrm-table",
-            node_ids=[node.node_id for node in nodes],
-            duration_seconds=durations,
-            distance_meters=distances,
-            source_status=status,
-            provider_request_id=f"osrm_{uuid4().hex[:12]}",
+class RoutingProviderMatrixAdapter:
+    """Adapts any ``routing.RoutingProvider`` to the VRP matrix protocol.
+
+    This is how non-OSRM backends (e.g. Google Routes) plug into the VRP
+    solver without the solver knowing which backend is active.
+    """
+
+    def __init__(self, provider: RoutingProvider):
+        self.provider = provider
+
+    def build_matrix(self, nodes: list[GeoNode]) -> RoutingMatrix:
+        if len(nodes) < 2:
+            raise ValueError("at least two nodes are required for a routing matrix")
+        try:
+            matrix = self.provider.distance_matrix([(node.longitude, node.latitude) for node in nodes])
+        except Exception as exc:
+            raise MatrixProviderError(str(exc)) from exc
+        return _to_routing_matrix(
+            matrix,
+            nodes,
+            provider_label=matrix.provider_name,
+            request_prefix=matrix.provider_name,
         )
+
+
+def _to_routing_matrix(
+    matrix: ProviderMatrix,
+    nodes: list[GeoNode],
+    *,
+    provider_label: str,
+    request_prefix: str,
+) -> RoutingMatrix:
+    status = (
+        "PARTIAL"
+        if _has_missing(matrix.duration_seconds) or _has_missing(matrix.distance_meters)
+        else "LIVE"
+    )
+    return RoutingMatrix(
+        provider=provider_label,
+        node_ids=[node.node_id for node in nodes],
+        duration_seconds=matrix.duration_seconds,
+        distance_meters=matrix.distance_meters,
+        source_status=status,
+        provider_request_id=f"{request_prefix}_{uuid4().hex[:12]}",
+    )
 
 
 class HaversineMatrixProvider:
@@ -122,16 +151,25 @@ class FixtureMatrixProvider:
 
 
 def build_default_matrix_provider() -> RoutingMatrixProvider:
-    osrm_base_url = os.environ.get("OSRM_BASE_URL", "https://router.project-osrm.org")
-    timeout_seconds = float(os.environ.get("OSRM_TIMEOUT_SECONDS", "12"))
+    """VRP matrix provider wired through the routing provider factory.
+
+    OSRM keeps its dedicated adapter (identical labels and request ids as
+    before); any other backend flows through the generic adapter. A
+    deterministic haversine fallback guarantees the solver always gets a
+    matrix even when the live provider is down.
+    """
+    provider = get_routing_provider()
+    primary: RoutingMatrixProvider
+    if isinstance(provider, OsrmProvider):
+        primary = OsrmTableMatrixProvider(
+            base_url=provider.base_url, timeout_seconds=provider.timeout_seconds
+        )
+    else:
+        primary = RoutingProviderMatrixAdapter(provider)
     return FallbackMatrixProvider(
-        primary=OsrmTableMatrixProvider(base_url=osrm_base_url, timeout_seconds=timeout_seconds),
+        primary=primary,
         fallback=HaversineMatrixProvider(),
     )
-
-
-def _has_missing(matrix: list[list[float | None]]) -> bool:
-    return any(value is None for row in matrix for value in row)
 
 
 def _haversine_meters(origin: GeoNode, destination: GeoNode) -> float:

@@ -1,0 +1,86 @@
+name: Security Scan
+
+# Scheduled + per-PR dependency, IaC, and secret scanning. Complements the
+# PR-gated jobs in ci.yml; nothing here deploys.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  schedule:
+    # Mondays 06:17 UTC: catch newly disclosed vulnerabilities in merged code.
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trivy:
+    name: Trivy (IaC + dependencies)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          hide-progress: true
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+          trivyignores: .trivyignore
+          skip-files: services/platform-api/Dockerfile.lambda
+
+  npm-audit:
+    name: npm audit (web)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm audit --audit-level=high
+
+  pip-audit:
+    name: pip-audit (services/api)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pip-audit
+      - run: pip-audit -r requirements.txt
+
+  gitleaks:
+    name: Gitleaks (secret scanning)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  terraform-secrets:
+    name: Terraform Validate (infra/secrets)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/secrets
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.13.5
+      - run: terraform fmt -check -recursive
+      - run: terraform init -backend=false
+      - run: terraform validate

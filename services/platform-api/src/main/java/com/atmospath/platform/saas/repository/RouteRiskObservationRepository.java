@@ -1,5 +1,6 @@
 package com.atmospath.platform.saas.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -11,4 +12,7 @@ public interface RouteRiskObservationRepository
         extends JpaRepository<RouteRiskObservationEntity, RouteRiskObservationId> {
 
     List<RouteRiskObservationEntity> findTop10BySavedRouteIdOrderByTimeDesc(UUID savedRouteId);
+
+    /** GDPR erasure: observations have no FK cascade, so delete them explicitly. */
+    void deleteBySavedRouteIdIn(Collection<UUID> savedRouteIds);
 }
