@@ -1,15 +1,15 @@
-# AtmosPath
+# FreightScaler
 
 **Weather-aware route planning that answers a question most navigation tools ignore:**
 *which route exposes me to the least weather and road-hazard risk right now?*
 
-AtmosPath compares route alternatives not just by travel time, but by live weather risk, official NWS alerts, and road-event exposure. Drivers can see segment-level risk breakdowns (rain, flood, wind, heat, winter conditions), save routes to a private watchlist with monitoring thresholds, and get a SaaS-style account layer with quotas and usage tracking, all without logging in for basic map flows.
+FreightScaler compares route alternatives not just by travel time, but by live weather risk, official NWS alerts, and road-event exposure. Drivers can see segment-level risk breakdowns (rain, flood, wind, heat, winter conditions), save routes to a private watchlist with monitoring thresholds, and get a SaaS-style account layer with quotas and usage tracking, all without logging in for basic map flows.
 
 [Live preview](https://d23c97ytqgl4xu.cloudfront.net/) | [API health](https://d23c97ytqgl4xu.cloudfront.net/api/health) | [Demo playbook](docs/demo-playbook.md) | [Changelog](CHANGELOG.md)
 
 English | **[한국어](README.ko.md)**
 
-![AtmosPath route comparison](docs/screenshots/map-route-live.png)
+![FreightScaler route comparison](docs/screenshots/map-route-live.png)
 
 ---
 
@@ -51,7 +51,7 @@ The frontend is a React 19 SPA served from private S3 through CloudFront. API ca
 
 ## LLM Integration
 
-AtmosPath integrates LLMs as an optimization-adjacent reasoning layer, not as a
+FreightScaler integrates LLMs as an optimization-adjacent reasoning layer, not as a
 chatbot. Four capabilities work together:
 
 - **NL2Opt** -- natural language → VRP constraints → OR-Tools solver → route.
@@ -240,7 +240,7 @@ The Spring Platform API uses a servlet filter (`RateLimitFilter`) that classifie
 | `route-risk-mutation` | POST /directions, /risk/location | mutation-tier limit |
 | `authenticated-me` | /me/** | separate authenticated limit |
 
-The key is `bucket:method:path:clientIP`. The default store is in-memory fixed-window (zero infrastructure cost); setting `RATE_LIMIT_STORE=redis` switches to a Redis-backed counter for multi-instance deployments. Every decision exports Micrometer counters (`atmospath.rate_limit.requests` with `bucket` and `outcome` tags) and returns standard `X-RateLimit-*` headers plus a structured `429` body with `Retry-After`.
+The key is `bucket:method:path:clientIP`. The default store is in-memory fixed-window (zero infrastructure cost); setting `RATE_LIMIT_STORE=redis` switches to a Redis-backed counter for multi-instance deployments. Every decision exports Micrometer counters (`freightscaler.rate_limit.requests` with `bucket` and `outcome` tags) and returns standard `X-RateLimit-*` headers plus a structured `429` body with `Retry-After`.
 
 Verified by: `RateLimitFilterTests.java`, `InMemoryRateLimitRepositoryTests.java`
 
@@ -253,7 +253,7 @@ Saved-route and saved-place mutations accept an `Idempotency-Key` header. The im
 3. Stores the hash scoped to `tenantId + operation`, preventing cross-tenant key collisions.
 4. On retry, returns the previously created resource ID instead of creating a duplicate.
 
-This lets the frontend safely retry network failures without creating phantom saved routes. Idempotency hits are tracked via `atmospath.saved_route.commands` metrics.
+This lets the frontend safely retry network failures without creating phantom saved routes. Idempotency hits are tracked via `freightscaler.saved_route.commands` metrics.
 
 Verified by: `IdempotencyServiceTests.java`, `DynamoDbIdempotencyRepositoryTests.java`
 
@@ -268,7 +268,7 @@ Controllers in the Platform API are thin HTTP boundaries: parse request, extract
 5. Idempotency key storage.
 6. Command metric emission.
 
-This ordering matters: quota is checked *before* persistence, so a rejected request never touches DynamoDB. The service is `@ConditionalOnProperty(atmospath.auth.enabled=true)`, so the local dev path without Cognito still works.
+This ordering matters: quota is checked *before* persistence, so a rejected request never touches DynamoDB. The service is `@ConditionalOnProperty(freightscaler.auth.enabled=true)`, so the local dev path without Cognito still works.
 
 Verified by: `SavedRouteServiceTests.java`
 

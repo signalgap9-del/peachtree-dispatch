@@ -1,14 +1,14 @@
-﻿# AtmosPath
+﻿# FreightScaler
 
 **"지금 이 구간을 지나가면, 어느 루트가 날씨·도로 위험을 가장 덜 타는가?"**
 
-일반 내비게이션은 이 질문에 답하지 않습니다. AtmosPath는 여기서 출발했습니다. 소요시간만 비교하는 대신, 실시간 기상 데이터와 NWS 공식 경보, 도로 이벤트를 겹쳐서 경로 대안을 비교합니다. 구간마다 "여기가 왜 위험한지" 설명이 붙습니다. 자주 쓰는 경로는 워치리스트에 저장하여 위험도를 지속적으로 추적합니다. SaaS 플랜별 쿼터와 사용량 관리도 동작합니다. 기본 지도 기능은 로그인 없이 바로 사용할 수 있습니다.
+일반 내비게이션은 이 질문에 답하지 않습니다. FreightScaler는 여기서 출발했습니다. 소요시간만 비교하는 대신, 실시간 기상 데이터와 NWS 공식 경보, 도로 이벤트를 겹쳐서 경로 대안을 비교합니다. 구간마다 "여기가 왜 위험한지" 설명이 붙습니다. 자주 쓰는 경로는 워치리스트에 저장하여 위험도를 지속적으로 추적합니다. SaaS 플랜별 쿼터와 사용량 관리도 동작합니다. 기본 지도 기능은 로그인 없이 바로 사용할 수 있습니다.
 
 [라이브 미리보기](https://d23c97ytqgl4xu.cloudfront.net/) | [API 헬스체크](https://d23c97ytqgl4xu.cloudfront.net/api/health) | [데모 플레이북](docs/demo-playbook.md) | [변경 이력](CHANGELOG.md)
 
 **[English](README.md)** | 한국어
 
-![AtmosPath 경로 비교 화면](docs/screenshots/map-route-live.png)
+![FreightScaler 경로 비교 화면](docs/screenshots/map-route-live.png)
 
 ---
 
@@ -50,7 +50,7 @@ React 19 SPA를 Private S3에 올리고 CloudFront로 서빙합니다. API 호�
 
 ## LLM 통합
 
-AtmosPath는 LLM을 챗봇이 아닌 **최적화 인접 추론 계층**으로 통합합니다. OptiMUS 멀티 에이전트 패턴(Stanford, 2024)과 OPRO 스타일 수리 루프(DeepMind, ICLR 2024)를 따릅니다.
+FreightScaler는 LLM을 챗봇이 아닌 **최적화 인접 추론 계층**으로 통합합니다. OptiMUS 멀티 에이전트 패턴(Stanford, 2024)과 OPRO 스타일 수리 루프(DeepMind, ICLR 2024)를 따릅니다.
 
 전체 LLM 파이프라인 구조는 다음과 같습니다.
 
@@ -234,7 +234,7 @@ Spring 쪽에 서블릿 필터(`RateLimitFilter`)를 두고, 메서드 + 경로 
 | `route-risk-mutation` | POST /directions, /risk/location | 뮤테이션 티어 |
 | `authenticated-me` | /me/** | 인증 사용자 별도 제한 |
 
-키는 `bucket:method:path:clientIP` 조합입니다. 기본 스토어는 인메모리 고정 윈도우입니다. 멀티 인스턴스로 전환하면 `RATE_LIMIT_STORE=redis`로 교체합니다. 모든 판정은 Micrometer 카운터(`atmospath.rate_limit.requests`)로 발행합니다. 응답에는 `X-RateLimit-*` 헤더와 `Retry-After`가 포함된 구조화된 429 본문을 반환합니다.
+키는 `bucket:method:path:clientIP` 조합입니다. 기본 스토어는 인메모리 고정 윈도우입니다. 멀티 인스턴스로 전환하면 `RATE_LIMIT_STORE=redis`로 교체합니다. 모든 판정은 Micrometer 카운터(`freightscaler.rate_limit.requests`)로 발행합니다. 응답에는 `X-RateLimit-*` 헤더와 `Retry-After`가 포함된 구조화된 429 본문을 반환합니다.
 
 검증: `RateLimitFilterTests.java`, `InMemoryRateLimitRepositoryTests.java`
 
@@ -247,7 +247,7 @@ Spring 쪽에 서블릿 필터(`RateLimitFilter`)를 두고, 메서드 + 경로 
 3. `tenantId + operation` 범위로 저장하여 테넌트 간 키 충돌을 원천 차단합니다.
 4. 같은 키로 재시도하면 새로 생성하지 않고 기존 리소스 ID를 반환합니다.
 
-프론트엔드에서 네트워크 단절 후 재시도해도 저장 경로가 중복 생성되지 않습니다. 멱등성 히트는 `atmospath.saved_route.commands` 메트릭으로 추적합니다.
+프론트엔드에서 네트워크 단절 후 재시도해도 저장 경로가 중복 생성되지 않습니다. 멱등성 히트는 `freightscaler.saved_route.commands` 메트릭으로 추적합니다.
 
 검증: `IdempotencyServiceTests.java`, `DynamoDbIdempotencyRepositoryTests.java`
 
@@ -262,7 +262,7 @@ Platform API 컨트롤러는 요청 파싱 → 테넌트 컨텍스트 추출 →
 5. 멱등성 키 저장
 6. 커맨드 메트릭 발행
 
-쿼터 체크가 저장 *앞*에 있으므로, 거부된 요청은 DynamoDB를 건드리지 않습니다. 이 서비스는 `@ConditionalOnProperty(atmospath.auth.enabled=true)`로 동작하며, Cognito 없는 로컬 개발에서도 정상 작동합니다.
+쿼터 체크가 저장 *앞*에 있으므로, 거부된 요청은 DynamoDB를 건드리지 않습니다. 이 서비스는 `@ConditionalOnProperty(freightscaler.auth.enabled=true)`로 동작하며, Cognito 없는 로컬 개발에서도 정상 작동합니다.
 
 검증: `SavedRouteServiceTests.java`, `SavedRouteControllerTests.java`
 
