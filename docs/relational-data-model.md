@@ -1,4 +1,4 @@
-# Production SaaS Relational Data Model
+﻿# Production SaaS Relational Data Model
 
 PostgreSQL 16 + TimescaleDB is the system of record for all durable SaaS
 entities: tenants, memberships, subscriptions, entitlements, saved assets,
@@ -12,24 +12,34 @@ Redis dual-ledger quota design.
 
 ---
 
+
 ## Entity Relationship Diagram
+
+> Updated to reflect the final schema after migrations V001-V017.
+> Full column-level detail: [docs/database/data-dictionary.md](database/data-dictionary.md).
 
 ```mermaid
 erDiagram
     tenant ||--o{ tenant_member : "has members"
     tenant ||--o{ workspace : "has workspaces"
-    tenant ||--|| subscription : "has one active"
-    subscription ||--o{ entitlement : "grants"
-    tenant_member ||--o{ saved_route : "owns"
-    tenant_member ||--o{ saved_place : "owns"
-    saved_route ||--o{ alert_event : "triggers"
-    saved_route ||--o{ route_risk_observation : "accumulates"
-    alert_event ||--o{ alert_escalation : "escalates via"
-    alert_rule ||--o{ alert_event : "fires"
+    tenant ||--o{ subscription : "has subscriptions"
     tenant ||--o{ usage_record : "meters"
+    tenant ||--o{ alert_event : "receives"
     tenant ||--o{ audit_log : "records"
     tenant ||--o{ idempotency_key : "scopes"
     tenant ||--o{ api_key : "issues"
+    subscription ||--o{ entitlement : "grants"
+    tenant_member ||--o{ saved_route : "owns"
+    tenant_member ||--o{ saved_place : "owns"
+    tenant_member ||--o{ workspace_member : "participates"
+    tenant_member ||--o{ api_key : "owns"
+    workspace ||--o{ workspace_member : "contains"
+    workspace ||--o{ saved_route : "groups"
+    workspace ||--o{ saved_place : "groups"
+    saved_route ||--o{ alert_event : "triggers"
+    saved_route ||--o{ route_risk_observation : "accumulates"
+    alert_event ||--o{ alert_escalation : "escalates via"
+    tenant_member ||--o{ alert_escalation : "notified via"
 
     tenant {
         uuid id PK
@@ -43,8 +53,9 @@ erDiagram
         uuid id PK
         uuid tenant_id FK
         text email
+        bytea email_hash "generated SHA-256"
         text display_name
-        text role
+        text role "OWNER|ADMIN|MEMBER"
         timestamptz deleted_at
         timestamptz created_at
         timestamptz updated_at
@@ -54,29 +65,50 @@ erDiagram
         uuid id PK
         uuid tenant_id FK
         text name
-        text slug
         timestamptz created_at
         timestamptz updated_at
+    }
+
+    workspace_member {
+        uuid id PK
+        uuid workspace_id FK
+        uuid member_id FK
+        text role "VIEWER|EDITOR|ADMIN"
+        timestamptz created_at
     }
 
     subscription {
         uuid id PK
         uuid tenant_id FK
-        text plan_code
-        text status
-        date valid_from
-        date valid_to
+        text plan
+        text status "TRIAL|ACTIVE|PAST_DUE|GRACE|CANCELLED"
+        date current_period_start
+        date current_period_end
+        timestamptz valid_from
+        timestamptz valid_to
+        int version
+        boolean is_active "generated"
+        text lemonsqueezy_subscription_id UK
+        text billing_status
+        boolean cancel_at_period_end
         timestamptz created_at
-        timestamptz updated_at
     }
 
     entitlement {
         uuid id PK
         uuid subscription_id FK
-        text feature_code
-        integer quota_limit
-        text quota_period
-        timestamptz created_at
+        text feature
+        int quota_limit
+        int saved_route_limit
+        int saved_place_limit
+    }
+
+    usage_record {
+        uuid id PK
+        uuid tenant_id "PK composite"
+        text feature "PK composite"
+        date usage_date "PK composite, partition key"
+        int count
     }
 
     saved_route {
@@ -84,15 +116,14 @@ erDiagram
         uuid member_id FK
         uuid workspace_id FK
         text name
-        geography origin
-        geography destination
-        geography path
-        smallint risk_threshold
-        boolean monitoring_enabled
-        jsonb metadata
+        text origin_name
+        text destination_name
+        text vehicle_type
+        int risk_threshold
+        boolean monitor_enabled
+        timestamptz deleted_at
         timestamptz created_at
         timestamptz updated_at
-        timestamptz deleted_at
     }
 
     saved_place {
@@ -100,103 +131,80 @@ erDiagram
         uuid member_id FK
         uuid workspace_id FK
         text name
-        geography point
-        jsonb metadata
-        timestamptz created_at
-        timestamptz updated_at
+        double latitude
+        double longitude
         timestamptz deleted_at
-    }
-
-    alert_rule {
-        uuid id PK
-        uuid saved_route_id FK
-        text hazard_category
-        smallint min_risk_score
-        text[] channels
-        boolean enabled
         timestamptz created_at
-        timestamptz updated_at
     }
 
     alert_event {
         uuid id PK
         uuid saved_route_id FK
-        uuid alert_rule_id FK
-        text state
-        smallint risk_score
-        text hazard_category
-        text source_event_id
-        jsonb evidence
-        timestamptz fired_at
+        uuid tenant_id FK
+        text state "5-state machine"
+        text severity "LOW|MODERATE|HIGH|SEVERE"
+        int risk_score
+        timestamptz triggered_at
         timestamptz resolved_at
-        timestamptz created_at
+        text triggered_by
+        vector embedding "vector(384)"
     }
 
     alert_escalation {
         uuid id PK
         uuid alert_event_id FK
-        text channel
-        text recipient
-        text delivery_state
-        timestamptz sent_at
-        timestamptz delivered_at
-        timestamptz created_at
+        int level
+        uuid target_member_id FK
+        timestamptz notified_at
+        timestamptz responded_at
     }
 
     route_risk_observation {
-        uuid id PK
-        uuid saved_route_id FK
-        uuid tenant_id FK
-        timestamptz observed_at
-        smallint risk_score
-        numeric planned_duration_min
-        numeric actual_duration_min
-        numeric delay_min
-        jsonb metadata
-    }
-
-    usage_record {
-        uuid id PK
-        uuid tenant_id FK
-        text feature_code
-        date usage_date
-        integer quantity
-        timestamptz created_at
+        timestamptz time "hypertable key"
+        uuid saved_route_id
+        int risk_score
+        text risk_level
+        jsonb factors
+        vector embedding "vector(384)"
     }
 
     audit_log {
-        uuid id PK
-        uuid tenant_id FK
-        uuid member_id FK
+        bigserial id PK
+        uuid tenant_id
+        uuid member_id
         text action
         text resource_type
         uuid resource_id
-        jsonb before_state
-        jsonb after_state
-        inet client_ip
+        jsonb changes
         timestamptz created_at
     }
 
     idempotency_key {
-        uuid id PK
-        uuid tenant_id FK
-        text key_hash
-        text operation
-        integer response_status
-        jsonb response_body
-        timestamptz expires_at
+        text key_hash "PK composite"
+        uuid tenant_id "PK composite"
+        text operation "PK composite"
+        uuid resource_id
         timestamptz created_at
+        timestamptz expires_at
     }
 
     api_key {
         uuid id PK
         uuid tenant_id FK
+        uuid member_id FK
+        text key_hash UK
         text name
-        text key_hash
-        text key_prefix
-        text[] scopes
         timestamptz last_used_at
-        timestamptz revoked_at
+        timestamptz expires_at
+        timestamptz created_at
+    }
+
+    embedding_metadata {
+        uuid id PK
+        text table_name
+        text record_id
+        text embedding_model
+        int embedding_version
         timestamptz created_at
     }
 ```
@@ -232,7 +240,7 @@ role-based access (OWNER, ADMIN, MEMBER).
 | Column | Type | Constraints |
 | --- | --- | --- |
 | `id` | `UUID` | PK |
-| `tenant_id` | `UUID` | FK → `tenant(id)` ON DELETE CASCADE |
+| `tenant_id` | `UUID` | FK ??`tenant(id)` ON DELETE CASCADE |
 | `email` | `TEXT` | NOT NULL |
 | `display_name` | `TEXT` | nullable |
 | `role` | `TEXT` | NOT NULL DEFAULT `'MEMBER'`, CHECK IN (`OWNER`, `ADMIN`, `MEMBER`) |
@@ -240,7 +248,7 @@ role-based access (OWNER, ADMIN, MEMBER).
 | `created_at` / `updated_at` | `TIMESTAMPTZ` | trigger-maintained |
 
 **Indexes.**
-- Partial unique on `(tenant_id, email) WHERE deleted_at IS NULL` — one active
+- Partial unique on `(tenant_id, email) WHERE deleted_at IS NULL` ??one active
   membership per email per tenant.
 - Partial B-tree on `(tenant_id) WHERE deleted_at IS NULL`.
 
@@ -256,7 +264,7 @@ gets one implicit workspace; TEAM plans can create multiple.
 | Column | Type | Constraints |
 | --- | --- | --- |
 | `id` | `UUID` | PK |
-| `tenant_id` | `UUID` | FK → `tenant(id)` ON DELETE CASCADE |
+| `tenant_id` | `UUID` | FK ??`tenant(id)` ON DELETE CASCADE |
 | `name` | `TEXT` | NOT NULL |
 | `slug` | `TEXT` | NOT NULL |
 | `created_at` / `updated_at` | `TIMESTAMPTZ` | trigger-maintained |
@@ -276,7 +284,7 @@ new row and close the previous one (`valid_to`).
 | Column | Type | Constraints |
 | --- | --- | --- |
 | `id` | `UUID` | PK |
-| `tenant_id` | `UUID` | FK → `tenant(id)` ON DELETE CASCADE |
+| `tenant_id` | `UUID` | FK ??`tenant(id)` ON DELETE CASCADE |
 | `plan_code` | `TEXT` | NOT NULL, CHECK IN (`FREE`, `PRO`, `TEAM`, `INTERNAL`) |
 | `status` | `TEXT` | NOT NULL DEFAULT `'ACTIVE'`, CHECK IN (`ACTIVE`, `CANCELLED`, `EXPIRED`, `PAST_DUE`) |
 | `valid_from` | `DATE` | NOT NULL |
@@ -284,7 +292,7 @@ new row and close the previous one (`valid_to`).
 | `created_at` / `updated_at` | `TIMESTAMPTZ` | trigger-maintained |
 
 **Indexes.**
-- Partial unique on `(tenant_id) WHERE status = 'ACTIVE'` — at most one active
+- Partial unique on `(tenant_id) WHERE status = 'ACTIVE'` ??at most one active
   subscription per tenant.
 - B-tree on `(tenant_id, valid_from DESC)` for history queries.
 
@@ -304,7 +312,7 @@ One row per (subscription, feature) pair.
 | Column | Type | Constraints |
 | --- | --- | --- |
 | `id` | `UUID` | PK |
-| `subscription_id` | `UUID` | FK → `subscription(id)` ON DELETE CASCADE |
+| `subscription_id` | `UUID` | FK ??`subscription(id)` ON DELETE CASCADE |
 | `feature_code` | `TEXT` | NOT NULL (e.g. `ROUTE_PLAN`, `SAVED_ROUTE`, `PLACE_SEARCH`) |
 | `quota_limit` | `INTEGER` | NOT NULL CHECK `>= 0` |
 | `quota_period` | `TEXT` | NOT NULL, CHECK IN (`DAILY`, `CAPACITY`, `MONTHLY`) |
@@ -324,8 +332,8 @@ the DynamoDB `SAVED_ROUTE#{id}` access pattern.
 | Column | Type | Constraints |
 | --- | --- | --- |
 | `id` | `UUID` | PK |
-| `member_id` | `UUID` | FK → `tenant_member(id)` ON DELETE CASCADE |
-| `workspace_id` | `UUID` | FK → `workspace(id)` ON DELETE SET NULL |
+| `member_id` | `UUID` | FK ??`tenant_member(id)` ON DELETE CASCADE |
+| `workspace_id` | `UUID` | FK ??`workspace(id)` ON DELETE SET NULL |
 | `name` | `TEXT` | NOT NULL |
 | `origin` | `GEOGRAPHY(POINT, 4326)` | NOT NULL |
 | `destination` | `GEOGRAPHY(POINT, 4326)` | NOT NULL |
@@ -352,8 +360,8 @@ the DynamoDB `SAVED_ROUTE#{id}` access pattern.
 | Column | Type | Constraints |
 | --- | --- | --- |
 | `id` | `UUID` | PK |
-| `member_id` | `UUID` | FK → `tenant_member(id)` ON DELETE CASCADE |
-| `workspace_id` | `UUID` | FK → `workspace(id)` ON DELETE SET NULL |
+| `member_id` | `UUID` | FK ??`tenant_member(id)` ON DELETE CASCADE |
+| `workspace_id` | `UUID` | FK ??`workspace(id)` ON DELETE SET NULL |
 | `name` | `TEXT` | NOT NULL |
 | `point` | `GEOGRAPHY(POINT, 4326)` | NOT NULL |
 | `metadata` | `JSONB` | NOT NULL DEFAULT `'{}'` |
@@ -375,7 +383,7 @@ One route can have multiple rules (e.g. flood threshold 70, wind threshold 60).
 | Column | Type | Constraints |
 | --- | --- | --- |
 | `id` | `UUID` | PK |
-| `saved_route_id` | `UUID` | FK → `saved_route(id)` ON DELETE CASCADE |
+| `saved_route_id` | `UUID` | FK ??`saved_route(id)` ON DELETE CASCADE |
 | `hazard_category` | `TEXT` | NOT NULL (e.g. `FLOOD`, `WIND`, `HEAT`, `WINTER`, `ALL`) |
 | `min_risk_score` | `SMALLINT` | NOT NULL DEFAULT 55, CHECK 0-100 |
 | `channels` | `TEXT[]` | NOT NULL DEFAULT `'{IN_APP}'` |
@@ -397,8 +405,8 @@ code.
 | Column | Type | Constraints |
 | --- | --- | --- |
 | `id` | `UUID` | PK |
-| `saved_route_id` | `UUID` | FK → `saved_route(id)` ON DELETE CASCADE |
-| `alert_rule_id` | `UUID` | FK → `alert_rule(id)` ON DELETE SET NULL |
+| `saved_route_id` | `UUID` | FK ??`saved_route(id)` ON DELETE CASCADE |
+| `alert_rule_id` | `UUID` | FK ??`alert_rule(id)` ON DELETE SET NULL |
 | `state` | `TEXT` | NOT NULL DEFAULT `'OPEN'`, CHECK IN (`OPEN`, `ACKNOWLEDGED`, `ESCALATED`, `RESOLVED`) |
 | `risk_score` | `SMALLINT` | NOT NULL, CHECK 0-100 |
 | `hazard_category` | `TEXT` | NOT NULL |
@@ -411,9 +419,9 @@ code.
 **State machine.** Valid transitions:
 
 ```
-OPEN → ACKNOWLEDGED → RESOLVED
-OPEN → ESCALATED → RESOLVED
-ACKNOWLEDGED → ESCALATED
+OPEN ??ACKNOWLEDGED ??RESOLVED
+OPEN ??ESCALATED ??RESOLVED
+ACKNOWLEDGED ??ESCALATED
 ```
 
 Any other transition raises a `check_violation` from the stored function.
@@ -436,7 +444,7 @@ webhook).
 | Column | Type | Constraints |
 | --- | --- | --- |
 | `id` | `UUID` | PK |
-| `alert_event_id` | `UUID` | FK → `alert_event(id)` ON DELETE CASCADE |
+| `alert_event_id` | `UUID` | FK ??`alert_event(id)` ON DELETE CASCADE |
 | `channel` | `TEXT` | NOT NULL CHECK IN (`IN_APP`, `EMAIL`, `WEBHOOK`, `SMS`) |
 | `recipient` | `TEXT` | NOT NULL |
 | `delivery_state` | `TEXT` | NOT NULL DEFAULT `'PENDING'`, CHECK IN (`PENDING`, `SENT`, `DELIVERED`, `FAILED`) |
@@ -458,8 +466,8 @@ history charts and feeds the ML delay model training pipeline.
 | Column | Type | Constraints |
 | --- | --- | --- |
 | `id` | `UUID` | NOT NULL |
-| `saved_route_id` | `UUID` | NOT NULL, FK → `saved_route(id)` ON DELETE CASCADE |
-| `tenant_id` | `UUID` | NOT NULL, FK → `tenant(id)` ON DELETE CASCADE |
+| `saved_route_id` | `UUID` | NOT NULL, FK ??`saved_route(id)` ON DELETE CASCADE |
+| `tenant_id` | `UUID` | NOT NULL, FK ??`tenant(id)` ON DELETE CASCADE |
 | `observed_at` | `TIMESTAMPTZ` | NOT NULL (hypertable time column) |
 | `risk_score` | `SMALLINT` | NOT NULL, CHECK 0-100 |
 | `planned_duration_min` | `NUMERIC(10,2)` | CHECK `> 0` |
@@ -471,8 +479,8 @@ history charts and feeds the ML delay model training pipeline.
 `SELECT create_hypertable('route_risk_observation', 'observed_at', chunk_time_interval => INTERVAL '7 days')`.
 
 **Indexes.**
-- Composite on `(saved_route_id, observed_at DESC)` — route history queries.
-- Composite on `(tenant_id, observed_at DESC)` — tenant-level aggregation.
+- Composite on `(saved_route_id, observed_at DESC)` ??route history queries.
+- Composite on `(tenant_id, observed_at DESC)` ??tenant-level aggregation.
 
 **Compression.** Chunks older than 30 days are compressed with
 `segmentby = 'saved_route_id'` and `orderby = 'observed_at DESC'`.
@@ -491,7 +499,7 @@ reconciliation target and long-term record.
 | Column | Type | Constraints |
 | --- | --- | --- |
 | `id` | `UUID` | NOT NULL |
-| `tenant_id` | `UUID` | NOT NULL, FK → `tenant(id)` ON DELETE CASCADE |
+| `tenant_id` | `UUID` | NOT NULL, FK ??`tenant(id)` ON DELETE CASCADE |
 | `feature_code` | `TEXT` | NOT NULL |
 | `usage_date` | `DATE` | NOT NULL |
 | `quantity` | `INTEGER` | NOT NULL DEFAULT 0, CHECK `>= 0` |
@@ -515,8 +523,8 @@ for compliance, debugging, and the admin activity feed.
 | Column | Type | Constraints |
 | --- | --- | --- |
 | `id` | `UUID` | PK |
-| `tenant_id` | `UUID` | NOT NULL, FK → `tenant(id)` ON DELETE CASCADE |
-| `member_id` | `UUID` | nullable, FK → `tenant_member(id)` ON DELETE SET NULL |
+| `tenant_id` | `UUID` | NOT NULL, FK ??`tenant(id)` ON DELETE CASCADE |
+| `member_id` | `UUID` | nullable, FK ??`tenant_member(id)` ON DELETE SET NULL |
 | `action` | `TEXT` | NOT NULL (e.g. `saved_route.create`, `subscription.change_plan`) |
 | `resource_type` | `TEXT` | NOT NULL |
 | `resource_id` | `UUID` | nullable |
@@ -544,7 +552,7 @@ transactional atomicity with the business write.
 | Column | Type | Constraints |
 | --- | --- | --- |
 | `id` | `UUID` | PK |
-| `tenant_id` | `UUID` | NOT NULL, FK → `tenant(id)` ON DELETE CASCADE |
+| `tenant_id` | `UUID` | NOT NULL, FK ??`tenant(id)` ON DELETE CASCADE |
 | `key_hash` | `TEXT` | NOT NULL (SHA-256 hex of client key) |
 | `operation` | `TEXT` | NOT NULL (e.g. `saved_route.create`) |
 | `response_status` | `INTEGER` | nullable (set after first execution) |
@@ -567,7 +575,7 @@ at creation; only the SHA-256 hash is stored.
 | Column | Type | Constraints |
 | --- | --- | --- |
 | `id` | `UUID` | PK |
-| `tenant_id` | `UUID` | NOT NULL, FK → `tenant(id)` ON DELETE CASCADE |
+| `tenant_id` | `UUID` | NOT NULL, FK ??`tenant(id)` ON DELETE CASCADE |
 | `name` | `TEXT` | NOT NULL |
 | `key_hash` | `TEXT` | UNIQUE NOT NULL |
 | `key_prefix` | `TEXT` | NOT NULL (first 8 chars, for identification) |
@@ -682,7 +690,7 @@ BEGIN
     END;
 
     IF NOT v_valid THEN
-        RAISE EXCEPTION 'invalid transition: % → %', v_event.state, p_new_state
+        RAISE EXCEPTION 'invalid transition: % ??%', v_event.state, p_new_state
             USING ERRCODE = 'check_violation';
     END IF;
 
