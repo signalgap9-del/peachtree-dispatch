@@ -1,0 +1,18 @@
+set -e
+echo "--- cron jobs:"
+psql -U atmospath -d atmospath -tAc "SELECT jobname || ' | ' || schedule FROM cron.job ORDER BY jobid"
+echo "--- mviews populated:"
+psql -U atmospath -d atmospath -tAc "SELECT relname || ' populated=' || relispopulated FROM pg_class WHERE relname LIKE 'mv_%' ORDER BY 1"
+echo "--- compression policy:"
+psql -U atmospath -d atmospath -tAc "SELECT hypertable_name || ' ' || proc_name || ' ' || config FROM timescaledb_information.jobs WHERE proc_name IN ('policy_compression','policy_retention')"
+echo "--- partition helper:"
+psql -U atmospath -d atmospath -tAc "SELECT create_next_usage_partition()"
+echo "--- archive stub:"
+psql -U atmospath -d atmospath -c "SELECT archive_audit_log()"
+echo "--- v_query_performance:"
+psql -U atmospath -d atmospath -tAc "SELECT count(*) FROM v_query_performance"
+echo "--- email_hash column:"
+psql -U atmospath -d atmospath -tAc "SELECT count(*) FROM information_schema.columns WHERE table_name='tenant_member' AND column_name='email_hash'"
+echo "--- extensions:"
+psql -U atmospath -d atmospath -tAc "SELECT string_agg(extname, ', ' ORDER BY extname) FROM pg_extension WHERE extname IN ('pg_cron','pg_stat_statements','timescaledb','vector','pgcrypto','btree_gist','pg_trgm')"
+echo FUNCTIONAL_OK

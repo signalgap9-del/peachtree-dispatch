@@ -80,7 +80,9 @@ services:
   # Start with: docker compose --profile production-data up
 
   postgres-primary:
-    image: timescale/timescaledb:latest-pg16
+    # timescaledb-ha bundles pg_cron (required by V017 operational automation);
+    # the plain timescaledb image does not.
+    image: timescale/timescaledb-ha:pg16
     profiles: ["production-data"]
     environment:
       POSTGRES_DB: atmospath
@@ -101,6 +103,17 @@ services:
       - max_replication_slots=4
       - -c
       - hot_standby=on
+      # ADR-0020 / V017: operational automation preloads.
+      # The -c flag OVERRIDES the image's postgresql.conf, so 'timescaledb'
+      # must be repeated first or the TimescaleDB extension stops loading.
+      # cron.database_name pins pg_cron jobs to the app database.
+      - -c
+      - shared_preload_libraries=timescaledb,pg_stat_statements,pg_cron
+      - -c
+      - cron.database_name=atmospath
+      # Slow query log (production-scaling.md: Database observability & operations)
+      - -c
+      - log_min_duration_statement=250
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U atmospath -d atmospath"]
       interval: 5s
@@ -108,7 +121,7 @@ services:
       retries: 10
 
   postgres-replica:
-    image: timescale/timescaledb:latest-pg16
+    image: timescale/timescaledb-ha:pg16
     profiles: ["production-data"]
     depends_on:
       postgres-primary:

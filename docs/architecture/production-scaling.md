@@ -10,6 +10,8 @@ Related decisions:
 [ADR-0012](../adr/0012-alert-state-machine-in-db.md) (alert state machine),
 [ADR-0013](../adr/0013-read-write-splitting.md) (read/write splitting).
 [ADR-0016](../adr/0016-rag-hybrid-search.md) (RAG hybrid search).
+[ADR-0020](../adr/0020-database-scale-sharding.md) (database scale & sharding).
+[ADR-0021](../adr/0021-multi-tenancy-isolation.md) (multi-tenancy isolation).
 
 ---
 
@@ -183,25 +185,25 @@ public long incrementAndGet(UUID tenantId, MeteredFeature feature, LocalDate dat
 
 | Table | Strategy | Detail |
 | --- | --- | --- |
-| `route_risk_observation` | TimescaleDB hypertable | 7-day chunks, compression after 30 days, retention drop after 365 days. Time-range scans touch only relevant chunks. |
-| `usage_record` | Range partition by `usage_date` | Monthly partitions. Old partitions (> 13 months) detached and archived. Unique constraint is per-partition. |
-| `audit_log` | Range partition by `created_at` | Monthly partitions. Append-only; no UPDATE/DELETE grants. |
+| `route_risk_observation` | TimescaleDB hypertable | 7-day chunks (V007); compression after 30 days (added by V017); retention drop after **90 days** (V007). Time-range scans touch only relevant chunks. |
+| `usage_record` | Range partition by `usage_date` | Monthly partitions (V004) with on-insert auto-creation plus proactive next-month creation via pg_cron (V017). Detach/archive of partitions > 13 months is a runbook step, not yet automated. |
+| `audit_log` | Plain table (gap) | **Not partitioned today** despite earlier claims in this doc; V008 creates a single append-only table. Monthly range partitioning + S3 archival are tracked in ADR-0020; V017 ships a no-op archive stub. |
 
 ```sql
--- TimescaleDB hypertable (already in migration)
+-- TimescaleDB hypertable (V007; the time column is 'time', not 'observed_at')
 SELECT create_hypertable(
-    'route_risk_observation', 'observed_at',
+    'route_risk_observation', 'time',
     chunk_time_interval => INTERVAL '7 days');
 
--- Compression policy
+-- Compression policy (added by V017, not V007)
 ALTER TABLE route_risk_observation SET (
     timescaledb.compress,
     timescaledb.compress_segmentby = 'saved_route_id',
-    timescaledb.compress_orderby = 'observed_at DESC');
+    timescaledb.compress_orderby = 'time DESC');
 SELECT add_compression_policy('route_risk_observation', INTERVAL '30 days');
 
--- Retention policy
-SELECT add_retention_policy('route_risk_observation', INTERVAL '365 days');
+-- Retention policy (V007; 90 days, not 365)
+SELECT add_retention_policy('route_risk_observation', INTERVAL '90 days');
 ```
 
 ### Future: tenant_id hash sharding with Citus
@@ -319,3 +321,100 @@ before cutover.
 backend behind an interface. Swapping pgvector for a dedicated vector DB
 changes the implementation, not the callers. The RRF fusion and
 cross-encoder reranking layers are backend-agnostic.
+
+---
+
+## Database Observability & Operations
+
+Scaling decisions are only as good as the measurements behind them. This
+section defines the standing database observability and maintenance program;
+the scheduled pieces are created by migration V017 (see
+[ADR-0020](../adr/0020-database-scale-sharding.md)).
+
+### pg_stat_statements
+
+Enabled by V017 (`CREATE EXTENSION IF NOT EXISTS pg_stat_statements`,
+preloaded via `shared_preload_libraries`). The `v_query_performance` view
+ranks queries by total and mean execution time and exposes `rows_per_call`,
+which is the fastest way to find a missing index (a query returning 50k rows
+per call to produce one screen of data is a scan that should be a seek).
+
+- Review the top 20 by `total_ms` weekly; investigate anything new.
+- Reset the baseline (`SELECT pg_stat_statements_reset();`) after each
+  schema migration so pre/post comparisons are clean.
+- This view is also the measurement source for the ADR-0020 sharding
+  triggers (sustained ingest rate, hot query shapes).
+
+### Slow query log
+
+`log_min_duration_statement = 250` is set on `postgres-primary` in
+`compose.yaml` (production-data profile) and should be mirrored in the RDS
+parameter group. 250 ms sits above the p95 target for interactive queries
+and below the level where users abandon dashboards. Anything logged at this
+threshold gets an `EXPLAIN (ANALYZE, BUFFERS)` in the relevant runbook entry
+before it is tuned - no intuition-only index additions.
+
+### Autovacuum tuning
+
+The workload has two distinct table personalities; tune per table, not
+globally:
+
+- **Append-only tables** (`audit_log`, `usage_record` partitions,
+  `route_risk_observation` chunks): updates are rare, so vacuum matters less
+  than statistics freshness. Raise `autovacuum_vacuum_scale_factor` (e.g.
+  0.2) and keep `autovacuum_analyze_scale_factor` low (0.05) so planners see
+  new data. Immutable detached partitions can have autovacuum disabled
+  entirely.
+- **High-churn tables** (`saved_route`, `saved_place`, `tenant_member`,
+  `subscription`): `updated_at` triggers rewrite rows on every update and
+  soft-delete accumulates dead tuples behind partial indexes. Leave defaults
+  or lower `autovacuum_vacuum_scale_factor` (0.05) if
+  `n_dead_tup` grows.
+
+Watch `pg_stat_user_tables.n_dead_tup` and `last_autovacuum` per table;
+a growing `n_dead_tup` on a hot table is index bloat in the making.
+
+### Replication lag monitoring
+
+Per ADR-0013 the replica is async with ~10-100 ms typical lag. Monitor:
+
+```sql
+-- On the primary: per-replica lag
+SELECT application_name, state,
+       pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn) AS lag_bytes,
+       replay_lag
+FROM pg_stat_replication;
+
+-- On the replica: local view of replay delay
+SELECT pg_last_wal_replay_lag();
+```
+
+Alert thresholds: `replay_lag > 1s` sustained for 30 s (read-staleness
+budget), and any replication slot whose `confirmed_flush_lsn` stops
+advancing (the Debezium slot will retain WAL while Kafka is down and can
+fill the disk - `pg_replication_slots.confirmed_flush_lsn` is a disk-usage
+proxy).
+
+### Scheduled jobs (pg_cron, created by V017)
+
+| Job | Schedule (UTC) | Purpose |
+| --- | --- | --- |
+| `refresh_mv_workspace_usage_summary` | every 5 min | `REFRESH MATERIALIZED VIEW CONCURRENTLY` for the usage dashboard (V012) |
+| `refresh_mv_tenant_risk_summary` | hourly at :05 | Same for the risk dashboard; offset from the TimescaleDB continuous-aggregate refreshes |
+| `create_usage_partitions` | daily 02:10 | Proactively creates current + next month `usage_record` partitions (V004 trigger remains the fallback) |
+| `cleanup_idempotency_keys` | every 15 min | Deletes expired `idempotency_key` rows via the V011 partial index |
+| `archive_audit_log` | not scheduled | No-op stub; activates with the S3 export pipeline (ADR-0020) |
+
+TimescaleDB's own background policies run alongside these: chunk compression
+after 30 days and drop after 90 days on `route_risk_observation` (V007 +
+V017), and continuous-aggregate refreshes for `cagg_risk_hourly` /
+`cagg_risk_daily` (V007). Do not duplicate them in pg_cron.
+
+pg_cron requires `shared_preload_libraries` to include `pg_cron` and
+`cron.database_name` to point at the app database (`atmospath`); both are
+set in `compose.yaml` for the primary. The `production-data` profile uses
+`timescale/timescaledb-ha:pg16` because the plain `timescale/timescaledb`
+image does not bundle pg_cron; V017 detects a missing pg_cron and skips job
+creation with a WARNING instead of failing the migration. If a job silently
+never runs, check the preload list first - V017 logs a WARNING at migration
+time when it is missing.

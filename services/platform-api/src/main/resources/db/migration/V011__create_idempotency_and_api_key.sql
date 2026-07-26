@@ -10,10 +10,10 @@ CREATE TABLE idempotency_key (
     PRIMARY KEY (tenant_id, operation, key_hash)
 );
 
--- TTL cleanup index: find expired keys efficiently
+-- TTL cleanup index: serves `DELETE ... WHERE expires_at < now()`.
+-- Plain btree (a partial predicate on now() is illegal: now() is STABLE, not IMMUTABLE).
 CREATE INDEX idx_idempotency_key_expires
-    ON idempotency_key (expires_at)
-    WHERE expires_at < now();
+    ON idempotency_key (expires_at);
 
 -- Lookup by tenant + operation
 CREATE INDEX idx_idempotency_key_tenant_op
@@ -33,10 +33,10 @@ CREATE TABLE api_key (
 CREATE INDEX idx_api_key_tenant ON api_key (tenant_id);
 CREATE INDEX idx_api_key_member ON api_key (member_id) WHERE member_id IS NOT NULL;
 
--- Expired API keys cleanup index
+-- Expired API keys cleanup index (plain btree; partial now() predicate is illegal).
 CREATE INDEX idx_api_key_expired
     ON api_key (expires_at)
-    WHERE expires_at IS NOT NULL AND expires_at < now();
+    WHERE expires_at IS NOT NULL;
 
 -- RLS for tables created in this migration
 ALTER TABLE idempotency_key ENABLE ROW LEVEL SECURITY;
