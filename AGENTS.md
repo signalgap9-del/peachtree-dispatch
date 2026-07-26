@@ -1,3 +1,15 @@
+# Development Standards (MANDATORY - read first)
+
+All development on this repository MUST follow [`docs/DEVELOPMENT-STANDARDS.md`](docs/DEVELOPMENT-STANDARDS.md).
+It is the standing work instruction (작업지시서) for every coding task.
+
+Before any coding work:
+
+- Read and follow `docs/DEVELOPMENT-STANDARDS.md` in full.
+- Honor the required reading in `docs/required-reading/` (Software Engineering at Google; Chrome Team First PR Guide) for the chapters that apply to the current task.
+- Always invoke the production-grade skill(s) that match the work type (see the skill-mapping table in the standards doc). At minimum: `test-driven-development` for any logic, `frontend-ui-engineering` for any UI, `security-and-hardening` for anything auth/input/data, and `code-review-and-quality` before committing.
+- Meet the Definition of Done in the standards doc before declaring a task complete: tests pass, lint/build clean, UI verified at 375px + 1440px, no a11y regressions, decisions recorded as ADRs, small focused commits.
+
 # AWS Project Rules
 
 - Use `us-east-1` unless a service requirement says otherwise.
