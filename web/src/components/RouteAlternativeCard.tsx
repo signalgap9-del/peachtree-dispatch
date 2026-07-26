@@ -9,19 +9,27 @@ export function RouteAlternativeCard({
   decision,
   selected,
   onSelect,
+  emphasized = false,
+  secondary = false,
 }: {
   alternative: RouteAlternative;
   fastest: RouteAlternative;
   decision: RouteDecision | null;
   selected: boolean;
   onSelect: () => void;
+  emphasized?: boolean;
+  secondary?: boolean;
 }) {
   const riskDelta = fastest.risk_score - alternative.risk_score;
   const timeDelta = Math.round(alternative.duration_minutes - fastest.duration_minutes);
   const recommended = decision?.recommendedAlternativeId === alternative.alternative_id;
   const hazards = hazardKinds(alternative.hazards);
   return (
-    <button type="button" className={`alternative-card ${selected ? "selected" : ""}`} onClick={onSelect}>
+    <button
+      type="button"
+      className={`alternative-card ${selected ? "selected" : ""} ${emphasized ? "emphasized" : ""} ${secondary ? "secondary" : ""}`}
+      onClick={onSelect}
+    >
       <span className="alternative-top">
         <strong>{alternative.label}</strong>
         <em>{formatDuration(alternative.duration_minutes)}</em>

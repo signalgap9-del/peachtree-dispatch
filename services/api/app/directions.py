@@ -55,6 +55,9 @@ def build_directions(command: DirectionsRequest) -> DirectionsPlan:
     ]
     alternatives.sort(key=lambda item: item.duration_minutes)
     _label_alternatives(alternatives)
+    recommended, low_risk, recommendation_reason = _build_recommendation(
+        alternatives, command.risk_threshold
+    )
     primary = alternatives[0]
     return DirectionsPlan(
         generated_at=datetime.now(UTC),
@@ -71,6 +74,10 @@ def build_directions(command: DirectionsRequest) -> DirectionsPlan:
         alternatives=alternatives,
         decision=_build_route_decision(alternatives),
         segments=_build_route_segments(primary.weather),
+        risk_threshold=command.risk_threshold,
+        low_risk=low_risk,
+        recommended=recommended,
+        recommendation_reason=recommendation_reason,
     )
 
 
@@ -272,6 +279,35 @@ def _label_alternatives(alternatives: list[RouteAlternative]) -> None:
     for alternative in alternatives:
         if alternative.label == "Alternative":
             alternative.label = "Balanced"
+
+
+def _build_recommendation(
+    alternatives: list[RouteAlternative], risk_threshold: int
+) -> tuple[str, bool, str]:
+    """Risk-aware smart default: decide whether the fastest route is the recommendation.
+
+    Returns (recommended, low_risk, recommendation_reason) where recommended is
+    "fastest" or "lower_risk" and low_risk is True when the fastest route's risk
+    stays below the user's threshold.
+    """
+    fastest = min(alternatives, key=lambda item: item.duration_minutes)
+    lowest_risk = min(alternatives, key=lambda item: (item.risk_score, item.duration_minutes))
+    if fastest.risk_score < risk_threshold:
+        reason = f"Fastest route has low risk ({fastest.risk_score}/100) - no need to detour."
+        return "fastest", True, reason
+    if lowest_risk is fastest:
+        reason = (
+            f"Fastest route risk is elevated ({fastest.risk_score}/100), "
+            "but no alternative lowers it."
+        )
+        return "fastest", False, reason
+    time_delta = round(lowest_risk.duration_minutes - fastest.duration_minutes)
+    reason = (
+        f"Fastest route has high risk ({fastest.risk_score}/100). "
+        f"The lower-risk route adds {_format_duration(time_delta)} "
+        f"but reduces risk to {lowest_risk.risk_score}/100."
+    )
+    return "lower_risk", False, reason
 
 
 def _build_route_decision(alternatives: list[RouteAlternative]) -> RouteDecision | None:

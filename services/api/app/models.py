@@ -184,6 +184,7 @@ class DirectionsRequest(BaseModel):
     origin: Place
     destination: Place
     vehicle_type: VehicleType = VehicleType.CAR
+    risk_threshold: int = Field(default=40, ge=1, le=100)
 
 
 class DirectionsPlan(BaseModel):
@@ -202,6 +203,10 @@ class DirectionsPlan(BaseModel):
     decision: RouteDecision | None = None
     segments: list[RouteRiskSegment] = Field(default_factory=list)
     model_version: str = "route-risk-v0.2"
+    risk_threshold: int = 40
+    low_risk: bool = True
+    recommended: str = "fastest"
+    recommendation_reason: str = ""
 
 
 class RiskAlert(BaseModel):

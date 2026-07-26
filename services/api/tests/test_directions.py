@@ -1,12 +1,14 @@
 from app.directions import (
     _build_route_decision,
     _build_route_segments,
+    _build_recommendation,
     _label_alternatives,
     _sample_geometry,
     _search_open_meteo_places,
     _weather_from_payload,
+    build_directions,
 )
-from app.models import RouteAlternative, WeatherRisk
+from app.models import DirectionsRequest, Place, RouteAlternative, WeatherRisk
 
 
 def alternative(identifier: str, minutes: float, risk: int) -> RouteAlternative:
@@ -20,6 +22,17 @@ def alternative(identifier: str, minutes: float, risk: int) -> RouteAlternative:
         risk_score=risk,
         weather=[],
         hazards=[],
+    )
+
+
+def place(identifier: str, city: str, latitude: float, longitude: float) -> Place:
+    return Place(
+        place_id=identifier,
+        display_name=f"{city}, FL",
+        city=city,
+        state="FL",
+        latitude=latitude,
+        longitude=longitude,
     )
 
 
@@ -124,3 +137,98 @@ def test_open_meteo_place_fallback(monkeypatch) -> None:
 
     assert places[0].city == "Miami Beach"
     assert places[0].state == "Florida"
+
+
+def test_recommendation_low_risk_keeps_fastest() -> None:
+    routes = [alternative("fast", 60, 23), alternative("safe", 95, 12), alternative("mid", 70, 31)]
+    _label_alternatives(routes)
+
+    recommended, low_risk, reason = _build_recommendation(routes, 40)
+
+    assert recommended == "fastest"
+    assert low_risk is True
+    assert "23/100" in reason
+    assert "no need to detour" in reason
+
+
+def test_recommendation_high_risk_prefers_lower_risk_with_tradeoff() -> None:
+    routes = [alternative("fast", 60, 68), alternative("safe", 95, 19), alternative("mid", 70, 55)]
+    _label_alternatives(routes)
+
+    recommended, low_risk, reason = _build_recommendation(routes, 40)
+
+    assert recommended == "lower_risk"
+    assert low_risk is False
+    assert "68/100" in reason
+    assert "19/100" in reason
+    assert "35 min" in reason
+
+
+def test_recommendation_respects_custom_threshold() -> None:
+    routes = [alternative("fast", 60, 50), alternative("safe", 95, 19)]
+    _label_alternatives(routes)
+
+    recommended, low_risk, _reason = _build_recommendation(routes, 70)
+
+    assert recommended == "fastest"
+    assert low_risk is True
+
+
+def test_recommendation_threshold_boundary_recommends_lower_risk() -> None:
+    routes = [alternative("fast", 60, 40), alternative("safe", 80, 18)]
+    _label_alternatives(routes)
+
+    recommended, low_risk, _reason = _build_recommendation(routes, 40)
+
+    assert recommended == "lower_risk"
+    assert low_risk is False
+
+
+def test_recommendation_no_safer_alternative_stays_fastest() -> None:
+    routes = [alternative("only", 60, 77)]
+    _label_alternatives(routes)
+
+    recommended, low_risk, reason = _build_recommendation(routes, 40)
+
+    assert recommended == "fastest"
+    assert low_risk is False
+    assert "no alternative" in reason
+
+
+def test_build_directions_smart_default_and_backward_compat(monkeypatch) -> None:
+    scored = [
+        alternative("route-1", 60, 68),
+        alternative("route-2", 95, 19),
+        alternative("route-3", 72, 50),
+    ]
+
+    def fake_score(index: int, candidate: object, command: object) -> RouteAlternative:
+        route = scored[index]
+        if isinstance(candidate, tuple):
+            route.coordinates = candidate[0]
+        return route
+
+    monkeypatch.setattr(
+        "app.directions.fetch_route_alternatives",
+        lambda waypoints: [([[-80.0, 25.0], [-80.2, 26.0]], 50.0, 60.0)] * 3,
+    )
+    monkeypatch.setattr("app.directions._score_candidate", fake_score)
+    command = DirectionsRequest(
+        origin=place("origin", "Miami", 25.76, -80.19),
+        destination=place("destination", "Orlando", 28.54, -81.38),
+    )
+
+    plan = build_directions(command)
+
+    # Smart default fields
+    assert plan.recommended == "lower_risk"
+    assert plan.low_risk is False
+    assert plan.risk_threshold == 40
+    assert "68/100" in plan.recommendation_reason
+    assert "19/100" in plan.recommendation_reason
+    # Backward compatibility: alternatives still present and labeled
+    labels = {route.alternative_id: route.label for route in plan.alternatives}
+    assert labels["route-1"] == "Fastest"
+    assert labels["route-2"] == "Lower weather risk"
+    assert labels["route-3"] == "Balanced"
+    assert plan.decision is not None

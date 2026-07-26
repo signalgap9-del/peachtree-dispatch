@@ -1,8 +1,9 @@
-import { Activity, Bell, ChevronRight, Database, Info, Trash2 } from "lucide-react";
+import { Activity, Bell, ChevronRight, Database, Info, ShieldAlert, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import type { Navigate } from "./App";
 import { useI18n, languageKey } from "./i18n";
+import { RISK_THRESHOLD_PRESETS, loadRiskThreshold, saveRiskThreshold } from "./riskThreshold";
 import { notify } from "./ui";
 
 const APP_VERSION = "0.1.0";
@@ -31,6 +32,7 @@ export function loadNotifyPrefs(): NotifyPrefs {
 export function SettingsPage({ navigate }: { navigate: Navigate }) {
   const { t } = useI18n();
   const [prefs, setPrefs] = useState<NotifyPrefs>(() => loadNotifyPrefs());
+  const [riskThreshold, setRiskThreshold] = useState<number>(() => loadRiskThreshold());
   const [confirming, setConfirming] = useState(false);
 
   function updatePrefs(patch: Partial<NotifyPrefs>) {
@@ -43,6 +45,12 @@ export function SettingsPage({ navigate }: { navigate: Navigate }) {
       }
       return next;
     });
+    notify(t("toast.preferencesSaved"), "success");
+  }
+
+  function updateRiskThreshold(value: number) {
+    setRiskThreshold(value);
+    saveRiskThreshold(value);
     notify(t("toast.preferencesSaved"), "success");
   }
 
@@ -110,6 +118,31 @@ export function SettingsPage({ navigate }: { navigate: Navigate }) {
               onChange={(event) => updatePrefs({ threshold: Number(event.target.value) })}
             />
             <output>{prefs.threshold}</output>
+          </div>
+        </div>
+      </section>
+
+      <section className="surface settings-section">
+        <div className="settings-section-head">
+          <i><ShieldAlert size={18} /></i>
+          <div><strong>{t("settings.riskThresholdSection")}</strong><small>{t("settings.riskThresholdSectionDetail")}</small></div>
+        </div>
+        <div className="settings-row">
+          <div className="settings-row-text"><strong>{t("settings.riskThreshold")}</strong><small>{t("settings.riskThresholdDetail")}</small></div>
+          <div className="segmented-control" role="radiogroup" aria-label={t("settings.riskThreshold")}>
+            {RISK_THRESHOLD_PRESETS.map((preset) => (
+              <button
+                key={preset.value}
+                type="button"
+                role="radio"
+                aria-checked={riskThreshold === preset.value}
+                className={riskThreshold === preset.value ? "active" : ""}
+                onClick={() => updateRiskThreshold(preset.value)}
+              >
+                <strong>{preset.label}</strong>
+                <small>{preset.value}</small>
+              </button>
+            ))}
           </div>
         </div>
       </section>

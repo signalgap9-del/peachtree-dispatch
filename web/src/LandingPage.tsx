@@ -1,15 +1,17 @@
 import {
   ArrowRight,
   ArrowUpRight,
+  Car,
+  Caravan,
   Check,
   CheckCircle2,
   CloudRain,
-  ListOrdered,
-  Mail,
+  Gauge,
   MapPin,
   Menu,
   Mic,
   Radar,
+  Route,
   Send,
   ShieldAlert,
   ShieldCheck,
@@ -136,7 +138,7 @@ function Brand({ onClick }: { onClick?: () => void }) {
 const NAV_LINKS = [
   { href: "#how", label: "How it works" },
   { href: "#compare", label: "Route call" },
-  { href: "#dispatcher", label: "Dispatcher AI" },
+  { href: "#assistant", label: "Assistant" },
   { href: "#features", label: "Features" },
   { href: "#pricing", label: "Pricing" },
 ];
@@ -243,7 +245,7 @@ function RouteBoard() {
           <ShieldCheck size={18} />
         </span>
         <span>
-          <small>Lane swap</small>
+          <small>Route swap</small>
           <strong>
             <b>58</b>
             <i>&rarr;</i>
@@ -254,7 +256,7 @@ function RouteBoard() {
       <div className={`fs-board${inView ? " is-drawn" : ""}`}>
         <div className="fs-board-bar">
           <span>
-            <strong>SEA &rarr; MIA</strong> &middot; LOAD #4821 &middot; 2 LANES SCORED
+            <strong>SEA &rarr; MIA</strong> &middot; 2 ROUTES SCORED
           </span>
           <span className="fs-board-live">
             <i className="fs-live-dot fs-live-dot-green" /> LIVE &middot; NWS FEED
@@ -299,7 +301,7 @@ function RouteBoard() {
             <text className="fs-map-note" x="470" y="472" textAnchor="middle" fill="#C5221F">STORM TRACK</text>
           </g>
 
-          {/* lane A - fastest, risky */}
+          {/* route A - fastest, risky */}
           <path
             className="fs-route"
             pathLength={1}
@@ -307,7 +309,7 @@ function RouteBoard() {
             stroke="#D93025"
             strokeWidth="3.5"
           />
-          {/* lane B - lower risk */}
+          {/* route B - lower risk */}
           <path
             className="fs-route fs-route-b"
             pathLength={1}
@@ -316,11 +318,11 @@ function RouteBoard() {
             strokeWidth="3.5"
           />
 
-          {/* lane labels */}
-          <text className="fs-map-note" x="262" y="40" textAnchor="middle" fill="#188038">LANE B &middot; 4,039 MI</text>
-          <text className="fs-map-note" x="128" y="178" textAnchor="middle" fill="#C5221F">LANE A &middot; 3,658 MI</text>
+          {/* route labels */}
+          <text className="fs-map-note" x="262" y="40" textAnchor="middle" fill="#188038">ROUTE B &middot; 4,039 MI</text>
+          <text className="fs-map-note" x="128" y="178" textAnchor="middle" fill="#C5221F">ROUTE A &middot; 3,658 MI</text>
 
-          {/* hazard chips along lane A */}
+          {/* hazard chips along route A */}
           <HazardChip x={232} y={208} label="WIND 22" color="#F9AB00" />
           <HazardChip x={330} y={300} label="HEAT 28" color="#E8710A" />
           <HazardChip x={452} y={396} label="RAIN 23" color="#669DF6" below />
@@ -346,10 +348,10 @@ function RouteBoard() {
         </svg>
         <div className="fs-board-legend">
           <span>
-            <i className="fs-legend-line" style={{ background: "#188038" }} /> LANE B &middot; LOWER RISK &middot; 77.9 HRS
+            <i className="fs-legend-line" style={{ background: "#188038" }} /> ROUTE B &middot; LOWER RISK &middot; 77.9 HRS
           </span>
           <span>
-            <i className="fs-legend-line" style={{ background: "#D93025" }} /> LANE A &middot; FASTEST &middot; 69.4 HRS
+            <i className="fs-legend-line" style={{ background: "#D93025" }} /> ROUTE A &middot; FASTEST &middot; 69.4 HRS
           </span>
         </div>
       </div>
@@ -358,7 +360,7 @@ function RouteBoard() {
           <TriangleAlert size={17} />
         </span>
         <span>
-          <small>Climate delay &middot; Lane A</small>
+          <small>Weather delay &middot; Route A</small>
           <strong>628 MIN</strong>
         </span>
       </div>
@@ -374,31 +376,32 @@ function HeroSection() {
         <div>
           <Reveal>
             <span className="fs-live-chip">
-              <i className="fs-live-dot" /> 42 active alerts on monitored corridors
+              <i className="fs-live-dot" /> 42 active weather alerts on US highways
             </span>
           </Reveal>
           <Reveal delay={90}>
             <h1 className="fs-h1" id="fs-hero-title">
-              Know which
+              Know the
               <br />
-              corridor is <em>safe</em>
+              <em>safer</em> route
               <br />
-              before you dispatch.
+              before you leave.
             </h1>
           </Reveal>
           <Reveal delay={180}>
             <p className="fs-hero-sub">
-              FreightScaler scores every lane against live NWS / NOAA alerts, forecast models, and historical
-              climate delay &mdash; so dispatch sends trucks down the miles that hold schedule.
+              FreightScaler is an AI risk engine for every driver &mdash; car, van, or truck. It scores every
+              possible route against live NWS / NOAA alerts, forecast models, and historical weather delay, so
+              you know which way is safer before you turn the key.
             </p>
           </Reveal>
           <Reveal delay={260}>
             <div className="fs-hero-cta">
               <button className="fs-btn fs-btn-primary" onClick={() => navigate("/app/map")}>
-                Plan a corridor <ArrowRight size={16} />
+                Plan a route <ArrowRight size={16} />
               </button>
               <a className="fs-btn fs-btn-outline" href="#compare">
-                See the SEA &rarr; MIA call
+                See a real route call
               </a>
             </div>
           </Reveal>
@@ -406,11 +409,11 @@ function HeroSection() {
             <div className="fs-hero-stats">
               <div>
                 <strong>3,658 mi</strong>
-                <span>Fastest lane</span>
+                <span>Fastest route</span>
               </div>
               <div>
                 <strong>4,039 mi</strong>
-                <span>Lower-risk lane</span>
+                <span>Lower-risk route</span>
               </div>
               <div>
                 <strong>10.5 hrs</strong>
@@ -443,7 +446,7 @@ function MetricStrip() {
             {alerts}
             <span className="fs-strip-live">LIVE</span>
           </strong>
-          <span>Active corridor alerts right now</span>
+          <span>Active weather alerts on major routes right now</span>
         </div>
         <div className="fs-strip-cell">
           <strong>{(scores / 10).toFixed(1)}M</strong>
@@ -458,7 +461,122 @@ function MetricStrip() {
             {delay}
             <span className="fs-strip-unit">MIN</span>
           </strong>
-          <span>Climate delay flagged on the SEA &rarr; MIA fast lane</span>
+          <span>Weather delay flagged on the SEA &rarr; MIA fast route</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ---------- risk threshold intelligence ---------- */
+
+function ThresholdGauge() {
+  const { ref, inView } = useInView<HTMLDivElement>(0.4);
+  return (
+    <div className="fs-gauge" ref={ref}>
+      <div className={`fs-gauge-track${inView ? " is-in" : ""}`}>
+        <i className="fs-gauge-fill" />
+        <span className="fs-gauge-mark" style={{ left: "40%" }}>
+          <em>DETOUR THRESHOLD &middot; 40</em>
+        </span>
+      </div>
+      <div className="fs-gauge-labels">
+        <span>0 &middot; CALM</span>
+        <span>100 &middot; SEVERE</span>
+      </div>
+    </div>
+  );
+}
+
+function ThresholdSection() {
+  return (
+    <section className="fs-thresh" id="threshold" aria-labelledby="fs-thresh-title">
+      <div className="fs-shell">
+        <div className="fs-thresh-head">
+          <Reveal>
+            <span className="fs-eyebrow">Risk threshold engine</span>
+            <h2 className="fs-h2" id="fs-thresh-title">
+              We don&rsquo;t cry wolf.
+            </h2>
+          </Reveal>
+          <Reveal delay={120}>
+            <p className="fs-lede">
+              FreightScaler recommends your fastest route when it&rsquo;s safe &mdash; and only suggests a detour
+              when risk actually warrants it. No jump scares, no fifty reroutes a day. One threshold, applied to
+              every mile.
+            </p>
+          </Reveal>
+        </div>
+        <Reveal delay={160}>
+          <ThresholdGauge />
+        </Reveal>
+        <div className="fs-thresh-cards">
+          <Reveal delay={0}>
+            <article className="fs-thresh-card fs-thresh-ok">
+              <div className="fs-thresh-meta">
+                <span>
+                  <i className="fs-live-dot fs-live-dot-green" /> TUESDAY 06:00 &middot; I-90 W
+                </span>
+                <em className="fs-thresh-chip fs-thresh-chip-ok">RISK 12</em>
+              </div>
+              <svg className="fs-thresh-map" viewBox="0 0 300 96" aria-hidden="true">
+                <path
+                  className="fs-thresh-line"
+                  pathLength={1}
+                  d="M14 66 C 80 58, 150 52, 286 40"
+                  fill="none"
+                  stroke="#188038"
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                />
+                <circle cx="14" cy="66" r="4" fill="#0B57D0" />
+                <rect x="-3.5" y="-3.5" width="7" height="7" rx="1.8" fill="#0B57D0" transform="translate(286 40) rotate(45)" />
+              </svg>
+              <h3>Take the fast route</h3>
+              <p>Nothing on the radar. We point you at the quickest way and stay out of your lane.</p>
+            </article>
+          </Reveal>
+          <Reveal delay={140}>
+            <article className="fs-thresh-card fs-thresh-warn">
+              <div className="fs-thresh-meta">
+                <span>
+                  <i className="fs-live-dot" /> FRIDAY 06:00 &middot; I-10 S
+                </span>
+                <em className="fs-thresh-chip fs-thresh-chip-warn">RISK 58</em>
+              </div>
+              <svg className="fs-thresh-map" viewBox="0 0 300 96" aria-hidden="true">
+                <path
+                  className="fs-thresh-line"
+                  pathLength={1}
+                  d="M14 66 C 90 62, 180 56, 286 40"
+                  fill="none"
+                  stroke="#D93025"
+                  strokeWidth="2.5"
+                  strokeDasharray="5 6"
+                  strokeLinecap="round"
+                  opacity="0.55"
+                />
+                <path
+                  className="fs-thresh-line fs-thresh-line-alt"
+                  pathLength={1}
+                  d="M14 66 C 70 30, 170 18, 230 26 C 262 30, 278 34, 286 40"
+                  fill="none"
+                  stroke="#188038"
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                />
+                <circle cx="168" cy="58" r="9" fill="#D93025" opacity="0.14" />
+                <circle cx="168" cy="58" r="3" fill="#D93025" />
+                <circle cx="14" cy="66" r="4" fill="#0B57D0" />
+                <rect x="-3.5" y="-3.5" width="7" height="7" rx="1.8" fill="#0B57D0" transform="translate(286 40) rotate(45)" />
+              </svg>
+              <h3>Here&rsquo;s the safer way</h3>
+              <p>
+                A storm track crosses I-10. You get a 42-mile detour with the numbers attached &mdash; and only
+                then.
+              </p>
+            </article>
+          </Reveal>
         </div>
       </div>
     </section>
@@ -477,12 +595,13 @@ function HowSection() {
             <h2 className="fs-h2" id="fs-how-title">
               Three moves.
               <br />
-              One clean corridor.
+              One safer trip.
             </h2>
           </Reveal>
           <Reveal delay={120}>
             <p className="fs-lede">
-              No weather tab, no radar app, no gut feel. FreightScaler folds risk straight into the routing.
+              No weather tab, no radar app, no gut feel. FreightScaler folds risk straight into the routing &mdash;
+              for a school run or a 4,000-mile haul.
             </p>
           </Reveal>
         </div>
@@ -493,16 +612,16 @@ function HowSection() {
           <Reveal className="fs-step" delay={0}>
             <span className="fs-step-badge">01</span>
             <div className="fs-step-card">
-              <h3>Plan the run</h3>
-              <p>Drop origin, destination, cargo, and your window &mdash; or type it the way you&rsquo;d call it in over the radio.</p>
+              <h3>Plan the trip</h3>
+              <p>Pick your vehicle, drop origin and destination, set your window &mdash; or just type it the way you&rsquo;d say it out loud.</p>
               <div className="fs-step-mock">
                 <div className="fs-step-input">
                   <MapPin size={13} /> SEA <ArrowRight size={12} /> MIA
                 </div>
                 <div className="fs-step-chips">
-                  <i>HAZMAT</i>
-                  <i>42,000 LB</i>
+                  <i>VAN</i>
                   <i>DEPART 08:00</i>
+                  <i>PREFER LOW RISK</i>
                 </div>
               </div>
             </div>
@@ -511,17 +630,17 @@ function HowSection() {
             <span className="fs-step-badge">02</span>
             <div className="fs-step-card">
               <h3>Compare the risk</h3>
-              <p>Every lane gets a 0&ndash;100 score built from live alerts, forecast models, and historical climate delay.</p>
+              <p>Every route gets a 0&ndash;100 score built from live alerts, forecast models, and historical weather delay.</p>
               <div className="fs-step-mock">
                 <div className="fs-step-lane">
-                  <b>LANE A</b>
+                  <b>RT A</b>
                   <span className="fs-step-bar">
                     <i style={{ "--w": "58%", background: "var(--fs-red)" } as CSSProperties} />
                   </span>
                   <em style={{ color: "var(--fs-red)" }}>58</em>
                 </div>
                 <div className="fs-step-lane">
-                  <b>LANE B</b>
+                  <b>RT B</b>
                   <span className="fs-step-bar">
                     <i style={{ "--w": "15%", background: "var(--fs-green)" } as CSSProperties} />
                   </span>
@@ -533,8 +652,8 @@ function HowSection() {
           <Reveal className="fs-step" delay={280}>
             <span className="fs-step-badge">03</span>
             <div className="fs-step-card">
-              <h3>Monitor the corridor</h3>
-              <p>Watches stay open until the truck parks. If weather moves on your lane, dispatch knows first.</p>
+              <h3>Watch the road</h3>
+              <p>Watches stay open until you park. If weather moves onto your route, you hear it first.</p>
               <div className="fs-step-mock">
                 <div className="fs-step-alert">
                   <i className="fs-live-dot" />
@@ -567,15 +686,15 @@ function CompareSection() {
       <div className="fs-shell">
         <div className="fs-compare-head">
           <Reveal>
-            <span className="fs-eyebrow">Route call &middot; SEA &rarr; MIA &middot; Load #4821</span>
+            <span className="fs-eyebrow">Route call &middot; SEA &rarr; MIA</span>
             <h2 className="fs-h2" id="fs-compare-title">
-              The fastest lane isn&rsquo;t always the cheapest lane.
+              The fastest route isn&rsquo;t always the smart route.
             </h2>
           </Reveal>
           <Reveal delay={120}>
             <p className="fs-lede">
-              Same 42,000 lb load, same deadline. Two ways to run it &mdash; here&rsquo;s the call FreightScaler put in
-              front of dispatch.
+              Same trip, same Friday deadline. Two ways to drive it &mdash; here&rsquo;s the call FreightScaler put
+              in front of the driver.
             </p>
           </Reveal>
         </div>
@@ -583,7 +702,7 @@ function CompareSection() {
           <Reveal delay={0}>
             <article className="fs-lane-card fs-lane-a">
               <div className="fs-lane-tags">
-                <span className="fs-lane-tag">LANE A &middot; FASTEST</span>
+                <span className="fs-lane-tag">ROUTE A &middot; FASTEST</span>
                 <span className="fs-risk-badge fs-risk-high">
                   <TriangleAlert size={12} /> RISK 58 &middot; HIGH
                 </span>
@@ -604,7 +723,7 @@ function CompareSection() {
                 </div>
                 <div>
                   <strong className="fs-hot">628<small>min</small></strong>
-                  <span>Climate delay</span>
+                  <span>Weather delay</span>
                 </div>
               </div>
               <div className="fs-hazbar">
@@ -623,14 +742,14 @@ function CompareSection() {
               </div>
               <p className="fs-lane-note">
                 Runs straight through an active Gulf storm track &mdash; three hazard segments, one of them severe.
-                10.5 hours of climate delay baked into the &ldquo;fastest&rdquo; ETA.
+                10.5 hours of weather delay baked into the &ldquo;fastest&rdquo; ETA.
               </p>
             </article>
           </Reveal>
           <Reveal delay={140}>
             <article className="fs-lane-card fs-lane-b">
               <div className="fs-lane-tags">
-                <span className="fs-lane-tag">LANE B &middot; LOWER RISK</span>
+                <span className="fs-lane-tag">ROUTE B &middot; LOWER RISK</span>
                 <span className="fs-risk-badge fs-risk-low">
                   <ShieldCheck size={12} /> RISK 15 &middot; RECOMMENDED
                 </span>
@@ -651,7 +770,7 @@ function CompareSection() {
                 </div>
                 <div>
                   <strong className="fs-cool">0<small>min</small></strong>
-                  <span>Climate delay</span>
+                  <span>Weather delay</span>
                 </div>
               </div>
               <div className="fs-hazbar">
@@ -663,8 +782,8 @@ function CompareSection() {
                 </div>
               </div>
               <p className="fs-lane-note">
-                381 extra miles that dodge the storm entirely, hold the delivery window, and keep the load &mdash; and
-                the driver &mdash; out of the claim file.
+                381 extra miles that dodge the storm entirely, hold the arrival window, and keep the trip &mdash; and
+                everyone in the vehicle &mdash; out of the weather&rsquo;s hands.
               </p>
             </article>
           </Reveal>
@@ -675,7 +794,7 @@ function CompareSection() {
               <CheckCircle2 size={20} />
             </span>
             <p>
-              <b>THE CALL: LANE B &mdash; I-40 E &rarr; I-81 S</b>
+              <b>THE CALL: ROUTE B &mdash; I-40 E &rarr; I-81 S</b>
               <span>8.5 extra hours of driving buys back 10.5 hours of storm delay and clears the Gulf track entirely.</span>
             </p>
             <em>RISK ENGINE v2.4 &middot; SCORED 06:12 CT</em>
@@ -686,84 +805,100 @@ function CompareSection() {
   );
 }
 
-/* ---------- dispatcher AI ---------- */
+/* ---------- AI assistant ---------- */
 
-function DispatcherSection() {
+function AssistantSection() {
   const navigate = useNavigate();
   return (
-    <section className="fs-dispatch" id="dispatcher" aria-labelledby="fs-dispatch-title">
+    <section className="fs-dispatch" id="assistant" aria-labelledby="fs-assistant-title">
       <div className="fs-shell fs-dispatch-grid">
         <div>
           <Reveal>
-            <span className="fs-eyebrow">AI dispatcher</span>
-            <h2 className="fs-h2" id="fs-dispatch-title">
-              Talk to it like you&rsquo;d talk to a driver.
+            <span className="fs-eyebrow">AI assistant</span>
+            <h2 className="fs-h2" id="fs-assistant-title">
+              Ask in plain English.
             </h2>
             <p className="fs-lede">
-              No forms, no drop-downs. Type the run the way you&rsquo;d call it in &mdash; FreightScaler reads the
-              constraints, checks hazmat rules, and hands back a scored lane.
+              No forms, no drop-downs. Type the trip the way you&rsquo;d say it &mdash; a weekend drive or a hazmat
+              haul. FreightScaler reads the constraints, scores the routes, and explains the call.
             </p>
           </Reveal>
           <Reveal delay={140}>
             <ul className="fs-checklist">
               <li>
-                <i><Check size={13} /></i> Reads plain-English constraints
+                <i><Check size={13} /></i> Reads plain-English trips, any vehicle
               </li>
               <li>
-                <i><Check size={13} /></i> Applies FHWA hazmat routing rules
+                <i><Check size={13} /></i> Knows truck &amp; FHWA hazmat rules (Pro)
               </li>
               <li>
-                <i><Check size={13} /></i> Returns a scored lane in about a second
+                <i><Check size={13} /></i> Returns scored routes in about a second
               </li>
             </ul>
           </Reveal>
           <Reveal delay={220}>
             <button className="fs-dispatch-link" onClick={() => navigate("/app")}>
-              Open the dispatcher <ArrowRight size={16} />
+              Open the assistant <ArrowRight size={16} />
             </button>
           </Reveal>
         </div>
         <Reveal delay={160}>
-          <div className="fs-chat" role="img" aria-label="Example dispatcher conversation: a natural language request turned into a scored route">
+          <div className="fs-chat" role="img" aria-label="Example assistant conversation: everyday and hazmat trip requests turned into a scored route">
             <div className="fs-chat-bar">
               <span>
-                <i className="fs-live-dot fs-live-dot-green" /> DISPATCH &middot; LOAD #4821
+                <i className="fs-live-dot fs-live-dot-green" /> ASSISTANT &middot; SEA &rarr; MIA
               </span>
               <em>06:04 CT</em>
             </div>
             <div className="fs-chat-body">
               <Reveal delay={80}>
                 <p className="fs-msg-user">
-                  Seattle to Miami, truck with hazmat, avoid highways, arrive before the storm
+                  Seattle to Miami on Friday &mdash; is the fast route safe?
                 </p>
               </Reveal>
-              <Reveal delay={240}>
+              <Reveal delay={220}>
+                <div className="fs-msg-ai">
+                  <p>
+                    Not this week. A Gulf storm track crosses I-10 around Friday &mdash; risk on the fast route is
+                    58, above my detour threshold.
+                  </p>
+                </div>
+              </Reveal>
+              <Reveal delay={360}>
+                <p className="fs-msg-user">
+                  Got it. Same trip, but I&rsquo;m hauling hazmat &mdash; keep it legal.
+                </p>
+              </Reveal>
+              <Reveal delay={500}>
                 <div className="fs-msg-ai">
                   <p>Copy. Locking constraints:</p>
                   <div className="fs-constraints">
+                    <i>MODE=TRUCK</i>
                     <i>HAZMAT=TRUE</i>
-                    <i>DEPART=08:00</i>
-                    <i>AVOID=HIGHWAYS</i>
+                    <i>AVOID=STORM TRACK</i>
                     <i>TARGET=MIN RISK</i>
                   </div>
                 </div>
               </Reveal>
-              <Reveal delay={420}>
+              <Reveal delay={640}>
                 <div className="fs-chat-route">
-                  <strong>Lane B &middot; I-40 E &rarr; I-81 S</strong>
+                  <strong>Route B &middot; I-40 E &rarr; I-81 S</strong>
                   <b>4,039 MI &middot; 77.9 HRS &middot; RISK 15</b>
-                  <p>Clears the Gulf storm track. Hazmat-legal the whole way, arrival 14 hours ahead of the cell.</p>
+                  <p>
+                    Clears the storm track and every hazmat-restricted corridor on the way. Arrival 14 hours ahead
+                    of the cell.
+                  </p>
                   <em>SOURCES: NWS &middot; NOAA &middot; FHWA HAZMAT</em>
                 </div>
               </Reveal>
-              <Reveal delay={560}>
+              <Reveal delay={760}>
                 <div className="fs-chat-status">
-                  <i /> SOLVED IN 1.2 S &middot; 2 LANES SCORED
+                  <i /> SOLVED IN 1.2 S &middot; 2 ROUTES SCORED
                 </div>
               </Reveal>
             </div>
             <div className="fs-chat-input">
-              <span>Message the dispatcher&hellip;</span>
+              <span>Ask about any trip&hellip;</span>
               <Mic size={16} />
               <span className="fs-chat-send">
                 <Send size={15} />
@@ -803,41 +938,91 @@ function HazmatVisual() {
   );
 }
 
+/* ---------- vehicle modes + features ---------- */
+
+const MODES = [
+  {
+    id: "car",
+    label: "Car",
+    icon: Car,
+    tier: "FREE",
+    note: "Daily drives and road trips - live alerts, risk scores, and saved routes.",
+  },
+  {
+    id: "van",
+    label: "Van",
+    icon: Caravan,
+    tier: "FREE + PRO",
+    note: "Campervans, cargo vans, and towing - add commercial routing and corridor watches.",
+  },
+  {
+    id: "truck",
+    label: "Truck",
+    icon: Truck,
+    tier: "PRO",
+    note: "Commercial miles - hazmat rules, fleet dispatch, corridor monitoring, and API access.",
+  },
+] as const;
+
+type ModeId = (typeof MODES)[number]["id"];
+
+function ModesBand() {
+  const [mode, setMode] = useState<ModeId>("car");
+  const active = MODES.find((m) => m.id === mode) ?? MODES[0];
+  const ActiveIcon = active.icon;
+  return (
+    <Reveal delay={100}>
+      <div className="fs-modes" role="group" aria-label="Vehicle modes">
+        {MODES.map(({ id, label, icon: Icon, tier }) => (
+          <button
+            key={id}
+            className={`fs-mode${mode === id ? " active" : ""}`}
+            aria-pressed={mode === id}
+            onClick={() => setMode(id)}
+          >
+            <Icon size={17} />
+            <span>{label}</span>
+            <i>{tier}</i>
+          </button>
+        ))}
+      </div>
+      <p className="fs-mode-note" key={mode}>
+        <ActiveIcon size={15} />
+        <b>{active.tier}</b>
+        <span>{active.note}</span>
+      </p>
+    </Reveal>
+  );
+}
+
 function FeaturesSection() {
   return (
     <section className="fs-features" id="features" aria-labelledby="fs-features-title">
       <div className="fs-shell">
         <Reveal>
-          <span className="fs-eyebrow">Built for freight</span>
+          <span className="fs-eyebrow">Car &middot; Van &middot; Truck</span>
           <h2 className="fs-h2" id="fs-features-title">
-            Everything dispatch needs,
+            One risk engine,
             <br />
-            nothing it has to babysit.
+            every driver.
           </h2>
+          <p className="fs-lede">
+            Free for everyday driving. Pro unlocks the commercial layer &mdash; hazmat, fleet dispatch, and
+            corridor monitoring.
+          </p>
         </Reveal>
+        <ModesBand />
         <div className="fs-bento">
-          <Reveal className="fs-cell-haz" delay={0}>
-            <div className="fs-cell">
-              <span className="fs-cell-icon fs-cell-icon-red">
-                <ShieldAlert size={20} />
-              </span>
-              <h3>Hazmat-aware routing</h3>
-              <p>
-                Routes around restricted corridors, tunnels, and population-dense zones &mdash; and keeps the
-                compliance trail attached to the load.
-              </p>
-              <div className="fs-cell-visual">
-                <HazmatVisual />
-              </div>
-            </div>
-          </Reveal>
-          <Reveal className="fs-cell-mon" delay={120}>
+          <Reveal className="fs-cell-alerts" delay={0}>
             <div className="fs-cell">
               <span className="fs-cell-icon">
                 <Radar size={20} />
               </span>
-              <h3>24/7 corridor monitoring</h3>
-              <p>Every lane your fleet runs, watched against live NWS and NOAA feeds &mdash; before weather becomes a claim.</p>
+              <h3>Live weather alerts</h3>
+              <p>
+                NWS and NOAA watches, warnings, and advisories &mdash; folded straight into the routes you drive,
+                the moment they&rsquo;re issued.
+              </p>
               <div className="fs-cell-visual">
                 <div className="fs-feed">
                   <div className="fs-feed-row">
@@ -862,37 +1047,66 @@ function FeaturesSection() {
               </div>
             </div>
           </Reveal>
-          <Reveal className="fs-cell-sto" delay={180}>
+          <Reveal className="fs-cell-scores" delay={120}>
             <div className="fs-cell">
-              <span className="fs-cell-icon fs-cell-icon-amber">
-                <ListOrdered size={20} />
+              <span className="fs-cell-icon fs-cell-icon-green">
+                <Gauge size={20} />
               </span>
-              <h3>Multi-stop optimization</h3>
-              <p>Sequence 12 stops against the weather window, not around it.</p>
+              <h3>Route risk scores</h3>
+              <p>Every option gets a 0&ndash;100 score built from live alerts, forecast models, and historical delay. Not a vibe &mdash; a number.</p>
               <div className="fs-cell-visual">
-                <div className="fs-step-input">SEA 08:00 &rarr; PDX 14:30 &rarr; BOI 09:12+1</div>
+                <div className="fs-step-lane">
+                  <b>RT A</b>
+                  <span className="fs-step-bar">
+                    <i style={{ "--w": "58%", background: "var(--fs-red)" } as CSSProperties} />
+                  </span>
+                  <em style={{ color: "var(--fs-red)" }}>58</em>
+                </div>
+                <div className="fs-step-lane">
+                  <b>RT B</b>
+                  <span className="fs-step-bar">
+                    <i style={{ "--w": "15%", background: "var(--fs-green)" } as CSSProperties} />
+                  </span>
+                  <em style={{ color: "var(--fs-green)" }}>15</em>
+                </div>
               </div>
             </div>
           </Reveal>
-          <Reveal className="fs-cell-dig" delay={240}>
+          <Reveal className="fs-cell-saved" delay={180}>
             <div className="fs-cell">
-              <span className="fs-cell-icon fs-cell-icon-green">
-                <Mail size={20} />
+              <span className="fs-cell-icon fs-cell-icon-amber">
+                <Route size={20} />
               </span>
-              <h3>Alert digests</h3>
-              <p>A 06:00 corridor digest to SMS and email &mdash; before the first truck rolls.</p>
+              <h3>Saved routes</h3>
+              <p>Save the trips you run every week. We watch them and ping you when weather moves in.</p>
               <div className="fs-cell-visual">
-                <div className="fs-step-input">DAILY 06:00 &middot; SMS + EMAIL</div>
+                <div className="fs-step-input">
+                  <Route size={13} /> HOME &rarr; OFFICE &middot; WATCHED DAILY
+                </div>
+              </div>
+            </div>
+          </Reveal>
+          <Reveal className="fs-cell-haz" delay={240}>
+            <div className="fs-cell">
+              <span className="fs-pro-badge">PRO</span>
+              <span className="fs-cell-icon fs-cell-icon-red">
+                <ShieldAlert size={20} />
+              </span>
+              <h3>Hazmat-aware routing</h3>
+              <p>Routes around restricted corridors, tunnels, and dense zones &mdash; with the compliance trail attached.</p>
+              <div className="fs-cell-visual">
+                <HazmatVisual />
               </div>
             </div>
           </Reveal>
           <Reveal className="fs-cell-flt" delay={160}>
             <div className="fs-cell">
+              <span className="fs-pro-badge">PRO</span>
               <span className="fs-cell-icon">
                 <Truck size={20} />
               </span>
               <h3>Fleet dispatch board</h3>
-              <p>Every power unit, every lane, one board &mdash; risk per truck, not per spreadsheet.</p>
+              <p>Every power unit, every route, one board &mdash; risk per truck, not per spreadsheet.</p>
               <div className="fs-cell-visual">
                 <div className="fs-feed">
                   <div className="fs-fleet-row">
@@ -916,15 +1130,16 @@ function FeaturesSection() {
           </Reveal>
           <Reveal className="fs-cell-api" delay={220}>
             <div className="fs-cell">
+              <span className="fs-pro-badge">PRO</span>
               <span className="fs-cell-icon fs-cell-icon-amber">
                 <Webhook size={20} />
               </span>
-              <h3>API + TMS hooks</h3>
-              <p>Score corridors from your own TMS with a REST API and outbound webhooks.</p>
+              <h3>API + webhooks</h3>
+              <p>Score routes from your own TMS or app with a REST API and outbound webhooks.</p>
               <div className="fs-cell-visual">
                 <pre className="fs-code">
-                  <i>$</i> POST /v1/corridors/score{"\n"}
-                  <b>{'{ "risk": 15, "lane": "B" }'}</b>
+                  <i>$</i> POST /v1/routes/score{"\n"}
+                  <b>{'{ "risk": 15, "route": "B" }'}</b>
                 </pre>
               </div>
             </div>
@@ -946,29 +1161,33 @@ function PricingSection() {
           <Reveal>
             <span className="fs-eyebrow">Pricing</span>
             <h2 className="fs-h2" id="fs-pricing-title">
-              Priced per truck.
+              Free for the drive.
               <br />
-              Not per surprise.
+              Pro for the job.
             </h2>
           </Reveal>
           <Reveal delay={120}>
-            <p className="fs-lede">Start free, scale when the fleet does. Every tier ships with the full risk engine.</p>
+            <p className="fs-lede">
+              Every tier ships with the full risk engine. Pro adds the commercial muscle &mdash; hazmat, fleet,
+              and corridor ops.
+            </p>
           </Reveal>
         </div>
         <div className="fs-tiers">
           <Reveal delay={0}>
             <div className="fs-tier">
-              <span className="fs-tier-name">Owner-Operator</span>
-              <strong className="fs-tier-for">One truck, own lanes</strong>
+              <span className="fs-tier-name">Free</span>
+              <strong className="fs-tier-for">Everyday drivers</strong>
               <div className="fs-tier-price">
                 <strong>$0</strong>
                 <span>/ FOREVER</span>
               </div>
               <ul>
-                <li><Check size={15} /> 1 power unit</li>
-                <li><Check size={15} /> 3 corridor watches</li>
+                <li><Check size={15} /> Car &amp; van trip planning</li>
+                <li><Check size={15} /> Live weather alerts</li>
+                <li><Check size={15} /> Route risk scores</li>
+                <li><Check size={15} /> 3 saved route watches</li>
                 <li><Check size={15} /> Daily alert digest</li>
-                <li><Check size={15} /> Standard route scoring</li>
               </ul>
               <button className="fs-btn fs-btn-outline fs-btn-block" onClick={() => navigate("/app")}>
                 Start free
@@ -977,48 +1196,30 @@ function PricingSection() {
           </Reveal>
           <Reveal delay={130}>
             <div className="fs-tier fs-tier-pro">
-              <span className="fs-tier-badge">MOST DISPATCHED</span>
+              <span className="fs-tier-badge">FOR WORK</span>
               <span className="fs-tier-name">Pro</span>
-              <strong className="fs-tier-for">Regional dispatch teams</strong>
+              <strong className="fs-tier-for">Truck, van &amp; fleet</strong>
               <div className="fs-tier-price">
                 <strong>$29</strong>
-                <span>/ TRUCK / MO</span>
+                <span>/ VEHICLE / MO</span>
               </div>
               <ul>
-                <li><Check size={15} /> Up to 25 power units</li>
+                <li><Check size={15} /> Everything in Free</li>
+                <li><Check size={15} /> Truck routing + FHWA hazmat rules</li>
                 <li><Check size={15} /> Unlimited corridor watches</li>
                 <li><Check size={15} /> Live alert SMS + voice calls</li>
-                <li><Check size={15} /> Hazmat-aware routing</li>
-                <li><Check size={15} /> AI dispatcher + multi-stop optimization</li>
+                <li><Check size={15} /> Fleet dispatch board + multi-stop optimization</li>
+                <li><Check size={15} /> API + TMS webhooks</li>
               </ul>
               <button className="fs-btn fs-btn-primary fs-btn-block" onClick={() => navigate("/app/pricing")}>
                 Start 14-day trial
               </button>
             </div>
           </Reveal>
-          <Reveal delay={260}>
-            <div className="fs-tier">
-              <span className="fs-tier-name">Fleet</span>
-              <strong className="fs-tier-for">Dedicated dispatch ops</strong>
-              <div className="fs-tier-price">
-                <strong>Custom</strong>
-                <span>/ PER DISPATCHER SEAT</span>
-              </div>
-              <ul>
-                <li><Check size={15} /> Volume pricing per dispatcher</li>
-                <li><Check size={15} /> API + TMS integration</li>
-                <li><Check size={15} /> SSO / SAML</li>
-                <li><Check size={15} /> Dedicated freight-ops support</li>
-              </ul>
-              <a className="fs-btn fs-btn-outline fs-btn-block" href="mailto:hello@freightscaler.com">
-                Talk to freight ops
-              </a>
-            </div>
-          </Reveal>
         </div>
         <Reveal delay={120}>
           <p className="fs-pricing-note">
-            Checkout opens soon &mdash; early fleets lock launch pricing &middot;{" "}
+            Checkout opens soon &mdash; early drivers lock launch pricing &middot; fleets:{" "}
             <a href="mailto:hello@freightscaler.com">hello@freightscaler.com</a>
           </p>
         </Reveal>
@@ -1040,13 +1241,13 @@ function CtaBand() {
       </svg>
       <div className="fs-shell fs-cta-inner">
         <Reveal>
-          <h2 id="fs-cta-title">Your next load has a weather window. Find it.</h2>
+          <h2 id="fs-cta-title">Your next trip has a weather window. Find it.</h2>
         </Reveal>
         <Reveal delay={140} className="fs-cta-right">
           <button className="fs-btn fs-btn-inverse" onClick={() => navigate("/app/map")}>
             Open FreightScaler <ArrowRight size={16} />
           </button>
-          <span className="fs-cta-note">NO CARD REQUIRED &middot; FREE FOR OWNER-OPERATORS</span>
+          <span className="fs-cta-note">NO CARD REQUIRED &middot; FREE FOR EVERY DRIVER</span>
         </Reveal>
       </div>
     </section>
@@ -1061,7 +1262,7 @@ function LandingFooter() {
         <div className="fs-footer-grid">
           <div className="fs-footer-brand">
             <Brand />
-            <p>Weather-aware freight route planning for drivers, dispatchers, and fleet ops. freightscaler.com</p>
+            <p>Weather-aware route planning for car, van, and truck drivers. freightscaler.com</p>
             <button className="fs-status-chip" onClick={() => navigate("/app/status")}>
               <i className="fs-live-dot fs-live-dot-green" /> ALL SYSTEMS NOMINAL
             </button>
@@ -1069,8 +1270,8 @@ function LandingFooter() {
           <nav aria-label="Product">
             <strong>Product</strong>
             <button onClick={() => navigate("/app/map")}>Route planner</button>
-            <button onClick={() => navigate("/app/alerts")}>Corridor alerts</button>
-            <button onClick={() => navigate("/app/dashboard")}>Dispatch dashboard</button>
+            <button onClick={() => navigate("/app/alerts")}>Live alerts</button>
+            <button onClick={() => navigate("/app/dashboard")}>Dashboard</button>
             <button onClick={() => navigate("/app/pricing")}>Pricing</button>
           </nav>
           <nav aria-label="Company">
@@ -1110,9 +1311,10 @@ export default function LandingPage() {
       <main>
         <HeroSection />
         <MetricStrip />
+        <ThresholdSection />
         <HowSection />
         <CompareSection />
-        <DispatcherSection />
+        <AssistantSection />
         <FeaturesSection />
         <PricingSection />
         <CtaBand />

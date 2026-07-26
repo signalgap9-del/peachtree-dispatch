@@ -683,20 +683,12 @@ export function AlertsPage({ navigate, national, weatherSnapshot = null, weather
             <strong>{alerts.length} matching active alerts</strong>
             {alerts.map((alert) => (
               <div
-                role="button"
-                tabIndex={0}
                 className={selected?.alert_id === alert.alert_id ? "selected alert-card alert-card-rich" : "alert-card alert-card-rich"}
                 key={alert.alert_id}
                 onClick={() => setSelectedId(alert.alert_id)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    setSelectedId(alert.alert_id);
-                  }
-                }}
               >
                 <AlertTriangle size={18} />
-                <span><strong>{alert.event}</strong><small>{alert.area || "Affected U.S. region"}</small><em>{alertCategoryLabel(alertCategory(alert))} · {alert.urgency || "Unknown urgency"}</em>
+                <span><strong><button type="button" className="alert-card-select" onClick={(event) => { event.stopPropagation(); setSelectedId(alert.alert_id); }}>{alert.event}</button></strong><small>{alert.area || "Affected U.S. region"}</small><em>{alertCategoryLabel(alertCategory(alert))} · {alert.urgency || "Unknown urgency"}</em>
                   <span className="alert-summary-row">
                     <button type="button" className={`ai-toggle alert-summary-toggle${summarizingId === alert.alert_id ? " active" : ""}`} onClick={(event) => { event.stopPropagation(); summarizeAlert(alert); }}>
                       <Sparkles size={12} /> {summarizingId === alert.alert_id ? "Summarizing..." : "Summarize"}

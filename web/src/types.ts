@@ -162,6 +162,14 @@ export interface DirectionsPlan {
   decision?: RouteDecisionContract | null;
   segments?: RouteRiskSegmentContract[];
   model_version?: string;
+  /** Risk threshold used for the smart default recommendation. */
+  risk_threshold?: number;
+  /** True when the fastest route's risk stays below the threshold. */
+  low_risk?: boolean;
+  /** Which alternative the AI recommends: the fastest or the lower-risk one. */
+  recommended?: "fastest" | "lower_risk";
+  /** Plain-English explanation of the smart default decision. */
+  recommendation_reason?: string;
 }
 
 export interface HazardExposure {

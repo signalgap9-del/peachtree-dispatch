@@ -104,12 +104,19 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 export const api = {
   searchPlaces: (query: string, options?: RequestOptions) =>
     request<Place[]>(`/places/search?q=${encodeURIComponent(query)}`, options),
-  directions: (origin: Place, destination: Place, vehicleType: VehicleType, options?: RequestOptions) =>
-    request<DirectionsPlan>("/directions", {
-      ...options,
+  directions: (origin: Place, destination: Place, vehicleType: VehicleType, options?: RequestOptions & { riskThreshold?: number }) => {
+    const { riskThreshold, ...requestOptions } = options ?? {};
+    return request<DirectionsPlan>("/directions", {
+      ...requestOptions,
       method: "POST",
-      body: JSON.stringify({ origin, destination, vehicle_type: vehicleType }),
-    }),
+      body: JSON.stringify({
+        origin,
+        destination,
+        vehicle_type: vehicleType,
+        ...(riskThreshold != null ? { risk_threshold: riskThreshold } : {}),
+      }),
+    });
+  },
   nationalRisk: () => request<NationalRiskOverview>("/risk/national", { staleCacheKey: "risk:national" }),
   weatherSnapshot: () => request<NationalWeatherSnapshot>("/risk/weather-snapshot", { staleCacheKey: "risk:weather-snapshot" }),
   weatherRaster: async () => {

@@ -13,7 +13,7 @@ import {
   Truck,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
 
 import type { Navigate } from "./App";
@@ -21,6 +21,7 @@ import { ApiError, api } from "./api";
 import { currentUser, login } from "./auth";
 import { RouteAlternativeCard } from "./components/RouteAlternativeCard";
 import { RouteDecisionSummary } from "./components/RouteDecisionSummary";
+import { RouteRecommendation } from "./components/RouteRecommendation";
 import { RouteSegmentRiskStrip } from "./components/RouteSegmentRiskStrip";
 import { useI18n } from "./i18n";
 import { streamLlmChat } from "./llmApi";
@@ -30,6 +31,7 @@ import { MapLegend } from "./MapLegend";
 import { NetworkMap } from "./NetworkMap";
 import { deriveRouteDecision } from "./routeDecision";
 import { deriveRouteRiskSegments } from "./routeSegments";
+import { loadRiskThreshold } from "./riskThreshold";
 import type { DirectionsPlan, LocationRisk, NationalRiskOverview, NationalWeatherSnapshot, Place, RouteAlternative, VehicleType, WeatherRasterManifest, WeatherRisk } from "./types";
 import { notify } from "./ui";
 
@@ -156,7 +158,7 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
     setLoading(true);
     setError(null);
     try {
-      setPlan(await api.directions(origin, destination, vehicleType, { signal, timeoutMs: 20000 }));
+      setPlan(await api.directions(origin, destination, vehicleType, { signal, timeoutMs: 20000, riskThreshold: loadRiskThreshold() }));
     } catch (caught) {
       if (signal?.aborted) return;
       if (caught instanceof ApiError && caught.code === "QUOTA_EXCEEDED") {
@@ -206,9 +208,17 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
   }, [routeSegments]);
   useEffect(() => {
     if (!alternatives.length) return;
+    if (plan?.recommended) {
+      const safest = alternatives.reduce((best, route) => (route.risk_score < best.risk_score ? route : best));
+      const smartTarget = plan.recommended === "lower_risk"
+        ? alternatives.find((route) => alternativeKind(route) === "lower") ?? safest
+        : alternatives.find((route) => alternativeKind(route) === "fastest") ?? alternatives[0];
+      setSelectedAlternative(alternativeKind(smartTarget));
+      return;
+    }
     const recommended = decision && alternatives.find((alternative) => alternative.alternative_id === decision.recommendedAlternativeId);
     setSelectedAlternative(recommended ? alternativeKind(recommended) : alternatives.some((alternative) => alternativeKind(alternative) === "lower") ? "lower" : alternativeKind(alternatives[0]));
-  }, [alternatives, decision]);
+  }, [alternatives, decision, plan]);
 
   const abortAiStreams = useCallback(() => {
     aiAbortRef.current?.abort();
@@ -385,21 +395,40 @@ export function MapPage({ navigate, national, weatherSnapshot, weatherRaster }: 
         {!plan && results.length === 0 && searchStatus !== "searching" && <div className="empty-directions"><Navigation size={24} /><strong>Compare time against weather risk</strong><p>Search any U.S. city, address, landmark, or highway corridor.</p></div>}
         {plan && (
           <section className="route-alternatives">
-            {decision && <RouteDecisionSummary decision={decision} onSelectRecommended={() => {
+            {plan.recommended && (
+              <RouteRecommendation
+                plan={plan}
+                onSelectSafer={() => {
+                  const safest = alternatives.reduce<RouteAlternative | null>((best, route) => {
+                    if (!best) return route;
+                    return route.risk_score < best.risk_score ? route : best;
+                  }, null);
+                  if (safest) setSelectedAlternative(alternativeKind(safest));
+                }}
+                onOpenSettings={() => navigate("/settings")}
+              />
+            )}
+            {decision && (decision.action === "delay_departure" || !plan.recommended) && <RouteDecisionSummary decision={decision} onSelectRecommended={() => {
               const recommended = alternatives.find((alternative) => alternative.alternative_id === decision.recommendedAlternativeId);
               if (recommended) setSelectedAlternative(alternativeKind(recommended));
             }} />}
             <div className="section-label"><strong>Route options</strong><span className="section-label-actions"><button type="button" className={`ai-toggle${showAiExplanation ? " active" : ""}`} onClick={toggleAiExplanation}><Sparkles size={13} /> AI 설명</button><button type="button" className="ai-toggle" onClick={openComparisonReport}><FileText size={13} /> AI 비교 리포트</button><button onClick={() => setShowWhy((value) => !value)}>Why these routes?</button></span></div>
             {showWhy && <p className="route-explanation">Alternatives balance travel time with live precipitation, wind, heat, and active NWS alerts. Lower-risk routes may take longer.</p>}
-            {fastestRoute && alternatives.map((alternative) => (
-              <RouteAlternativeCard
-                key={alternative.alternative_id}
-                alternative={alternative}
-                fastest={fastestRoute}
-                decision={decision}
-                selected={selectedAlternative === alternativeKind(alternative)}
-                onSelect={() => setSelectedAlternative(alternativeKind(alternative))}
-              />
+            {fastestRoute && alternatives.map((alternative, index) => (
+              <Fragment key={alternative.alternative_id}>
+                {plan.low_risk === true && index === 1 && (
+                  <div className="other-options-label"><span>Other options</span></div>
+                )}
+                <RouteAlternativeCard
+                  alternative={alternative}
+                  fastest={fastestRoute}
+                  decision={decision}
+                  selected={selectedAlternative === alternativeKind(alternative)}
+                  onSelect={() => setSelectedAlternative(alternativeKind(alternative))}
+                  emphasized={plan.recommended === "lower_risk" && alternativeKind(alternative) === "lower"}
+                  secondary={plan.low_risk === true && index > 0}
+                />
+              </Fragment>
             ))}
             <RouteSegmentRiskStrip segments={routeSegments} selectedId={selectedSegmentId} onSelect={(segment) => {
               setSelectedSegmentId(segment.id);
