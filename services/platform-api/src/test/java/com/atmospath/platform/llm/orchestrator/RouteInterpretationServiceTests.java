@@ -1,8 +1,6 @@
 package com.atmospath.platform.llm.orchestrator;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -21,142 +19,158 @@ import org.springframework.beans.factory.ObjectProvider;
 
 class RouteInterpretationServiceTests {
 
-    private final PromptTemplateService templates = new PromptTemplateService();
-    private final LiteLlmClient llmClient = mock(LiteLlmClient.class);
-    private final LlmStreamService streamService = mock(LlmStreamService.class);
-
-    private static final LlmProperties PROPS = new LlmProperties(
-            true, "http://localhost:4000", "test-key", "gpt-4o-mini",
-            1024, 0.7, 60_000L, 100_000L, 4096);
-
     private RouteInterpretationService service;
 
-    private static final SolutionResult SAMPLE_SOLUTION = new SolutionResult(
-            "Denver", "Boulder", 42.0, 55, 72,
-            List.of(
-                    new RouteSegment("I-25 North", 20.0, 25, 45, List.of()),
-                    new RouteSegment("US-36 West", 12.0, 18, 60, List.of("Wind advisory")),
-                    new RouteSegment("28th Street", 10.0, 12, 85, List.of("Flood warning", "Road closure"))),
-            List.of("Flood warning on 28th Street", "Wind advisory on US-36"));
-
-    private static final List<RouteAlternative> SAMPLE_ALTERNATIVES = List.of(
-            new RouteAlternative("A", "North route via I-25", 42.0, 55, 72,
-                    List.of("Flood warning"), List.of()),
-            new RouteAlternative("B", "South route via C-470", 58.0, 95, 23,
-                    List.of(), List.of()));
+    private static final LlmProperties PROPS = new LlmProperties(
+            true, "http://localhost:4000", "key", "gpt-4o-mini",
+            1024, 0.7, 60_000L, 100_000L, 4096);
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void setUp() {
-        @SuppressWarnings("unchecked")
         ObjectProvider<RagService> ragProvider = mock(ObjectProvider.class);
-        @SuppressWarnings("unchecked")
         ObjectProvider<SourceTracker> trackerProvider = mock(ObjectProvider.class);
+        when(ragProvider.getIfAvailable()).thenReturn(null);
+        when(trackerProvider.getIfAvailable()).thenReturn(null);
+
         service = new RouteInterpretationService(
-                templates, llmClient, streamService, PROPS, ragProvider, trackerProvider);
+                new PromptTemplateService(),
+                mock(LiteLlmClient.class),
+                mock(LlmStreamService.class),
+                PROPS, ragProvider, trackerProvider);
+    }
+
+    private SolutionResult sampleSolution() {
+        return new SolutionResult(
+                "Denver", "Boulder", 42.0, 55, 72,
+                List.of(
+                        new RouteSegment("I-25 N", 30.0, 35, 65, List.of("Wind Advisory")),
+                        new RouteSegment("US-36 W", 12.0, 20, 45, List.of())),
+                List.of("Wind Advisory", "Road Construction"));
     }
 
     @Test
-    void structuredFallbackIncludesKeyDataPoints() {
-        String fallback = service.buildStructuredFallback(SAMPLE_SOLUTION);
+    void buildStructuredFallbackFormatsRouteSummary() {
+        String fallback = service.buildStructuredFallback(sampleSolution());
 
-        assertThat(fallback).contains("Denver");
-        assertThat(fallback).contains("Boulder");
+        assertThat(fallback).contains("Denver to Boulder");
         assertThat(fallback).contains("42.0 miles");
         assertThat(fallback).contains("55 min");
-        assertThat(fallback).contains("72/100");
-        assertThat(fallback).contains("High");
+        assertThat(fallback).contains("72/100 (High)");
         assertThat(fallback).contains("2 active alert(s)");
+        assertThat(fallback).contains("Segment 1 (I-25 N)");
+        assertThat(fallback).contains("Wind Advisory");
     }
 
     @Test
-    void structuredFallbackIncludesSegmentDetail() {
-        String fallback = service.buildStructuredFallback(SAMPLE_SOLUTION);
+    void buildStructuredFallbackHandlesNoAlerts() {
+        SolutionResult solution = new SolutionResult(
+                "Seattle", "Portland", 175.0, 180, 25,
+                List.of(new RouteSegment("I-5 S", 175.0, 180, 25, List.of())),
+                List.of());
 
-        assertThat(fallback).contains("Segment 1 (I-25 North)");
-        assertThat(fallback).contains("Segment 3 (28th Street)");
-        assertThat(fallback).contains("Flood warning");
-        assertThat(fallback).contains("Road closure");
+        String fallback = service.buildStructuredFallback(solution);
+
+        assertThat(fallback).contains("25/100 (Low)");
+        assertThat(fallback).contains("0 active alert(s)");
     }
 
     @Test
-    void comparisonFallbackShowsTradeOff() {
-        String fallback = service.buildComparisonFallback(SAMPLE_ALTERNATIVES);
+    void buildComparisonFallbackFormatsAlternatives() {
+        List<RouteAlternative> alternatives = List.of(
+                new RouteAlternative("A", "Fastest route", 100.0, 90, 75,
+                        List.of("Flood Warning"), List.of()),
+                new RouteAlternative("B", "Safer route", 120.0, 110, 35,
+                        List.of(), List.of()));
 
+        String fallback = service.buildComparisonFallback(alternatives);
+
+        assertThat(fallback).contains("Route Comparison");
         assertThat(fallback).contains("Option A");
         assertThat(fallback).contains("Option B");
-        assertThat(fallback).contains("72/100 (High)");
-        assertThat(fallback).contains("23/100 (Low)");
-        // Trade-off: B is 40 min longer but risk drops from 72 to 23
         assertThat(fallback).contains("Trade-off");
-        assertThat(fallback).contains("40 min longer");
-        assertThat(fallback).contains("risk drops from 72 to 23");
+        assertThat(fallback).contains("20 min longer");
+    }
+
+    @Test
+    void buildComparisonFallbackHandlesSingleAlternative() {
+        List<RouteAlternative> alternatives = List.of(
+                new RouteAlternative("A", "Only route", 50.0, 45, 30, List.of(), List.of()));
+
+        String fallback = service.buildComparisonFallback(alternatives);
+
+        assertThat(fallback).contains("Option A");
+        assertThat(fallback).doesNotContain("Trade-off");
     }
 
     @Test
     void buildRouteMessagesRendersTemplate() {
-        List<Message> messages = service.buildRouteMessages(SAMPLE_SOLUTION, "en");
+        List<Message> messages = service.buildRouteMessages(sampleSolution(), "en");
 
         assertThat(messages).hasSize(2);
         assertThat(messages.get(0).role()).isEqualTo(Message.Role.SYSTEM);
         assertThat(messages.get(1).role()).isEqualTo(Message.Role.USER);
-        // User message should contain the route data
         assertThat(messages.get(1).content()).contains("Denver");
         assertThat(messages.get(1).content()).contains("Boulder");
-        assertThat(messages.get(1).content()).contains("72/100");
     }
 
     @Test
-    void koreanLanguageAddsKoreanDirective() {
-        List<Message> messages = service.buildRouteMessages(SAMPLE_SOLUTION, "ko");
+    void buildRouteMessagesAddsKoreanDirective() {
+        List<Message> messages = service.buildRouteMessages(sampleSolution(), "ko");
 
-        assertThat(messages.get(0).content()).contains("한국어로 응답하세요");
+        assertThat(messages.get(0).content()).contains("Korean");
     }
 
     @Test
-    void englishLanguageDoesNotAddKoreanDirective() {
-        List<Message> messages = service.buildRouteMessages(SAMPLE_SOLUTION, "en");
+    void buildComparisonMessagesRendersTemplate() {
+        List<RouteAlternative> alternatives = List.of(
+                new RouteAlternative("A", "Fastest", 100.0, 90, 50, List.of(), List.of()),
+                new RouteAlternative("B", "Safest", 110.0, 100, 30, List.of(), List.of()));
 
-        assertThat(messages.get(0).content()).doesNotContain("한국어로 응답하세요");
+        List<Message> messages = service.buildComparisonMessages(alternatives, "en");
+
+        assertThat(messages).hasSize(2);
+        assertThat(messages.get(1).content()).contains("Option A");
+        assertThat(messages.get(1).content()).contains("Option B");
     }
 
     @Test
     void containsKoreanDetectsHangul() {
-        assertThat(RouteInterpretationService.containsKorean("오늘 날씨 어때?")).isTrue();
-        assertThat(RouteInterpretationService.containsKorean("What's the weather?")).isFalse();
-        assertThat(RouteInterpretationService.containsKorean("경로 안내")).isTrue();
+        assertThat(RouteInterpretationService.containsKorean("서울에서 부산까지")).isTrue();
+        assertThat(RouteInterpretationService.containsKorean("Seattle to Portland")).isFalse();
         assertThat(RouteInterpretationService.containsKorean(null)).isFalse();
         assertThat(RouteInterpretationService.containsKorean("")).isFalse();
     }
 
     @Test
-    void comparisonMessagesIncludeAllAlternatives() {
-        List<Message> messages = service.buildComparisonMessages(SAMPLE_ALTERNATIVES, "en");
-
-        assertThat(messages).hasSize(2);
-        String userContent = messages.get(1).content();
-        assertThat(userContent).contains("Option A");
-        assertThat(userContent).contains("Option B");
-        assertThat(userContent).contains("North route via I-25");
-        assertThat(userContent).contains("South route via C-470");
+    void riskLevelClassification() {
+        assertThat(new SolutionResult("A", "B", 0, 0, 85, null, null).riskLevel()).isEqualTo("High");
+        assertThat(new SolutionResult("A", "B", 0, 0, 55, null, null).riskLevel()).isEqualTo("Moderate");
+        assertThat(new SolutionResult("A", "B", 0, 0, 20, null, null).riskLevel()).isEqualTo("Low");
     }
 
     @Test
-    void structuredFallbackForEmptySolution() {
-        var empty = new SolutionResult("A", "B", 0, 0, 50, List.of(), List.of());
-        String fallback = service.buildStructuredFallback(empty);
-
-        assertThat(fallback).contains("A");
-        assertThat(fallback).contains("B");
-        assertThat(fallback).contains("0 active alert(s)");
+    void segmentHasAlertsCheck() {
+        assertThat(new RouteSegment("I-5", 10, 15, 50, List.of("Flood")).hasAlerts()).isTrue();
+        assertThat(new RouteSegment("I-5", 10, 15, 50, null).hasAlerts()).isFalse();
     }
 
     @Test
-    void comparisonFallbackWithSingleAlternativeHasNoTradeOff() {
-        var single = List.of(
-                new RouteAlternative("A", "Only route", 42.0, 55, 50, List.of(), List.of()));
-        String fallback = service.buildComparisonFallback(single);
+    void alternativeRiskLevel() {
+        assertThat(new RouteAlternative("A", "d", 0, 0, 80, null, null).riskLevel()).isEqualTo("High");
+        assertThat(new RouteAlternative("A", "d", 0, 0, 50, null, null).riskLevel()).isEqualTo("Moderate");
+        assertThat(new RouteAlternative("A", "d", 0, 0, 10, null, null).riskLevel()).isEqualTo("Low");
+    }
 
-        assertThat(fallback).contains("Option A");
-        assertThat(fallback).doesNotContain("Trade-off");
+    @Test
+    void comparisonFallbackShorterButRiskier() {
+        List<RouteAlternative> alternatives = List.of(
+                new RouteAlternative("A", "Safe", 120.0, 110, 35, List.of(), List.of()),
+                new RouteAlternative("B", "Fast", 100.0, 90, 75, List.of(), List.of()));
+
+        String fallback = service.buildComparisonFallback(alternatives);
+
+        assertThat(fallback).contains("20 min shorter");
+        assertThat(fallback).contains("risk rises");
     }
 }

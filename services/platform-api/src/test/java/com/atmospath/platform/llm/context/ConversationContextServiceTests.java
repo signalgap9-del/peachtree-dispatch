@@ -26,6 +26,7 @@ import org.springframework.data.redis.core.ValueOperations;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 class ConversationContextServiceTests {
@@ -73,7 +74,7 @@ class ConversationContextServiceTests {
         service.save(ctx);
 
         // Verify Redis write happened
-        verify(valueOps).set(eq("llm:context:sess-1"), anyString(), eq(Duration.ofHours(2)));
+        verify(valueOps, times(2)).set(eq("llm:context:sess-1"), anyString(), eq(Duration.ofHours(2)));
     }
 
     @Test

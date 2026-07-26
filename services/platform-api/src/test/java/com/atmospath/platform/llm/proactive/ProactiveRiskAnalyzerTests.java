@@ -33,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class ProactiveRiskAnalyzerTests {
 
@@ -82,6 +83,7 @@ class ProactiveRiskAnalyzerTests {
 
     private SavedRouteEntity monitoredRoute(String name, int threshold) {
         SavedRouteEntity route = new SavedRouteEntity(MEMBER_ID, null, name);
+        ReflectionTestUtils.setField(route, "id", UUID.randomUUID());
         route.setOriginName("Seattle");
         route.setDestinationName("Portland");
         route.setRiskThreshold(threshold);

@@ -20,7 +20,9 @@ class PromptTemplateServiceTests {
                 "nl2opt_extraction",
                 "route_explanation",
                 "alert_summary",
-                "comparison_report");
+                "comparison_report",
+                "rag_context",
+                "proactive_suggestion");
     }
 
     @Test

@@ -12,6 +12,7 @@ import com.atmospath.platform.billing.dto.SubscriptionResponse;
 import com.atmospath.platform.saas.entity.Subscription;
 import com.atmospath.platform.saas.repository.SubscriptionRepository;
 import org.springframework.http.HttpStatus;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,6 +28,7 @@ import org.springframework.web.server.ResponseStatusException;
  */
 @RestController
 @RequestMapping("/api/v1/billing")
+@ConditionalOnProperty(name = "atmospath.billing.enabled", havingValue = "true")
 public class BillingController {
 
     private final LemonSqueezyClient client;
