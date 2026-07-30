@@ -10,3 +10,9 @@ AVD-AWS-0132
 # entry point for the freight API (HTTPS-terminated, WAF-fronted decision is
 # documented above). Making it internal would break the public API design.
 AVD-AWS-0053
+
+# The SNS alarm topic carries operational notifications, not sensitive data.
+# It is encrypted at rest with the AWS-managed SNS key (alias/aws/sns); a
+# customer-managed KMS key would add a fixed monthly cost for no security
+# benefit here (same rationale as the SSE-S3 decision above).
+AVD-AWS-0136
