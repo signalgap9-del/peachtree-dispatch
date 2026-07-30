@@ -22,7 +22,8 @@ locals {
 # ---------------------------------------------------------------------------
 
 resource "aws_sns_topic" "alarms" {
-  name = "${local.name}-alarms"
+  name              = "${local.name}-alarms"
+  kms_master_key_id = "alias/aws/sns" # AWS-managed key; no additional cost
 }
 
 resource "aws_sns_topic_subscription" "email" {
@@ -280,8 +281,8 @@ resource "aws_iam_role" "canary" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
       Principal = { Service = "lambda.amazonaws.com" }
     }]
   })
@@ -298,9 +299,9 @@ resource "aws_iam_role_policy" "canary" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "CloudWatchMetrics"
-        Effect = "Allow"
-        Action = ["cloudwatch:PutMetricData"]
+        Sid      = "CloudWatchMetrics"
+        Effect   = "Allow"
+        Action   = ["cloudwatch:PutMetricData"]
         Resource = "*"
       },
       {
@@ -318,14 +319,14 @@ resource "aws_iam_role_policy" "canary" {
 }
 
 resource "aws_lambda_function" "canary" {
-  count         = local.deploy_canary ? 1 : 0
-  function_name = "${local.name}-canary"
-  role          = aws_iam_role.canary[0].arn
-  handler       = "index.handler"
-  runtime       = "python3.12"
-  timeout       = 30
-  memory_size   = 128
-  filename      = data.archive_file.canary[0].output_path
+  count            = local.deploy_canary ? 1 : 0
+  function_name    = "${local.name}-canary"
+  role             = aws_iam_role.canary[0].arn
+  handler          = "index.handler"
+  runtime          = "python3.12"
+  timeout          = 30
+  memory_size      = 128
+  filename         = data.archive_file.canary[0].output_path
   source_code_hash = data.archive_file.canary[0].output_base64sha256
 
   environment {
