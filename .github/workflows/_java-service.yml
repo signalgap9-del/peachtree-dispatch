@@ -1,0 +1,38 @@
+name: Java Service CI (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      service-path:
+        required: true
+        type: string
+        description: "Path to the service, e.g. services/bid"
+      service-name:
+        required: true
+        type: string
+        description: "Display name, e.g. bid"
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    name: ${{ inputs.service-name }} — test + container build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.service-path }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Maven verify (compile + unit tests)
+        run: mvn --batch-mode --no-transfer-progress verify
+
+      - name: Build container image
+        run: docker build .

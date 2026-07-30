@@ -1,0 +1,121 @@
+name: Freight Platform Integration
+
+on:
+  pull_request:
+    paths:
+      - 'services/telemetry/**'
+      - 'services/tracking/**'
+      - 'services/load-board/**'
+      - 'services/bid/**'
+      - 'services/ranking/**'
+      - 'services/settlement/**'
+      - 'infra/docker/freight-nginx/**'
+      - 'compose.yaml'
+      - '.github/workflows/freight-integration.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'services/telemetry/**'
+      - 'services/tracking/**'
+      - 'services/load-board/**'
+      - 'services/bid/**'
+      - 'services/ranking/**'
+      - 'services/settlement/**'
+      - 'infra/docker/freight-nginx/**'
+      - 'compose.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freight-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: MSA stack smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (for local Maven builds if needed)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Build freight-platform images
+        run: docker compose --profile production-data --profile freight-platform build
+
+      - name: Start the stack
+        run: docker compose --profile production-data --profile freight-platform up -d
+
+      - name: Show running containers
+        run: docker compose --profile production-data --profile freight-platform ps
+
+      - name: Wait for services to become healthy
+        run: |
+          echo "Waiting for freight-nginx and backend services..."
+          timeout 300 bash -c '
+            until curl -fsS http://localhost:8090/health >/dev/null 2>&1; do
+              echo "  nginx not ready yet..."
+              sleep 5
+            done
+          '
+          echo "nginx is up. Checking backend health endpoints..."
+          for svc in telemetry tracking loads bids rankings settlements; do
+            echo "  waiting for $svc..."
+            timeout 180 bash -c "
+              until curl -fsS http://localhost:8090/$svc/health >/dev/null 2>&1; do
+                sleep 5
+              done
+            " || { echo "  $svc failed to become healthy"; docker compose --profile production-data --profile freight-platform logs $svc || true; exit 1; }
+            echo "  $svc OK"
+          done
+          echo "All services healthy."
+
+      - name: Smoke test — telemetry ingest
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8090/telemetry/ping \
+            -H "Content-Type: application/json" \
+            -H "X-Request-Id: ci-smoke-1" \
+            -d '{"truckId":"00000000-0000-0000-0000-000000000001","lat":34.05,"lon":-118.24,"speedKmh":85.0,"heading":90,"corridorId":"I-10","timestamp":"2026-07-31T12:00:00Z"}')
+          echo "telemetry ping returned HTTP $STATUS"
+          if [ "$STATUS" != "202" ]; then
+            echo "Expected 202 Accepted, got $STATUS"
+            docker compose --profile production-data --profile freight-platform logs telemetry-1 || true
+            exit 1
+          fi
+
+      - name: Smoke test — create a freight load
+        run: |
+          RESP=$(curl -s -w "\n%{http_code}" -X POST http://localhost:8090/loads \
+            -H "Content-Type: application/json" \
+            -d '{"tenantId":"00000000-0000-0000-0000-000000000001","origin":"Atlanta, GA","destination":"Miami, FL","cargoType":"REFRIGERATED","weightKg":12400,"maxRateCents":285000,"corridorId":"I-10","corridorRisk":62}')
+          CODE=$(echo "$RESP" | tail -n1)
+          BODY=$(echo "$RESP" | head -n -1)
+          echo "create load returned HTTP $CODE: $BODY"
+          if [ "$CODE" != "201" ]; then
+            echo "Expected 201 Created, got $CODE"
+            docker compose --profile production-data --profile freight-platform logs load-board || true
+            exit 1
+          fi
+
+      - name: Smoke test — rankings endpoint responds
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8090/rankings/overall?limit=10)
+          echo "rankings returned HTTP $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "Expected 200 OK, got $STATUS"
+            exit 1
+          fi
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose --profile production-data --profile freight-platform logs --tail=200
+
+      - name: Tear down
+        if: always()
+        run: docker compose --profile production-data --profile freight-platform down -v

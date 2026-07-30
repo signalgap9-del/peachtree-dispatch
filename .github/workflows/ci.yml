@@ -47,20 +47,23 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
 
-  platform-api:
-    name: Spring Boot API Tests
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: services/platform-api
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: maven
-      - run: mvn --batch-mode verify
+  java-services:
+    name: Java Services
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { path: services/platform-api, name: platform-api }
+          - { path: services/telemetry, name: telemetry }
+          - { path: services/tracking, name: tracking }
+          - { path: services/load-board, name: load-board }
+          - { path: services/bid, name: bid }
+          - { path: services/ranking, name: ranking }
+          - { path: services/settlement, name: settlement }
+    uses: ./.github/workflows/_java-service.yml
+    with:
+      service-path: ${{ matrix.path }}
+      service-name: ${{ matrix.name }}
 
   relational-schema:
     name: PostgreSQL/PostGIS Schema
@@ -103,6 +106,12 @@ jobs:
       - run: docker build services/api
       - run: docker build services/platform-api
       - run: docker build -f services/platform-api/Dockerfile.lambda services/platform-api
+      - run: docker build services/telemetry
+      - run: docker build services/tracking
+      - run: docker build services/load-board
+      - run: docker build services/bid
+      - run: docker build services/ranking
+      - run: docker build services/settlement
       - run: docker build services/weather-raster
       - run: docker build web
 
@@ -115,6 +124,7 @@ jobs:
           - infra/bootstrap
           - infra/environments/dev
           - infra/environments/prod
+          - infra/modules/freight-platform
     defaults:
       run:
         working-directory: ${{ matrix.directory }}
