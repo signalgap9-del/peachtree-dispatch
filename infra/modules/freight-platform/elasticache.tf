@@ -17,10 +17,10 @@ resource "aws_elasticache_replication_group" "freight_platform" {
   subnet_group_name    = aws_elasticache_subnet_group.freight_platform.name
   security_group_ids   = [aws_security_group.redis.id]
 
-  engine_version           = "7.1"
+  engine_version             = "7.1"
   at_rest_encryption_enabled = true
   transit_encryption_enabled = true
-  kms_key_id               = aws_kms_key.redis.arn
+  kms_key_id                 = aws_kms_key.redis.arn
 
   automatic_failover_enabled = true
   snapshot_retention_limit   = 7

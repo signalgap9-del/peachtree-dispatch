@@ -41,16 +41,16 @@ resource "aws_rds_cluster" "freight_platform" {
   db_subnet_group_name            = aws_db_subnet_group.freight_platform.name
   vpc_security_group_ids          = [aws_security_group.aurora.id]
 
-  # Storage autoscaling: min 100GB, max 2TB
-  storage_type                   = "aurora-iopt1"
-  allocated_storage              = 100
-  storage_encrypted              = true
-  kms_key_id                     = aws_kms_key.aurora.arn
-  max_allocated_storage          = 2000
+  # Aurora storage autoscales automatically (10GB -> 128TiB); no hard cap is
+  # configured at the cluster level. iopt1 provides provisioned IOPS scaling.
+  storage_type      = "aurora-iopt1"
+  allocated_storage = 100
+  storage_encrypted = true
+  kms_key_id        = aws_kms_key.aurora.arn
 
-  backup_retention_period = 7
-  deletion_protection     = true
-  skip_final_snapshot     = false
+  backup_retention_period   = 7
+  deletion_protection       = true
+  skip_final_snapshot       = false
   final_snapshot_identifier = "${var.project_name}-aurora-final-${var.environment}"
 
   tags = {
@@ -60,13 +60,13 @@ resource "aws_rds_cluster" "freight_platform" {
 
 # Writer instance (maps to local postgres-primary)
 resource "aws_rds_cluster_instance" "writer" {
-  identifier              = "${var.project_name}-aurora-writer-${var.environment}"
-  cluster_identifier      = aws_rds_cluster.freight_platform.id
-  instance_class          = "db.r6g.large"
-  engine                  = aws_rds_cluster.freight_platform.engine
-  engine_version          = aws_rds_cluster.freight_platform.engine_version
-  db_subnet_group_name    = aws_db_subnet_group.freight_platform.name
-  publicly_accessible     = false
+  identifier                   = "${var.project_name}-aurora-writer-${var.environment}"
+  cluster_identifier           = aws_rds_cluster.freight_platform.id
+  instance_class               = "db.r6g.large"
+  engine                       = aws_rds_cluster.freight_platform.engine
+  engine_version               = aws_rds_cluster.freight_platform.engine_version
+  db_subnet_group_name         = aws_db_subnet_group.freight_platform.name
+  publicly_accessible          = false
   performance_insights_enabled = true
 
   tags = {
@@ -77,14 +77,14 @@ resource "aws_rds_cluster_instance" "writer" {
 
 # Reader instances (maps to local postgres-replica)
 resource "aws_rds_cluster_instance" "readers" {
-  count                   = 2
-  identifier              = "${var.project_name}-aurora-reader-${count.index + 1}-${var.environment}"
-  cluster_identifier      = aws_rds_cluster.freight_platform.id
-  instance_class          = "db.r6g.large"
-  engine                  = aws_rds_cluster.freight_platform.engine
-  engine_version          = aws_rds_cluster.freight_platform.engine_version
-  db_subnet_group_name    = aws_db_subnet_group.freight_platform.name
-  publicly_accessible     = false
+  count                        = 2
+  identifier                   = "${var.project_name}-aurora-reader-${count.index + 1}-${var.environment}"
+  cluster_identifier           = aws_rds_cluster.freight_platform.id
+  instance_class               = "db.r6g.large"
+  engine                       = aws_rds_cluster.freight_platform.engine
+  engine_version               = aws_rds_cluster.freight_platform.engine_version
+  db_subnet_group_name         = aws_db_subnet_group.freight_platform.name
+  publicly_accessible          = false
   performance_insights_enabled = true
 
   tags = {

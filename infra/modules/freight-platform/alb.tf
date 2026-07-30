@@ -76,8 +76,8 @@ resource "aws_lb_target_group" "tracking_ws" {
   }
 
   stickiness {
-    type    = "lb_cookie"
-    enabled = true
+    type            = "lb_cookie"
+    enabled         = true
     cookie_duration = 86400
   }
 

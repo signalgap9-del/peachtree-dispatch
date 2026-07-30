@@ -51,40 +51,40 @@ locals {
 
   services = {
     telemetry = {
-      image         = "${local.ecr_registry}/${var.project_name}/telemetry-service:latest"
+      image          = "${local.ecr_registry}/${var.project_name}/telemetry-service:latest"
       container_port = 8081
-      desired_count = 2
-      health_path   = "/actuator/health"
+      desired_count  = 2
+      health_path    = "/actuator/health"
     }
     tracking = {
-      image         = "${local.ecr_registry}/${var.project_name}/tracking-service:latest"
+      image          = "${local.ecr_registry}/${var.project_name}/tracking-service:latest"
       container_port = 8082
-      desired_count = 2
-      health_path   = "/actuator/health"
+      desired_count  = 2
+      health_path    = "/actuator/health"
     }
     load-board = {
-      image         = "${local.ecr_registry}/${var.project_name}/load-board-service:latest"
+      image          = "${local.ecr_registry}/${var.project_name}/load-board-service:latest"
       container_port = 8083
-      desired_count = 1
-      health_path   = "/actuator/health"
+      desired_count  = 1
+      health_path    = "/actuator/health"
     }
     bid = {
-      image         = "${local.ecr_registry}/${var.project_name}/bid-service:latest"
+      image          = "${local.ecr_registry}/${var.project_name}/bid-service:latest"
       container_port = 8084
-      desired_count = 1
-      health_path   = "/actuator/health"
+      desired_count  = 1
+      health_path    = "/actuator/health"
     }
     ranking = {
-      image         = "${local.ecr_registry}/${var.project_name}/ranking-service:latest"
+      image          = "${local.ecr_registry}/${var.project_name}/ranking-service:latest"
       container_port = 8085
-      desired_count = 1
-      health_path   = "/actuator/health"
+      desired_count  = 1
+      health_path    = "/actuator/health"
     }
     settlement = {
-      image         = "${local.ecr_registry}/${var.project_name}/settlement-service:latest"
+      image          = "${local.ecr_registry}/${var.project_name}/settlement-service:latest"
       container_port = 8086
-      desired_count = 1
-      health_path   = "/actuator/health"
+      desired_count  = 1
+      health_path    = "/actuator/health"
     }
   }
 }
