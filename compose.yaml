@@ -264,6 +264,204 @@ services:
       postgres-primary:
         condition: service_healthy
 
+  # ── freight-platform profile ──────────────────────────────────
+  # Start with: docker compose --profile production-data --profile freight-platform up -d
+
+  telemetry-1:
+    build:
+      context: ./services/telemetry
+    profiles: ["freight-platform"]
+    environment:
+      KAFKA_BOOTSTRAP: kafka:9092
+      REDIS_URL: redis://redis:6379
+      SERVER_PORT: "8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 10s
+      timeout: 3s
+      retries: 8
+
+  telemetry-2:
+    build:
+      context: ./services/telemetry
+    profiles: ["freight-platform"]
+    environment:
+      KAFKA_BOOTSTRAP: kafka:9092
+      REDIS_URL: redis://redis:6379
+      SERVER_PORT: "8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 10s
+      timeout: 3s
+      retries: 8
+
+  tracking-1:
+    build:
+      context: ./services/tracking
+    profiles: ["freight-platform"]
+    environment:
+      KAFKA_BOOTSTRAP: kafka:9092
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-primary:5432/atmospath
+      SPRING_DATASOURCE_USERNAME: atmospath
+      SPRING_DATASOURCE_PASSWORD: devpassword
+      SERVER_PORT: "8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres-primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 10s
+      timeout: 3s
+      retries: 8
+
+  tracking-2:
+    build:
+      context: ./services/tracking
+    profiles: ["freight-platform"]
+    environment:
+      KAFKA_BOOTSTRAP: kafka:9092
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-primary:5432/atmospath
+      SPRING_DATASOURCE_USERNAME: atmospath
+      SPRING_DATASOURCE_PASSWORD: devpassword
+      SERVER_PORT: "8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres-primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 10s
+      timeout: 3s
+      retries: 8
+
+  load-board:
+    build:
+      context: ./services/load-board
+    profiles: ["freight-platform"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-primary:5432/atmospath
+      SPRING_DATASOURCE_USERNAME: atmospath
+      SPRING_DATASOURCE_PASSWORD: devpassword
+      KAFKA_BOOTSTRAP: kafka:9092
+      SERVER_PORT: "8080"
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 10s
+      timeout: 3s
+      retries: 8
+
+  bid:
+    build:
+      context: ./services/bid
+    profiles: ["freight-platform"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-primary:5432/atmospath
+      SPRING_DATASOURCE_USERNAME: atmospath
+      SPRING_DATASOURCE_PASSWORD: devpassword
+      KAFKA_BOOTSTRAP: kafka:9092
+      REDIS_URL: redis://redis:6379
+      SERVER_PORT: "8080"
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 10s
+      timeout: 3s
+      retries: 8
+
+  ranking:
+    build:
+      context: ./services/ranking
+    profiles: ["freight-platform"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-primary:5432/atmospath
+      SPRING_DATASOURCE_USERNAME: atmospath
+      SPRING_DATASOURCE_PASSWORD: devpassword
+      KAFKA_BOOTSTRAP: kafka:9092
+      REDIS_URL: redis://redis:6379
+      SERVER_PORT: "8080"
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 10s
+      timeout: 3s
+      retries: 8
+
+  settlement:
+    build:
+      context: ./services/settlement
+    profiles: ["freight-platform"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-primary:5432/atmospath
+      SPRING_DATASOURCE_USERNAME: atmospath
+      SPRING_DATASOURCE_PASSWORD: devpassword
+      KAFKA_BOOTSTRAP: kafka:9092
+      REDIS_URL: redis://redis:6379
+      SERVER_PORT: "8080"
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 10s
+      timeout: 3s
+      retries: 8
+
+  freight-nginx:
+    image: nginx:alpine
+    profiles: ["freight-platform"]
+    ports:
+      - "8090:80"
+    volumes:
+      - ./infra/docker/freight-nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - telemetry-1
+      - telemetry-2
+      - tracking-1
+      - tracking-2
+      - load-board
+      - bid
+      - ranking
+      - settlement
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
 volumes:
   api-data:
   postgres-data:

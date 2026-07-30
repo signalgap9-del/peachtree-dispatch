@@ -1,0 +1,37 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: tracking-service
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    consumer:
+      group-id: tracking-svc
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        max.poll.records: 500
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/atmospath}
+    username: ${SPRING_DATASOURCE_USERNAME:atmospath}
+    password: ${SPRING_DATASOURCE_PASSWORD:devpassword}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+tracking:
+  topic: telemetry-raw
+  batch-size: 100
+  flush-interval-ms: 1000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics

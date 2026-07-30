@@ -1,7 +1,7 @@
 # FreightScaler
 
-**Weather-aware route planning that answers a question most navigation tools ignore:**
-*which route exposes me to the least weather and road-hazard risk right now?*
+**Real-time freight risk intelligence and dispatch platform.**
+*Which route exposes my cargo to the least risk? Which carrier handles this corridor best? What's the fair settlement when weather delays a delivery?*
 
 FreightScaler compares route alternatives not just by travel time, but by live weather risk, official NWS alerts, and road-event exposure. Drivers can see segment-level risk breakdowns (rain, flood, wind, heat, winter conditions), save routes to a private watchlist with monitoring thresholds, and get a SaaS-style account layer with quotas and usage tracking, all without logging in for basic map flows.
 
@@ -29,20 +29,61 @@ English | **[한국어](README.ko.md)**
 
 ---
 
+## Platform Evolution
+
+FreightScaler grew through four phases, each driven by user demand:
+
+| Phase | Trigger | What broke | Architectural response |
+|---|---|---|---|
+| **1. Route risk query** | Initial product | Nothing (serverless) | Lambda + DynamoDB |
+| **2. Fleet telemetry** | "I want to see my 50 trucks live" | 28M GPS events/day, WebSocket connections | Kafka + TimescaleDB hypertable + nginx LB |
+| **3. Freight marketplace** | "Find me a carrier for this risky corridor" | 500 concurrent bids, real-time ranking | CQRS + optimistic locking + Redis Sorted Set |
+| **4. Settlement** | "Weather delayed delivery — who pays?" | Multi-step payment across services | Saga orchestrator + atomic wallet + idempotency |
+
+Each phase added services, not because MSA was the goal, but because the scaling axes diverged:
+telemetry is write-heavy (333 events/s), tracking is connection-heavy (WebSocket), bidding is
+contention-heavy (optimistic locks), settlement is consistency-heavy (Saga). A monolith
+cannot scale these independently.
+
+Architecture decision record: [ADR-0024](docs/adr/0024-freight-platform-msa-evolution.md)
+Full MSA architecture: [docs/architecture/freight-platform-msa.md](docs/architecture/freight-platform-msa.md)
+SQL tuning case studies: [docs/database/tuning-case-studies.md](docs/database/tuning-case-studies.md)
+
+---
+
 ## Architecture
 
 ```mermaid
 flowchart LR
-  User["Browser"] --> CF["CloudFront<br/>geo restriction, security headers"]
-  CF --> S3["Private S3<br/>React/Vite SPA"]
-  CF --> APIGW["API Gateway<br/>/api/*"]
-  APIGW --> Spring["Spring Boot 3.5<br/>auth, tenants, quotas, saved data"]
-  Spring --> Cognito["Cognito / Google OAuth"]
-  Spring --> DDB["DynamoDB<br/>single-table design"]
-  Spring --> Risk["FastAPI Risk Engine<br/>routing, weather, alerts, VRP"]
+  User["Browser / Fleet Dashboard"] --> NGX["nginx<br/>least_conn LB<br/>rate limit · WebSocket"]
+  
+  NGX --> TLM["Telemetry ×2<br/>GPS ingest → Kafka"]
+  NGX --> TRK["Tracking ×2<br/>Kafka → TimescaleDB<br/>WebSocket push"]
+  NGX --> LB["Load Board<br/>freight posting<br/>CQRS"]
+  NGX --> BID["Bid Service<br/>optimistic lock<br/>Kafka flattening"]
+  NGX --> RNK["Ranking<br/>Redis Sorted Set"]
+  NGX --> STL["Settlement<br/>Saga orchestrator"]
+  NGX --> Spring["Platform API<br/>auth · tenants · quotas"]
+  NGX --> Risk["Risk Engine<br/>scoring · VRP · ML"]
+  
+  TLM --> Kafka["Kafka<br/>5 topics"]
+  Kafka --> TRK
+  Kafka --> BID
+  Kafka --> RNK
+  Kafka --> STL
+  
+  TRK --> PG["PostgreSQL 16<br/>+ TimescaleDB"]
+  LB --> PG
+  BID --> PG
+  STL --> PG
+  Spring --> DDB["DynamoDB"]
   Risk --> NWS["NWS / NOAA"]
-  Risk --> WZDX["USDOT WZDx / 511 feeds"]
-  Risk --> S3Data["S3 weather artifacts"]
+  
+  RNK --> Redis["Redis 7<br/>ranking · idempotency<br/>rate limits"]
+  BID --> Redis
+  
+  PG -. "WAL" .-> PGR["Read Replica"]
+  PG -. "CDC" .-> Deb["Debezium → Kafka"]
 ```
 
 The frontend is a React 19 SPA served from private S3 through CloudFront. API calls route through API Gateway to two backends: a Java Spring Boot service that owns authentication, tenant context, entitlements, and persisted user data; and a Python FastAPI service that owns routing, weather risk scoring, alert aggregation, and vehicle-routing optimization. DynamoDB is the operational store (zero idle cost); PostgreSQL/PostGIS is documented as the expansion path for spatial joins.
@@ -341,6 +382,7 @@ Verified by: `test_vrp_route_engine.py`, `test_road_event_edge_risk.py`
 | Data Streaming | Kafka (KRaft), Debezium CDC, PgBouncer |
 | Infrastructure | CloudFront, API Gateway, Lambda, Cognito, CloudWatch, Terraform |
 | CI/CD | GitHub Actions (OIDC, no long-lived keys), Maven, pytest, Playwright, bundle budget checks |
+| Freight Platform | nginx (least_conn LB, WebSocket proxy), Kafka (5 topics: telemetry-raw, load-events, bid-events, shipment-events, settlement-events), TimescaleDB hypertables, Redis Sorted Set |
 
 ---
 
@@ -379,6 +421,35 @@ docker compose up --build
 | Web app | http://localhost:5173 |
 | Risk Engine docs | http://localhost:8000/docs |
 | Platform API health | http://localhost:8080/health |
+
+### Freight platform (full MSA stack)
+
+```powershell
+docker compose --profile production-data --profile freight-platform up -d
+```
+
+| Service | URL |
+|---|---|
+| Freight nginx (LB) | http://localhost:8090 |
+| Telemetry ingest | http://localhost:8090/telemetry/health |
+| Tracking API | http://localhost:8090/tracking/health |
+| Load board | http://localhost:8090/loads/health |
+| Bidding | http://localhost:8090/bids/health |
+| Rankings | http://localhost:8090/rankings/health |
+| Settlement | http://localhost:8090/settlements/health |
+
+Seed test data (1M tracking events, 10k trucks):
+```powershell
+python perf/seed/fleet_seed.py --scale 1.0
+```
+
+Load tests:
+```powershell
+# Fleet telemetry (10k VUs)
+docker run --rm --network host grafana/k6 run /scripts/fleet_telemetry.js
+# Bidding war (500 VUs spike)
+docker run --rm --network host grafana/k6 run /scripts/bidding_war.js
+```
 
 ### Frontend only
 
@@ -552,7 +623,7 @@ Full deployment docs: [docs/deployment.md](docs/deployment.md). Cost model: [doc
 
 ## Project Status
 
-**Ready now:** weather route comparison, alert search, saved watchlist, SaaS quotas, operational status page, structured error contract, full test coverage across all layers, bundle budgets, local stress harness, LLM chat with NL2Opt (EN/KO), RAG-grounded route explanations, proactive risk monitoring with SSE push, injection defense and 3-tier LLM fallback, Langfuse observability.
+**Ready now:** weather route comparison, alert search, saved watchlist, SaaS quotas, operational status page, structured error contract, full test coverage across all layers, bundle budgets, local stress harness, LLM chat with NL2Opt (EN/KO), RAG-grounded route explanations, proactive risk monitoring with SSE push, injection defense and 3-tier LLM fallback, Langfuse observability, fleet telemetry pipeline (28M events/day), freight load board with CQRS, carrier bidding with optimistic locking and Kafka write flattening, real-time carrier ranking (Redis Sorted Set), settlement Saga (5-step with compensation), nginx LB with WebSocket proxy, SQL tuning case studies (5 cases, 24x-400x improvement), k6 load test scenarios.
 
 **Not yet:** Google OAuth secrets in the deployed environment, WAF rules for broad public traffic, async multi-stop job execution, HRRR/MRMS raster ingestion at production cadence, synthetic monitoring.
 
@@ -577,3 +648,6 @@ Release: `v0.1.0-preview` (July 2026). Roadmap in [CHANGELOG.md](CHANGELOG.md).
 - [Google OAuth setup](docs/google-auth.md)
 - [Runbooks](docs/runbooks/)
 - [ADRs](docs/adr/)
+- [Freight platform MSA architecture](docs/architecture/freight-platform-msa.md)
+- [ADR-0024: MSA evolution](docs/adr/0024-freight-platform-msa-evolution.md)
+- [SQL tuning case studies](docs/database/tuning-case-studies.md)

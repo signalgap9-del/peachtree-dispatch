@@ -28,6 +28,27 @@
 
 ---
 
+## 플랫폼 진화
+
+FreightScaler는 사용자 요구에 의해 네 단계를 거쳐 성장했습니다:
+
+| 단계 | 트리거 | 한계 | 아키텍처 대응 |
+|---|---|---|---|
+| **1. 경로 리스크 조회** | 초기 제품 | 없음 (서버리스) | Lambda + DynamoDB |
+| **2. 차량 텔레메트리** | "트럭 50대를 실시간으로 보고 싶다" | 일 2,800만 GPS 이벤트, WebSocket 연결 | Kafka + TimescaleDB 하이퍼테이블 + nginx LB |
+| **3. 화물 마켓플레이스** | "이 위험 코리도어에 캐리어를 찾아줘" | 500건 동시 입찰, 실시간 랭킹 | CQRS + 낙관적 잠금 + Redis Sorted Set |
+| **4. 정산** | "날씨로 배송 지연 — 누가 부담하나?" | 서비스 간 다단계 결제 | Saga 오케스트레이터 + 원자적 지갑 + 멱등성 |
+
+각 단계에서 서비스를 추가한 이유는 MSA 자체가 목표가 아니라, 스케일 축이 서로 다르기 때문입니다:
+텔레메트리는 쓰기 집중(333 events/s), 트래킹은 연결 집중(WebSocket), 입찰은 경합 집중(낙관적 잠금),
+정산은 일관성 집중(Saga). 모놀리스로는 이 축들을 독립적으로 스케일할 수 없습니다.
+
+아키텍처 결정 기록: [ADR-0024](docs/adr/0024-freight-platform-msa-evolution.md)
+전체 MSA 아키텍처: [docs/architecture/freight-platform-msa.md](docs/architecture/freight-platform-msa.md)
+SQL 튜닝 사례: [docs/database/tuning-case-studies.md](docs/database/tuning-case-studies.md)
+
+---
+
 ## 아키텍처
 
 ```mermaid

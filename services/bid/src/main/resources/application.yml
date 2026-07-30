@@ -1,0 +1,39 @@
+server:
+  port: ${SERVER_PORT:8080}
+spring:
+  application:
+    name: bid-service
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+    consumer:
+      group-id: bid-svc
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/atmospath}
+    username: ${SPRING_DATASOURCE_USERNAME:atmospath}
+    password: ${SPRING_DATASOURCE_PASSWORD:devpassword}
+    hikari:
+      maximum-pool-size: 15
+  data:
+    redis:
+      url: ${REDIS_URL:redis://localhost:6379}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+bid:
+  topic: bid-events
+  rate-limit:
+    max-bids-per-carrier-per-minute: 5
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics

@@ -80,3 +80,21 @@ It is not provisioned in dev or production by default.
 - The default public API ceiling is one request per second with a burst of
   three. Even a sustained abusive caller is therefore bounded before WAF is
   justified.
+
+## Freight Platform (AWS Managed Services)
+
+Estimated monthly cost for the full MSA stack on AWS managed services.
+Local Docker Compose runs the identical stack at $0.
+
+| Resource | Spec | Purpose | Monthly |
+|---|---|---|---|
+| Amazon MSK | kafka.m5.large × 3 brokers | Event backbone (5 topics) | $450 |
+| Aurora PostgreSQL | db.r6g.large × 3 (1 writer + 2 readers) | OLTP + TimescaleDB | $900 |
+| ElastiCache Redis | cache.r6g.large × 2 | Ranking, idempotency, rate limits | $400 |
+| ECS Fargate | 8 services, ~4 vCPU / 8 GB total | Service compute | $300 |
+| ALB | 1 (with WebSocket support) | Load balancing | $25 |
+| CloudFront | existing | Static + API cache | $0 |
+| **Total** | | | **~$2,075/mo** |
+
+Revenue context: at 1,000 fleet customers × $200/mo SaaS = $200,000 MRR.
+Infrastructure cost = **1.0% of revenue**.

@@ -1,0 +1,30 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: telemetry-service
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+  data:
+    redis:
+      url: ${REDIS_URL:redis://localhost:6379}
+
+telemetry:
+  topic: telemetry-raw
+  rate-limit:
+    max-pings-per-truck-per-10s: 1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
