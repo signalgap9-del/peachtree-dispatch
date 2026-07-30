@@ -58,7 +58,7 @@ public class LoadRepository {
                          max_rate_cents, corridor_id, corridor_risk, status)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    Statement.RETURN_GENERATED_KEYS);
+                    new String[] { "id" });
             ps.setObject(1, load.tenantId());
             ps.setString(2, load.origin());
             ps.setString(3, load.destination());

@@ -45,6 +45,8 @@ SELECT add_compression_policy('tracking_event', INTERVAL '7 days', if_not_exists
 SELECT add_retention_policy('tracking_event', INTERVAL '30 days', if_not_exists => TRUE);
 
 -- Continuous aggregate: hourly position summary per truck
+-- WITH NO DATA so creation can run inside Flyway's transaction; the refresh
+-- policy below populates it incrementally.
 CREATE MATERIALIZED VIEW IF NOT EXISTS cagg_tracking_hourly
 WITH (timescaledb.continuous) AS
 SELECT
@@ -57,7 +59,8 @@ SELECT
     avg(lat) AS avg_lat,
     avg(lon) AS avg_lon
 FROM tracking_event
-GROUP BY bucket, truck_id, corridor_id;
+GROUP BY bucket, truck_id, corridor_id
+WITH NO DATA;
 
 -- Refresh policy: refresh hourly aggregate every 10 minutes
 SELECT add_continuous_aggregate_policy('cagg_tracking_hourly',

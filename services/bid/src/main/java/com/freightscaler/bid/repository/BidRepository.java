@@ -43,7 +43,7 @@ public class BidRepository {
                     INSERT INTO bid (load_id, carrier_id, rate_cents, estimated_hours, risk_ack, status, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
-                    Statement.RETURN_GENERATED_KEYS
+                    new String[] { "id" }
             );
             ps.setLong(1, bid.loadId());
             ps.setObject(2, bid.carrierId());

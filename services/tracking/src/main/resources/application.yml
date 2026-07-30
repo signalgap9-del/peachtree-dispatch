@@ -24,6 +24,11 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    # Freight services share the atmospath database but each owns one migration
+    # (V018-V022). Skip cross-service validation and apply our own migration
+    # regardless of startup order.
+    validate-on-migrate: false
+    out-of-order: true
 
 tracking:
   topic: telemetry-raw
