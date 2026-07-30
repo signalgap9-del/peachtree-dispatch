@@ -22,6 +22,18 @@ variable "private_subnet_ids" {
   type        = list(string)
 }
 
+variable "vpc_cidr" {
+  description = "CIDR block of the VPC; used to scope security-group egress to internal traffic only"
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "certificate_arn" {
+  description = "ACM certificate ARN for the ALB HTTPS listener"
+  type        = string
+  default     = ""
+}
+
 variable "project_name" {
   description = "Project name used as prefix for resource naming"
   type        = string

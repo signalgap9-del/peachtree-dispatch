@@ -160,7 +160,7 @@ resource "aws_ecs_service" "services" {
   deployment_minimum_healthy_percent = 100
   deployment_maximum_percent         = 200
 
-  depends_on = [aws_lb_listener.http]
+  depends_on = [aws_lb_listener.https]
 
   tags = {
     Name = "${var.project_name}-${each.key}-svc-${var.environment}"
@@ -235,7 +235,9 @@ resource "aws_security_group" "ecs_tasks" {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.vpc_cidr] # internal egress (db, cache, broker). Internet egress
+    # (image pulls, NWS/NOAA APIs) leaves via the NAT gateway; add a scoped
+    # 443 egress here when deploying rather than opening 0.0.0.0/0.
   }
 
   lifecycle {

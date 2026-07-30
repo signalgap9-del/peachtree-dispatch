@@ -5,3 +5,8 @@ AVD-AWS-0011
 # Public static web assets contain no secrets. SSE-S3 avoids a customer-managed
 # KMS key's fixed monthly cost; Terraform state remains encrypted with a CMK.
 AVD-AWS-0132
+
+# The freight-platform ALB is intentionally internet-facing: it is the public
+# entry point for the freight API (HTTPS-terminated, WAF-fronted decision is
+# documented above). Making it internal would break the public API design.
+AVD-AWS-0053
