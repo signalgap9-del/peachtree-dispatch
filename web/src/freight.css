@@ -1,0 +1,407 @@
+/* Freight platform screens (Fleet, Loads, Carriers, Settlements).
+   Uses the AtmosPath design tokens defined in styles.css :root.
+   Map-first where relevant; panels and lists stay calm and restrained. */
+
+.freight-page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 24px 20px 64px;
+}
+
+.freight-page--flush {
+  max-width: none;
+  padding: 0;
+}
+
+.freight-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.freight-head h1 {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin: 0 0 4px;
+}
+
+.freight-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.freight-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.freight-select {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 9999px;
+  height: 36px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.freight-select:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+
+/* ── Stat blocks (Fleet overview) ── */
+.freight-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.freight-stat {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.freight-stat strong {
+  display: block;
+  font-family: "DM Mono", ui-monospace, monospace;
+  font-size: 26px;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.1;
+}
+
+.freight-stat span {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Cards (Loads) ── */
+.freight-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+}
+
+.freight-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.freight-card:hover {
+  box-shadow: 0 6px 20px rgba(32, 33, 36, 0.08);
+  transform: translateY(-1px);
+}
+
+.freight-card-route {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.freight-card-route .arrow {
+  color: var(--muted);
+}
+
+.freight-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.freight-card-meta .mono {
+  font-family: "DM Mono", ui-monospace, monospace;
+  color: var(--ink);
+}
+
+.freight-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+}
+
+/* ── Chips (risk / status) ── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 9999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.chip .mono {
+  font-family: "DM Mono", ui-monospace, monospace;
+  font-weight: 500;
+}
+
+.chip--green { background: #e6f4ea; color: var(--green); }
+.chip--amber { background: #fef7e0; color: #b06000; }
+.chip--red   { background: #fce8e6; color: var(--red); }
+.chip--blue  { background: var(--blue-soft); color: var(--blue); }
+.chip--muted { background: #f1f3f4; color: var(--muted); }
+
+/* ── Buttons ── */
+.fbtn {
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  height: 38px;
+  padding: 0 18px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.15s ease;
+}
+
+.fbtn--primary { background: var(--blue); color: #fff; }
+.fbtn--primary:hover { background: #0842a0; }
+.fbtn--secondary { background: var(--surface); color: var(--blue); border-color: var(--line); }
+.fbtn--secondary:hover { background: var(--blue-soft); }
+.fbtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Leaderboard (Carriers) ── */
+.freight-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.freight-table th,
+.freight-table td {
+  text-align: left;
+  padding: 12px 16px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.freight-table th {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-weight: 700;
+  background: #fafbfc;
+}
+
+.freight-table tr:last-child td { border-bottom: none; }
+
+.freight-table .num {
+  font-family: "DM Mono", ui-monospace, monospace;
+  text-align: right;
+}
+
+.rank-medal { font-size: 16px; }
+.delta-up { color: var(--green); font-weight: 700; }
+.delta-down { color: var(--red); font-weight: 700; }
+.delta-flat { color: var(--muted); }
+
+/* ── Saga stepper (Settlements) ── */
+.saga-stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.saga-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.saga-step .dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  background: #f1f3f4;
+  color: var(--muted);
+}
+
+.saga-step--done .dot { background: var(--green); color: #fff; }
+.saga-step--done { color: var(--ink); }
+.saga-step--active .dot { background: var(--blue); color: #fff; animation: saga-pulse 1.4s ease-in-out infinite; }
+.saga-step--active { color: var(--blue); }
+.saga-step--failed .dot { background: var(--red); color: #fff; }
+.saga-step--failed { color: var(--red); }
+
+.saga-connector {
+  width: 18px;
+  height: 2px;
+  background: var(--line);
+  border-radius: 1px;
+}
+
+@keyframes saga-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(11, 87, 208, 0.4); }
+  50% { box-shadow: 0 0 0 5px rgba(11, 87, 208, 0); }
+}
+
+/* ── Fleet map layout ── */
+.fleet-shell {
+  position: relative;
+  height: calc(100vh - 64px);
+  min-height: 520px;
+}
+
+.fleet-map {
+  position: absolute;
+  inset: 0;
+}
+
+.fleet-panel {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  width: 300px;
+  max-height: calc(100% - 32px);
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 8px 28px rgba(32, 33, 36, 0.12);
+  padding: 16px;
+  z-index: 2;
+}
+
+.fleet-truck-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+}
+
+.fleet-truck-row:hover { background: #f1f3f4; }
+.fleet-truck-row.active { background: var(--blue-soft); }
+
+.fleet-truck-id {
+  font-family: "DM Mono", ui-monospace, monospace;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.fleet-truck-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.fleet-selected-card {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  width: 320px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 8px 28px rgba(32, 33, 36, 0.12);
+  padding: 16px;
+  z-index: 2;
+}
+
+/* ── Loading / empty states ── */
+.freight-loading,
+.freight-empty {
+  text-align: center;
+  padding: 56px 20px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.freight-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--line);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  margin: 0 auto 12px;
+  animation: freight-spin 0.8s linear infinite;
+}
+
+@keyframes freight-spin { to { transform: rotate(360deg); } }
+
+.freight-load-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+/* ── Responsive: panels become bottom sheets on mobile ── */
+@media (max-width: 640px) {
+  .freight-page { padding: 16px 14px 48px; }
+  .freight-head h1 { font-size: 22px; }
+  .freight-cards { grid-template-columns: 1fr; }
+
+  .fleet-panel {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: auto;
+    max-height: 42%;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .fleet-selected-card {
+    bottom: auto;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+
+  .freight-table th:nth-child(4),
+  .freight-table td:nth-child(4) { display: none; }
+}

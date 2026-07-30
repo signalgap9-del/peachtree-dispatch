@@ -9,6 +9,10 @@ import {
   LayoutDashboard,
   LogIn,
   Map,
+  Package,
+  Receipt,
+  Trophy,
+  Truck,
   ShieldAlert,
   Settings,
   User,
@@ -32,6 +36,7 @@ import { ToastHost } from "./Toast";
 import type { BillingSubscription, NationalRiskOverview, NationalWeatherSnapshot, RiskSuggestion, WeatherRasterManifest } from "./types";
 import { notify } from "./ui";
 import "./styles.css";
+import "./freight.css";
 
 export type Navigate = (path: string) => void;
 export type DataStatus = "loading" | "ready" | "degraded";
@@ -40,6 +45,10 @@ const navItems = [
   { path: "/", labelKey: "nav.home", icon: Home },
   { path: "/map", labelKey: "nav.map", icon: Map },
   { path: "/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
+  { path: "/fleet", labelKey: "nav.fleet", icon: Truck },
+  { path: "/loads", labelKey: "nav.loads", icon: Package },
+  { path: "/carriers", labelKey: "nav.carriers", icon: Trophy },
+  { path: "/settlements", labelKey: "nav.settlements", icon: Receipt },
   { path: "/saved", labelKey: "nav.saved", icon: Bookmark },
   { path: "/alerts", labelKey: "nav.alerts", icon: ShieldAlert },
   { path: "/usage", labelKey: "nav.usage", icon: Gauge },
@@ -62,6 +71,10 @@ const PricingPage = lazy(() => import("./ProductPages").then((module) => ({ defa
 const AccountPage = lazy(() => import("./AccountPage").then((module) => ({ default: module.AccountPage })));
 const PlaceDetailPage = lazy(() => import("./ProductPages").then((module) => ({ default: module.PlaceDetailPage })));
 const SettingsPage = lazy(() => import("./SettingsPage").then((module) => ({ default: module.SettingsPage })));
+const FleetPage = lazy(() => import("./freight/FleetPage").then((module) => ({ default: module.FleetPage })));
+const LoadsPage = lazy(() => import("./freight/LoadsPage").then((module) => ({ default: module.LoadsPage })));
+const CarriersPage = lazy(() => import("./freight/CarriersPage").then((module) => ({ default: module.CarriersPage })));
+const SettlementsPage = lazy(() => import("./freight/SettlementsPage").then((module) => ({ default: module.SettlementsPage })));
 const TermsPage = lazy(() => import("./LegalPages").then((module) => ({ default: module.TermsPage })));
 const PrivacyPage = lazy(() => import("./LegalPages").then((module) => ({ default: module.PrivacyPage })));
 
@@ -245,6 +258,10 @@ function AppShell() {
               <Route path="/app/status" element={<OperationalStatusPage navigate={navigate} dataStatus={dataStatus} national={nationalRisk} weatherSnapshot={weatherSnapshot} weatherRaster={weatherRaster} />} />
               <Route path="/app/pricing" element={<PricingPage navigate={navigate} />} />
               <Route path="/app/account" element={<AccountPage navigate={navigate} />} />
+              <Route path="/app/fleet" element={<FleetPage navigate={navigate} />} />
+              <Route path="/app/loads" element={<LoadsPage navigate={navigate} />} />
+              <Route path="/app/carriers" element={<CarriersPage navigate={navigate} />} />
+              <Route path="/app/settlements" element={<SettlementsPage navigate={navigate} />} />
               <Route path="/app/settings" element={<SettingsPage navigate={navigate} />} />
               <Route path="/app/legal/terms" element={<TermsPage navigate={navigate} />} />
               <Route path="/app/legal/privacy" element={<PrivacyPage navigate={navigate} />} />
