@@ -66,37 +66,43 @@ jobs:
       service-name: ${{ matrix.name }}
 
   relational-schema:
-    name: PostgreSQL/PostGIS Schema
+    name: PostgreSQL/TimescaleDB Schema
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgis/postgis:16-3.4
-        env:
-          POSTGRES_DB: atmospath
-          POSTGRES_USER: atmospath
-          POSTGRES_PASSWORD: atmospath
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U atmospath -d atmospath"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y postgresql-client
-      - name: Apply PostGIS schema
+      - name: Start TimescaleDB (mirrors compose postgres-primary)
+        run: |
+          docker run -d --name freight-pg \
+            -e POSTGRES_DB=atmospath -e POSTGRES_USER=atmospath -e POSTGRES_PASSWORD=atmospath \
+            -p 5432:5432 timescale/timescaledb-ha:pg16 \
+            postgres -c shared_preload_libraries=timescaledb,pg_stat_statements,pg_cron -c cron.database_name=atmospath
+          for i in $(seq 1 90); do
+            pg_isready -h 127.0.0.1 -U atmospath -d atmospath >/dev/null 2>&1 && break
+            sleep 1
+          done
+          export PGPASSWORD=atmospath
+          for i in $(seq 1 90); do
+            [ "$(psql -h 127.0.0.1 -tAc "SELECT 1 FROM pg_extension WHERE extname='timescaledb_toolkit'" -U atmospath -d atmospath 2>/dev/null)" = "1" ] && break
+            sleep 1
+          done
+      - name: Apply migrations V001-V017
         env:
           PGPASSWORD: atmospath
-        run: psql -h 127.0.0.1 -U atmospath -d atmospath -v ON_ERROR_STOP=1 -f services/platform-api/src/main/resources/db/migration/V001__identity_saved_items_postgis.sql
-      - name: Verify spatial indexes and query
+        working-directory: services/platform-api/src/main/resources/db/migration
+        run: |
+          for f in $(ls V0*.sql | sort -V); do
+            echo "== $f"
+            psql -h 127.0.0.1 -U atmospath -d atmospath -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+      - name: Verify schema objects
         env:
           PGPASSWORD: atmospath
         run: |
-          psql -h 127.0.0.1 -U atmospath -d atmospath -v ON_ERROR_STOP=1 -c "SELECT PostGIS_Version();"
-          psql -h 127.0.0.1 -U atmospath -d atmospath -v ON_ERROR_STOP=1 -c "SELECT ST_DWithin(ST_Point(-84.388, 33.749)::geography, ST_Point(-84.4, 33.75)::geography, 5000);"
-          psql -h 127.0.0.1 -U atmospath -d atmospath -v ON_ERROR_STOP=1 -c "SELECT to_regclass('public.risk_exposure');"
-          psql -h 127.0.0.1 -U atmospath -d atmospath -v ON_ERROR_STOP=1 -c "SELECT COUNT(*) FROM pg_indexes WHERE tablename = 'risk_exposure' AND indexdef LIKE '%USING gist%';"
+          psql -h 127.0.0.1 -U atmospath -d atmospath -v ON_ERROR_STOP=1 -c "DO \$\$ BEGIN IF to_regclass('public.tenant') IS NULL THEN RAISE EXCEPTION 'missing tenant'; END IF; END \$\$;"
+          psql -h 127.0.0.1 -U atmospath -d atmospath -v ON_ERROR_STOP=1 -c "DO \$\$ BEGIN IF to_regclass('public.route_risk_observation') IS NULL THEN RAISE EXCEPTION 'missing route_risk_observation'; END IF; END \$\$;"
+          psql -h 127.0.0.1 -U atmospath -d atmospath -v ON_ERROR_STOP=1 -c "DO \$\$ BEGIN IF to_regclass('public.usage_record') IS NULL THEN RAISE EXCEPTION 'missing usage_record'; END IF; END \$\$;"
+          psql -h 127.0.0.1 -U atmospath -d atmospath -v ON_ERROR_STOP=1 -c "SELECT extname FROM pg_extension WHERE extname IN ('timescaledb','vector') ORDER BY extname;"
 
   containers:
     name: Container Builds
