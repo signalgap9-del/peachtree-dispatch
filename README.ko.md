@@ -47,6 +47,25 @@ FreightScaler는 사용자 요구에 의해 네 단계를 거쳐 성장했습니
 전체 MSA 아키텍처: [docs/architecture/freight-platform-msa.md](docs/architecture/freight-platform-msa.md)
 SQL 튜닝 사례: [docs/database/tuning-case-studies.md](docs/database/tuning-case-studies.md)
 
+### 대용량 데이터 처리
+
+고볼륨 텔레메트리 파이프라인과 계층화(time-tiered) 시계열 저장소가 핵심입니다:
+
+- **수집** — 트럭 10,000대 × 일 2,880 핑 = **일 2,880만 이벤트**
+  (평균 ~333 writes/s, 버스트 3,000+/s). Kafka에 `truckId` 파티셔닝으로 적재해
+  트럭별 순서를 보장하고, tracking 컨슈머가 TimescaleDB에 배치 INSERT.
+- **스토리지 티어링** — `tracking_event`는 7일 청크 **hypertable**:
+  hot(0-7d 무압축) → warm(7-30d 컬럼 압축 10-20×) → 90d 이후 삭제.
+  연속 집계(`cagg_tracking_hourly`)가 시간별 롤업을 사전 계산.
+- **용량 모델** — 100k 사용자 기준 관측 테이블 ~6.5억 행 steady-state,
+  압축 시 working set ~195GB → ~20-30GB. 샤딩 트리거는 측정 기반 정의
+  ([ADR-0020](docs/adr/0020-database-scale-sharding.md) 참조).
+- **쿼리 성능** — 키셋 페이지네이션(OFFSET 제거), 커버링 인덱스(Index Only Scan),
+  sargable 조건으로 나이브 쿼리 대비 **24×-400× 개선**
+  ([SQL 튜닝 사례](docs/database/tuning-case-studies.md) 참조).
+- **실시간** — Redis Sorted Set으로 서브밀리초 캐리어 랭킹, 슬라이딩 윈도우
+  레이트 리밋으로 수집 경로 보호, WebSocket으로 실시간 위치 푸시.
+
 ---
 
 ## 아키텍처

@@ -69,8 +69,12 @@ database transaction.
 
 ### Data stores
 
-- **PostgreSQL 16 + TimescaleDB:** OLTP + time-series (`tracking_event`
-  hypertable, 7-day chunks, compression, retention)
+- **PostgreSQL 16 + TimescaleDB:** OLTP + time-series. `tracking_event` is a
+  hypertable with 7-day chunks, tiered hot (0-7d uncompressed) / warm (7-30d
+  columnar-compressed 10-20×) / dropped (90d). Continuous aggregates serve
+  hourly rollups. At 100k users the observation table reaches ~650M rows
+  steady-state; compression brings the working set from ~195 GB to ~20-30 GB
+  (capacity model and sharding triggers in ADR-0020).
 - **Redis 7:** ranking (Sorted Set), idempotency (`SET NX`), rate limiting
   (ZSET sliding window)
 - **Kafka (KRaft):** event backbone, 5 topics, partition key = entity ID for

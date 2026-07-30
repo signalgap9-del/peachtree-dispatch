@@ -379,7 +379,7 @@ export const directionsPlan: DirectionsPlan = {
 
 export async function installApiMocks(page: Page) {
   await page.addInitScript(() => {
-    localStorage.setItem("atmospath:language", "en");
+    localStorage.setItem("freightscaler:language", "en");
   });
   await page.route("https://basemaps.cartocdn.com/**", (route) => route.fulfill({
     contentType: "image/svg+xml",
@@ -456,8 +456,8 @@ export async function seedSignedInUser(page: Page) {
       email: "driver@example.com",
       exp: Math.floor(Date.now() / 1000) + 3600,
     })).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
-    sessionStorage.setItem("atmospath:id-token", `e30.${payload}.sig`);
-    sessionStorage.setItem("atmospath:access-token", "fixture-access-token");
+    sessionStorage.setItem("freightscaler:id-token", `e30.${payload}.sig`);
+    sessionStorage.setItem("freightscaler:access-token", "fixture-access-token");
   });
 }
 

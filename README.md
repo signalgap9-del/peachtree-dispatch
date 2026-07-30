@@ -49,6 +49,30 @@ Architecture decision record: [ADR-0024](docs/adr/0024-freight-platform-msa-evol
 Full MSA architecture: [docs/architecture/freight-platform-msa.md](docs/architecture/freight-platform-msa.md)
 SQL tuning case studies: [docs/database/tuning-case-studies.md](docs/database/tuning-case-studies.md)
 
+### Large-Scale Data Processing
+
+The platform is built around a high-volume telemetry pipeline and a tiered
+time-series store:
+
+- **Ingestion** — 10,000 trucks × 2,880 pings/day = **28.8M events/day**
+  (~333 writes/s average, 3,000+/s burst). Pings are published to Kafka
+  (partitioned by `truckId` for per-truck ordering) and batch-inserted into
+  TimescaleDB by the tracking consumers.
+- **Storage tiering** — `tracking_event` is a TimescaleDB **hypertable** with
+  7-day chunks: hot (0-7d, uncompressed) → warm (7-30d, columnar-compressed
+  10-20×) → dropped after 90d. Continuous aggregates (`cagg_tracking_hourly`)
+  pre-compute hourly rollups so dashboards read summaries, not base rows.
+- **Capacity model** — at 100k users the risk-observation table reaches
+  ~650M rows steady-state; compression shrinks the hot+warm working set from
+  ~195 GB to ~20-30 GB. Sharding triggers are defined and measured, not
+  guessed (see [ADR-0020](docs/adr/0020-database-scale-sharding.md)).
+- **Query performance** — keyset pagination (no `OFFSET`), covering indexes
+  (Index Only Scan), and sargable predicates deliver **24×-400× speedups**
+  over naive queries (see [SQL tuning case studies](docs/database/tuning-case-studies.md)).
+- **Real-time** — Redis Sorted Set powers sub-millisecond carrier ranking;
+  a sliding-window limiter protects the ingestion path; WebSocket pushes live
+  positions to fleet dashboards.
+
 ---
 
 ## Architecture
