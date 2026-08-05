@@ -1,52 +1,5 @@
-# Local environment and credentials
-.env
-.env.*
-!.env.example
-.aws/
-credentials
-*.pem
-*.key
-
-# Infrastructure state and generated files
-.terraform/
-.build/
-*.tfstate
-*.tfstate.*
-*.tfplan
-cdk.out/
-.aws-sam/
-
-# Dependencies and build output
-node_modules/
-.tools/
-dist/
-build/
-target/
-coverage/
-*.tsbuildinfo
-web/vite.config.js
-web/vite.config.d.ts
-web/.vite/
-*.db
-*.db-shm
-*.db-wal
-.pytest_cache/
-__pycache__/
-*.pyc
-
-# Editors and operating systems
-.idea/
-.vscode/
-.DS_Store
-Thumbs.db
-
-# Local design research captures
-tmp/
-web/test-results/
-web/playwright-report/
-
-# Local codebase knowledge graph
-.understand-anything/
-
-# test coverage artifacts
-.coverage
+```
+# Documentation files
+INTERVIEW_PREP_COMPLETE.md
+interview-prep-document-part1.md
+```
