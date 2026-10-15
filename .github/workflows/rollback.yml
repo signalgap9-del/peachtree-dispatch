@@ -31,7 +31,7 @@ jobs:
     environment: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: 1.13.5
       - uses: aws-actions/configure-aws-credentials@v4
